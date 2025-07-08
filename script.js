@@ -82,7 +82,7 @@ function loadNoteSounds() {
         // Tab 사운드 풀 생성 (sfx/tab.mp3 사용)
         tabSoundPool = [];
         for (let i = 0; i < SOUND_POOL_SIZE; i++) {
-            const audio = new Audio('sfx/tab.mp3');
+            const audio = new Audio('sfx/tab.wav');
             audio.volume = 1.0;
             audio.preload = 'auto';
             tabSoundPool.push(audio);
@@ -91,7 +91,7 @@ function loadNoteSounds() {
         // Direction 사운드 풀 생성 (tab.mp3와 동일한 파일 사용)
         directionSoundPool = [];
         for (let i = 0; i < SOUND_POOL_SIZE; i++) {
-            const audio = new Audio('sfx/tab.mp3'); // 동일한 파일 사용
+            const audio = new Audio('sfx/tab.wav'); // 동일한 파일 사용
             audio.volume = 1.0;
             audio.preload = 'auto';
             directionSoundPool.push(audio);
@@ -2169,7 +2169,7 @@ function loadNoteSounds() {
         // Tab 사운드 풀 생성 (sfx/tab.mp3 사용)
         tabSoundPool = [];
         for (let i = 0; i < SOUND_POOL_SIZE; i++) {
-            const audio = new Audio('sfx/tab.mp3');
+            const audio = new Audio('sfx/tab.wav');
             audio.volume = sfxVolume; // 효과음 볼륨 적용
             audio.preload = 'auto';
             tabSoundPool.push(audio);
@@ -2178,7 +2178,7 @@ function loadNoteSounds() {
         // Direction 사운드 풀 생성 (tab.mp3와 동일한 파일 사용)
         directionSoundPool = [];
         for (let i = 0; i < SOUND_POOL_SIZE; i++) {
-            const audio = new Audio('sfx/tab.mp3');
+            const audio = new Audio('sfx/tab.wav');
             audio.volume = sfxVolume; // 효과음 볼륨 적용
             audio.preload = 'auto';
             directionSoundPool.push(audio);
