@@ -55,6 +55,7 @@ const waveformProgress = document.getElementById("waveform-progress");
 const rulerCanvas = document.getElementById("ruler-canvas");
 const rulerCtx = rulerCanvas.getContext("2d");
 const waveformSlider = document.getElementById("waveform-slider");
+
 let audioBuffer = null;
 let waveformData = null;
 let waveformZoom = 1;
@@ -881,14 +882,13 @@ function drawPath() {
 // 로컬 스토리지 저장/로드 (오디오 파일 정보 포함)
 function saveToStorage() {
     const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
-    const adjustedPreDelay = isMacOS() ? preDelayValue - MAC_DELAY_OFFSET : preDelayValue;
 
     const saveData = {
         notes: notes,
         audioFileName: savedAudioFile ? savedAudioFile.name : null,
         audioFileSize: savedAudioFile ? savedAudioFile.size : null,
         audioFileType: savedAudioFile ? savedAudioFile.type : null,
-        preDelay: adjustedPreDelay // Mac OS에서는 -800 적용
+        preDelay: preDelayValue // Mac OS에서는 -800 적용
     };
     localStorage.setItem("autosave_notes", JSON.stringify(saveData));
 }
@@ -907,7 +907,7 @@ function loadFromStorage() {
 
                 // Pre-delay 설정 복원 (Mac OS에서는 +800 적용)
                 if (parsed.preDelay !== undefined) {
-                    const adjustedPreDelay = isMacOS() ? parsed.preDelay + MAC_DELAY_OFFSET : parsed.preDelay;
+                    const adjustedPreDelay = parsed.preDelay;
                     document.getElementById("pre-delay").value = adjustedPreDelay;
                 }
 
@@ -1178,22 +1178,22 @@ function processAudioForWaveform(audioFile) {
 
     // Web Audio API 시도
     try {
-        const audioContext = new(window.AudioContext || window.webkitAudioContext)();
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
         const reader = new FileReader();
 
         reader.onload = function (e) {
             audioContext.decodeAudioData(e.target.result)
-            .then(buffer => {
-                console.log('AudioContext decoding successful');
-                audioBuffer = buffer;
-                generateWaveformData(buffer);
-                drawWaveform();
-                saveToStorage(); // 오디오 파일 정보 저장
-            })
-            .catch(err => {
-                console.warn('AudioContext decoding failed:', err);
-                tryAudioElementMethod(audioFile);
-            });
+                .then(buffer => {
+                    console.log('AudioContext decoding successful');
+                    audioBuffer = buffer;
+                    generateWaveformData(buffer);
+                    drawWaveform();
+                    saveToStorage(); // 오디오 파일 정보 저장
+                })
+                .catch(err => {
+                    console.warn('AudioContext decoding failed:', err);
+                    tryAudioElementMethod(audioFile);
+                });
         };
 
         reader.onerror = function () {
@@ -1680,7 +1680,6 @@ document.addEventListener("DOMContentLoaded", () => {
         const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
 
         // Mac OS에서는 Windows 기준으로 변환하여 저장
-        const windowsPreDelay = isMacOS() ? preDelayValue - MAC_DELAY_OFFSET : preDelayValue;
         const preDelaySeconds = windowsPreDelay / 1000;
 
         const exportData = {
@@ -1755,9 +1754,6 @@ document.addEventListener("DOMContentLoaded", () => {
                     const subdivisions = json.subdivisions || 16;
                     const windowsPreDelay = json.preDelay || 3000;
 
-                    // Mac OS에서는 Windows 기준 데이터를 Mac 기준으로 변환
-                    const macPreDelay = isMacOS() ? windowsPreDelay + MAC_DELAY_OFFSET : windowsPreDelay;
-
                     json.noteList.forEach(n => {
                         const beat = n.beat !== undefined ? n.beat : timeToBeat(n.time || 0, bpm, subdivisions);
                         notes.push({
@@ -1769,7 +1765,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
                     document.getElementById("bpm").value = bpm;
                     document.getElementById("subdivisions").value = subdivisions;
-                    document.getElementById("pre-delay").value = macPreDelay;
+                    document.getElementById("pre-delay").value = windowsPreDelay;
 
                     // 이전 값 업데이트
                     document.getElementById("bpm").dataset.previousValue = bpm;
@@ -1990,27 +1986,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // 사용 가능한 subdivisions 값들 (2, 12, 16, 24 포함)
         const subdivisionsOptions = [{
-                value: 2,
-                label: "2"
-            }, {
-                value: 4,
-                label: "4"
-            }, {
-                value: 8,
-                label: "8"
-            }, {
-                value: 12,
-                label: "12"
-            }, {
-                value: 16,
-                label: "16"
-            }, {
-                value: 24,
-                label: "24"
-            }, {
-                value: 32,
-                label: "32"
-            }
+            value: 2,
+            label: "2"
+        }, {
+            value: 4,
+            label: "4"
+        }, {
+            value: 8,
+            label: "8"
+        }, {
+            value: 12,
+            label: "12"
+        }, {
+            value: 16,
+            label: "16"
+        }, {
+            value: 24,
+            label: "24"
+        }, {
+            value: 32,
+            label: "32"
+        }
         ];
 
         // 옵션들 추가
@@ -2024,6 +2020,91 @@ document.addEventListener("DOMContentLoaded", () => {
         // 기본값 설정 (16으로 설정)
         subdivisionsSelect.value = "16";
         subdivisionsSelect.dataset.previousValue = "16";
+    }
+
+    function createAudioSystemButton() {
+        const button = document.createElement('button');
+        button.id = 'init-improved-audio';
+        button.innerHTML = '🎵 개선된 오디오 시스템 시작';
+        button.style.cssText = `
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; padding: 15px 30px; 
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white; border: none; border-radius: 8px; 
+            font-size: 16px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 16px rgba(76, 175, 80, 0.4);
+            transition: all 0.3s ease;
+        `;
+
+        button.addEventListener('click', async () => {
+            try {
+                button.disabled = true;
+                button.innerHTML = '🔄 초기화 중...';
+
+                // AudioSyncModule이 로드되었는지 확인
+                if (typeof AudioSyncModule === 'undefined') {
+                    throw new Error('AudioSyncModule이 로드되지 않았습니다. audio-sync-module.js 파일을 확인해주세요.');
+                }
+
+                // 개선된 오디오 시스템 초기화
+                const success = await AudioSyncModule.init();
+
+                if (success) {
+                    // 성공 메시지 표시
+                    showSuccessMessage('✅ 개선된 오디오 시스템이 활성화되었습니다!');
+                    button.remove(); // 버튼 제거
+
+                    console.log('🎉 개선된 오디오 시스템 활성화 완료');
+
+                    // 상태 로그 (개발용)
+                    setTimeout(() => AudioSyncModule.logStatus(), 1000);
+
+                } else {
+                    throw new Error('오디오 시스템 초기화 실패');
+                }
+
+            } catch (error) {
+                console.error('❌ 오디오 시스템 초기화 오류:', error);
+                alert(`오디오 시스템 초기화에 실패했습니다.\n\n오류: ${error.message}\n\n브라우저를 새로고침한 후 다시 시도해주세요.`);
+
+                button.disabled = false;
+                button.innerHTML = '🎵 개선된 오디오 시스템 시작';
+            }
+        });
+
+        return button;
+    }
+
+    // 성공 메시지 표시 함수
+    function showSuccessMessage(message) {
+        const successDiv = document.createElement('div');
+        successDiv.innerHTML = message;
+        successDiv.style.cssText = `
+            position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; padding: 12px 24px;
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white; border-radius: 6px; font-size: 14px; font-weight: bold;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+            opacity: 0; transition: opacity 0.3s ease;
+        `;
+
+        document.body.appendChild(successDiv);
+
+        // 애니메이션 효과
+        setTimeout(() => successDiv.style.opacity = '1', 10);
+        setTimeout(() => {
+            successDiv.style.opacity = '0';
+            setTimeout(() => successDiv.remove(), 300);
+        }, 3000);
+    }
+
+    // AudioSyncModule이 있으면 버튼 생성
+    if (typeof AudioSyncModule !== 'undefined') {
+        const audioButton = createAudioSystemButton();
+        document.body.appendChild(audioButton);
+        console.log('🎛️ 개선된 오디오 시스템 활성화 버튼 생성됨');
+    } else {
+        console.warn('⚠️ AudioSyncModule을 찾을 수 없습니다. audio-sync-module.js가 로드되었는지 확인해주세요.');
     }
 
     // 토글 기능 설정 (DOMContentLoaded 이벤트 리스너 안에 추가)
@@ -2155,14 +2236,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     console.log('Initialization complete');
 });
-
-function isMacOS() {
-    return navigator.platform.toUpperCase().indexOf('MAC') >= 0 ||
-    navigator.userAgent.toUpperCase().indexOf('MAC') >= 0;
-}
-
-// Mac OS용 pre-delay 조정값
-const MAC_DELAY_OFFSET = 800; // ms
 
 function loadNoteSounds() {
     try {

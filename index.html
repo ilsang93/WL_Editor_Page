@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Rhythm Chart Editor</title>
   <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
   <div id="sidebar">
     <div style="padding: 8px;">
@@ -13,7 +15,7 @@
       <br><br>
       <label>Pre-delay (ms): <input id="pre-delay" type="number" value="3000" min="0" max="10000" step="100" /></label>
       <br><br>
-      <label>Subdivisions: 
+      <label>Subdivisions:
         <select id="subdivisions">
           <option value="4">4분박</option>
           <option value="8">8분박</option>
@@ -25,7 +27,12 @@
     <table>
       <thead>
         <tr>
-          <th>NO.</th><th>Type</th><th>Beat</th><th>Time</th><th>Direction</th><th></th>
+          <th>NO.</th>
+          <th>Type</th>
+          <th>Beat</th>
+          <th>Time</th>
+          <th>Direction</th>
+          <th></th>
         </tr>
       </thead>
       <tbody id="note-list">
@@ -33,35 +40,35 @@
       </tbody>
     </table>
   </div>
-  
+
   <!-- 사이드바 토글 버튼 (사이드바 밖에 위치) -->
   <button id="sidebar-toggle" class="toggle-btn sidebar-toggle">◀</button>
-  
+
   <div id="main">
     <div id="top-bar">
       <button id="save-json">Save Json</button>
       <button id="load-json">Load Json</button>
       <button id="sort-notes">Sort by Beat</button>
       <button id="clear-notes">Clear All</button>
-	  <div id="volume-controls">
-      <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <label style="font-size: 11px; min-width: 50px;">음악:</label>
-          <input type="range" id="music-volume" min="0" max="100" value="50" step="1" style="width: 100px;">
-          <span id="music-volume-display" style="font-size: 11px; min-width: 30px;">50%</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <label style="font-size: 11px; min-width: 50px;">효과음:</label>
-          <input type="range" id="sfx-volume" min="0" max="100" value="100" step="1" style="width: 100px;">
-          <span id="sfx-volume-display" style="font-size: 11px; min-width: 30px;">100%</span>
+      <div id="volume-controls">
+        <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 11px; min-width: 50px;">음악:</label>
+            <input type="range" id="music-volume" min="0" max="100" value="50" step="1" style="width: 100px;">
+            <span id="music-volume-display" style="font-size: 11px; min-width: 30px;">50%</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label style="font-size: 11px; min-width: 50px;">효과음:</label>
+            <input type="range" id="sfx-volume" min="0" max="100" value="100" step="1" style="width: 100px;">
+            <span id="sfx-volume-display" style="font-size: 11px; min-width: 30px;">100%</span>
+          </div>
         </div>
       </div>
     </div>
-    </div>
-    
+
     <canvas id="canvas"></canvas>
   </div>
-  
+
   <!-- 우하단 플로팅 컨트롤 패널 -->
   <div id="control-bar">
     <div id="control-bar-content">
@@ -73,22 +80,22 @@
           <button id="demo-stop">⏹</button>
         </div>
       </div>
-      
+
       <div id="time-controls">
         <div id="demo-time">00:00:00 / 00:00:00</div>
         <input type="range" id="demo-seekbar" value="0" min="0" max="1000" step="1">
       </div>
-      
+
       <div id="note-controls">
         <button class="tab" id="add-tab">tab note +</button>
         <button class="dir" id="add-dir">direction Note +</button>
       </div>
     </div>
   </div>
-  
+
   <!-- 컨트롤바 토글 버튼 (컨트롤바 밖에 위치) -->
   <button id="control-bar-toggle" class="toggle-btn control-bar-toggle">×</button>
-  
+
   <!-- 음향 그래프 플로팅 영역 -->
   <div id="waveform-container">
     <div id="waveform-controls">
@@ -106,10 +113,12 @@
       <input type="range" id="waveform-slider" min="0" max="100" value="0" step="1">
     </div>
   </div>
-  
+
   <!-- 마우스 트리거 영역 -->
   <div class="waveform-trigger-zone"></div>
-  
+
+  <script src="audio-sync-module.js"></script>
   <script src="script.js"></script>
 </body>
+
 </html>
