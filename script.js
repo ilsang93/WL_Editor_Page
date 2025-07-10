@@ -879,16 +879,90 @@ function drawPath() {
     }
 }
 
+// IndexedDB 관련 함수들 추가
+const DB_NAME = 'ChartEditorDB';
+const DB_VERSION = 1;
+const AUDIO_STORE = 'audioFiles';
+
+let db = null;
+
+// IndexedDB 초기화
+async function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+            db = request.result;
+            resolve(db);
+        };
+
+        request.onupgradeneeded = (e) => {
+            const database = e.target.result;
+            if (!database.objectStoreNames.contains(AUDIO_STORE)) {
+                database.createObjectStore(AUDIO_STORE);
+            }
+        };
+    });
+}
+
+// 오디오 파일 저장
+async function saveAudioFile(file) {
+    if (!db) await initDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([AUDIO_STORE], 'readwrite');
+        const store = transaction.objectStore(AUDIO_STORE);
+
+        const audioData = {
+            file: file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            lastModified: file.lastModified
+        };
+
+        const request = store.put(audioData, 'currentAudio');
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+// 오디오 파일 로드
+async function loadAudioFile() {
+    if (!db) await initDB();
+
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction([AUDIO_STORE], 'readonly');
+        const store = transaction.objectStore(AUDIO_STORE);
+        const request = store.get('currentAudio');
+
+        request.onsuccess = () => {
+            const result = request.result;
+            if (result && result.file) {
+                resolve(result.file);
+            } else {
+                resolve(null);
+            }
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
 // 로컬 스토리지 저장/로드 (오디오 파일 정보 포함)
 function saveToStorage() {
     const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
+    const bpmValue = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisionsValue = parseInt(document.getElementById("subdivisions").value || 16);
 
     const saveData = {
         notes: notes,
+        bpm: bpmValue,                    // 추가
+        subdivisions: subdivisionsValue,  // 추가
         audioFileName: savedAudioFile ? savedAudioFile.name : null,
         audioFileSize: savedAudioFile ? savedAudioFile.size : null,
         audioFileType: savedAudioFile ? savedAudioFile.type : null,
-        preDelay: preDelayValue // Mac OS에서는 -800 적용
+        preDelay: preDelayValue
     };
     localStorage.setItem("autosave_notes", JSON.stringify(saveData));
 }
@@ -905,34 +979,56 @@ function loadFromStorage() {
             } else if (parsed.notes && Array.isArray(parsed.notes)) {
                 notes.splice(0, notes.length, ...parsed.notes);
 
-                // Pre-delay 설정 복원 (Mac OS에서는 +800 적용)
+                // BPM과 Subdivisions 복원 (추가)
+                if (parsed.bpm !== undefined) {
+                    document.getElementById("bpm").value = parsed.bpm;
+                    document.getElementById("bpm").dataset.previousValue = parsed.bpm;
+                }
+                if (parsed.subdivisions !== undefined) {
+                    document.getElementById("subdivisions").value = parsed.subdivisions;
+                    document.getElementById("subdivisions").dataset.previousValue = parsed.subdivisions;
+                }
+
+                // Pre-delay 설정 복원
                 if (parsed.preDelay !== undefined) {
                     const adjustedPreDelay = parsed.preDelay;
                     document.getElementById("pre-delay").value = adjustedPreDelay;
                 }
 
-                // 오디오 파일 정보 복원
-                if (parsed.audioFileName) {
-                    savedAudioFile = {
-                        name: parsed.audioFileName,
-                        size: parsed.audioFileSize || 0,
-                        type: parsed.audioFileType || 'audio/*'
-                    };
+                loadAudioFile().then(audioFile => {
+                    if (audioFile) {
+                        console.log('Auto-loading saved audio file:', audioFile.name);
 
-                    // 파일 입력 요소에 표시할 텍스트 설정
-                    setTimeout(() => {
+                        // 파일 입력 요소 업데이트
                         const fileInput = document.getElementById("audio-file");
+                        const dt = new DataTransfer();
+                        dt.items.add(audioFile);
+                        fileInput.files = dt.files;
+
+                        // 오디오 처리
+                        if (audioFileURL) URL.revokeObjectURL(audioFileURL);
+                        audioFileURL = URL.createObjectURL(audioFile);
+                        demoAudio.src = audioFileURL;
+                        demoAudio.volume = musicVolume;
+                        demoAudio.load();
+
+                        // 파일 표시 업데이트
                         const container = fileInput.parentElement;
                         let indicator = container.querySelector('.file-indicator');
                         if (!indicator) {
                             indicator = document.createElement('div');
                             indicator.className = 'file-indicator';
-                            indicator.style.cssText = 'margin-top: 5px; font-size: 12px; color: #666; font-style: italic;';
+                            indicator.style.cssText = 'margin-top: 5px; font-size: 12px; color: #4CAF50; font-weight: bold;';
                             container.appendChild(indicator);
                         }
-                        indicator.textContent = `이전 파일: ${parsed.audioFileName} (다시 선택 필요)`;
-                    }, 100);
-                }
+                        indicator.textContent = `자동 복원: ${audioFile.name}`;
+
+                        // 웨이브폼 처리
+                        processAudioForWaveform(audioFile);
+                    }
+                }).catch(err => {
+                    console.warn('Failed to load audio from IndexedDB:', err);
+                });
             }
         } catch (e) {
             console.error("불러오기 실패:", e);
@@ -1173,8 +1269,13 @@ function renderNoteList() {
 function processAudioForWaveform(audioFile) {
     console.log('Processing audio file:', audioFile.name);
 
-    hasAudioFile = true; // 오디오 파일 로드됨 표시
-    savedAudioFile = audioFile; // 파일 정보 저장
+    hasAudioFile = true;
+    savedAudioFile = audioFile;
+
+    // IndexedDB에 저장 (추가)
+    saveAudioFile(audioFile).catch(err => {
+        console.warn('Failed to save audio to IndexedDB:', err);
+    });
 
     // Web Audio API 시도
     try {
@@ -1569,8 +1670,15 @@ function formatTime(sec) {
 }
 
 // 초기화
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     console.log('DOM loaded, initializing...');
+
+    try {
+        await initDB();
+        console.log('IndexedDB initialized');
+    } catch (err) {
+        console.warn('IndexedDB initialization failed:', err);
+    }
 
     setupSubdivisionsOptions();
 
