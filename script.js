@@ -1788,14 +1788,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
 
         // Mac OS에서는 Windows 기준으로 변환하여 저장
-        const preDelaySeconds = windowsPreDelay / 1000;
+        const preDelaySeconds = preDelayValue / 1000;
 
         const exportData = {
             diffIndex: 5,
             level: 10,
             bpm: bpm,
             subdivisions: subdivisions,
-            preDelay: windowsPreDelay,
+            preDelay: preDelaySeconds,
             noteList: notes.map(n => {
                 const originalTime = beatToTime(n.beat, bpm, subdivisions);
 
