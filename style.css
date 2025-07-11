@@ -47,8 +47,9 @@ body {
 #sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 50px; }   /* Type */
 #sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 65px; }   /* Beat */
 #sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 55px; }   /* Time */
-#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 70px; }   /* Direction */
-#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 40px; }   /* Delete */
+#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 60px; }   /* Long */
+#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 70px; }   /* Direction */
+#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 40px; }   /* Delete */
 
 /* Beat 입력 필드 크기 조정 */
 #sidebar td:nth-child(3) input {
@@ -58,8 +59,16 @@ body {
   border: 1px solid #666;
 }
 
+/* Long Time 입력 필드 크기 조정 */
+#sidebar td:nth-child(5) input {
+  width: 55px;
+  padding: 1px 3px;
+  font-size: 10px;
+  border: 1px solid #666;
+}
+
 /* Direction 선택 필드 크기 조정 */
-#sidebar td:nth-child(5) select {
+#sidebar td:nth-child(6) select {
   width: 65px; /* 더 작게 */
   padding: 1px;
   font-size: 10px;
@@ -67,7 +76,7 @@ body {
 }
 
 /* 삭제 버튼 크기 조정 */
-#sidebar td:nth-child(6) button {
+#sidebar td:nth-child(7) button {
   width: 35px; /* 더 작게 */
   padding: 1px 3px;
   font-size: 9px;
@@ -365,6 +374,42 @@ input[type="range"]::-moz-range-thumb {
 
 #note-controls button.dir:hover {
   background: linear-gradient(135deg, #1976D2, #0d47a1);
+}
+
+#note-controls button.both {
+  background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+  border: 1px solid #4A148C;
+}
+
+#note-controls button.both:hover {
+  background: linear-gradient(135deg, #7B1FA2, #4A148C);
+}
+
+#note-controls button.long-tab {
+  background: linear-gradient(135deg, #FF5722, #D84315);
+  border: 1px solid #BF360C;
+}
+
+#note-controls button.long-tab:hover {
+  background: linear-gradient(135deg, #D84315, #BF360C);
+}
+
+#note-controls button.long-dir {
+  background: linear-gradient(135deg, #03A9F4, #0277BD);
+  border: 1px solid #01579B;
+}
+
+#note-controls button.long-dir:hover {
+  background: linear-gradient(135deg, #0277BD, #01579B);
+}
+
+#note-controls button.long-both {
+  background: linear-gradient(135deg, #E91E63, #C2185B);
+  border: 1px solid #880E4F;
+}
+
+#note-controls button.long-both:hover {
+  background: linear-gradient(135deg, #C2185B, #880E4F);
 }
 
 /* 토글 버튼 공통 스타일 */
