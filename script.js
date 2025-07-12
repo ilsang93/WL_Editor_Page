@@ -1785,17 +1785,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("save-json").addEventListener("click", () => {
         const bpm = parseFloat(document.getElementById("bpm").value || 120);
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
-
-        // Mac OS에서는 Windows 기준으로 변환하여 저장
-        const preDelaySeconds = preDelayValue / 1000;
+        const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0); // ms 단위
+        const preDelaySeconds = preDelayValue / 1000; // 계산용으로만 사용
 
         const exportData = {
             diffIndex: 5,
             level: 10,
             bpm: bpm,
             subdivisions: subdivisions,
-            preDelay: preDelaySeconds,
+            preDelay: preDelayValue, // 변경: ms 단위로 저장
             noteList: notes.map(n => {
                 const originalTime = beatToTime(n.beat, bpm, subdivisions);
 
@@ -1822,6 +1820,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             metadata: {
                 description: "Music starts at 3 seconds, with pre-delay correction",
                 timingExplanation: "finalTime = 3.0 + originalTime + preDelay (except for beat 0 direction note)",
+                preDelayUnit: "milliseconds", // 단위 명시 추가
                 exportedAt: new Date().toISOString()
             }
         };
@@ -1860,7 +1859,20 @@ document.addEventListener("DOMContentLoaded", async () => {
                     notes.length = 0;
                     const bpm = json.bpm || 120;
                     const subdivisions = json.subdivisions || 16;
-                    const windowsPreDelay = json.preDelay || 3000;
+
+                    // 변경: 호환성을 위한 pre-delay 처리
+                    let preDelayMs;
+                    if (json.preDelay !== undefined) {
+                        // 값이 10 이하면 초 단위로 간주 (이전 버전 호환성)
+                        if (json.preDelay <= 10) {
+                            preDelayMs = json.preDelay * 1000; // 초를 ms로 변환
+                            console.log(`Legacy format detected: ${json.preDelay}s converted to ${preDelayMs}ms`);
+                        } else {
+                            preDelayMs = json.preDelay; // 이미 ms 단위
+                        }
+                    } else {
+                        preDelayMs = 0; // 기본값
+                    }
 
                     json.noteList.forEach(n => {
                         const beat = n.beat !== undefined ? n.beat : timeToBeat(n.time || 0, bpm, subdivisions);
@@ -1873,7 +1885,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     document.getElementById("bpm").value = bpm;
                     document.getElementById("subdivisions").value = subdivisions;
-                    document.getElementById("pre-delay").value = windowsPreDelay;
+                    document.getElementById("pre-delay").value = preDelayMs; // ms 단위로 설정
 
                     // 이전 값 업데이트
                     document.getElementById("bpm").dataset.previousValue = bpm;
