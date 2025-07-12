@@ -233,6 +233,13 @@ function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdi
         // 새로운 설정으로 비트 재계산
         note.beat = timeToBeat(timeInSeconds, newBpm, newSubdivisions);
 
+        // 롱노트의 longTime도 시간 기준으로 변환
+        if (note.isLong && note.longTime > 0) {
+            const longTimeInSeconds = beatToTime(note.longTime, oldBpm, oldSubdivisions);
+            note.longTime = timeToBeat(longTimeInSeconds, newBpm, newSubdivisions);
+            console.log(`Long note length: ${longTimeInSeconds.toFixed(3)}s -> ${note.longTime} beats`);
+        }
+
         console.log(`Note: ${timeInSeconds.toFixed(3)}s -> beat ${note.beat}`);
     });
 
@@ -625,7 +632,13 @@ function drawPath() {
     drawGrid();
 
     // direction 노트들을 pre-delay를 고려한 경로상의 위치로 변환
-    const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
+    // Both 노트들도 Direction 역할을 하므로 포함
+    const directionNotes = notes.filter(n => 
+        n.type === "direction" || 
+        n.type === "both" || 
+        n.type === "longdirection" || 
+        n.type === "longboth"
+    ).sort((a, b) => a.beat - b.beat);
     const pathDirectionNotes = directionNotes.map((note, index) => {
         let pathBeat;
         if (note.beat === 0 && note.type === "direction") {
@@ -832,6 +845,7 @@ function drawPath() {
 
         // Long Tab 노트 렌더링
         if (note.type === "longtab") {
+            // 시작점 렌더링
             ctx.beginPath();
             ctx.arc(screenX, screenY, 7, 0, 2 * Math.PI); // 일반보다 크게
             ctx.fillStyle = "#FF5722"; // 주황색
@@ -846,6 +860,61 @@ function drawPath() {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText("L", screenX, screenY);
+
+            // 길이 표시 (longTime을 비트 단위로 처리)
+            if (note.longTime > 0) {
+                const longTimeBeat = note.longTime; // 이미 비트 단위
+                const endPathBeat = pathBeat + longTimeBeat;
+                
+                // 끝점 위치 계산
+                let endPos = null;
+                for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+                    const a = pathDirectionNotes[i];
+                    const b = pathDirectionNotes[i + 1];
+                    if (a.pathBeat <= endPathBeat && endPathBeat <= b.pathBeat) {
+                        const interp = (endPathBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+                        const pa = nodePositions[i];
+                        const pb = nodePositions[i + 1];
+                        endPos = {
+                            x: pa.x + (pb.x - pa.x) * interp,
+                            y: pa.y + (pb.y - pa.y) * interp
+                        };
+                        break;
+                    }
+                }
+
+                if (endPos) {
+                    const endScreenX = endPos.x * zoom + viewOffset.x;
+                    const endScreenY = endPos.y * zoom + viewOffset.y;
+                    
+                    // 굵은 막대 그리기 (더 뚜렷하게)
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "#FF5722";
+                    ctx.lineWidth = 8; // 더 굵게
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 막대 위에 반투명 오버레이
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "rgba(255, 87, 34, 0.3)";
+                    ctx.lineWidth = 12;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 끝점 표시 (더 명확하게)
+                    ctx.beginPath();
+                    ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#BF360C";
+                    ctx.fill();
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            }
         }
 
         // Long Direction 노트 렌더링
@@ -857,6 +926,7 @@ function drawPath() {
             const endX = screenX + ux;
             const endY = screenY + uy;
 
+            // 시작점 화살표
             ctx.beginPath();
             ctx.moveTo(screenX, screenY);
             ctx.lineTo(endX, endY);
@@ -880,6 +950,77 @@ function drawPath() {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText("L", screenX + ux * 0.3, screenY + uy * 0.3);
+
+            // 길이 표시 (longTime을 비트 단위로 처리)
+            if (note.longTime > 0) {
+                const longTimeBeat = note.longTime; // 이미 비트 단위
+                const endPathBeat = pathBeat + longTimeBeat;
+                
+                // 끝점 위치 계산
+                let endPos = null;
+                for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+                    const a = pathDirectionNotes[i];
+                    const b = pathDirectionNotes[i + 1];
+                    if (a.pathBeat <= endPathBeat && endPathBeat <= b.pathBeat) {
+                        const interp = (endPathBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+                        const pa = nodePositions[i];
+                        const pb = nodePositions[i + 1];
+                        endPos = {
+                            x: pa.x + (pb.x - pa.x) * interp,
+                            y: pa.y + (pb.y - pa.y) * interp
+                        };
+                        break;
+                    }
+                }
+
+                if (endPos) {
+                    const endScreenX = endPos.x * zoom + viewOffset.x;
+                    const endScreenY = endPos.y * zoom + viewOffset.y;
+                    
+                    // 굵은 막대 그리기 (실선으로 변경)
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "#03A9F4";
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 막대 위에 반투명 오버레이
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "rgba(3, 169, 244, 0.3)";
+                    ctx.lineWidth = 12;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 끝점 화살표
+                    const [edx, edy] = directionToVector(note.direction);
+                    const emag = Math.hypot(edx, edy) || 1;
+                    const eux = (edx / emag) * 15;
+                    const euy = (edy / emag) * 15;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(endScreenX, endScreenY);
+                    ctx.lineTo(endScreenX + eux, endScreenY + euy);
+                    ctx.strokeStyle = "#0277BD";
+                    ctx.lineWidth = 4;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 끝점 화살표 머리
+                    const eperpX = -euy * 0.4;
+                    const eperpY = eux * 0.4;
+                    ctx.beginPath();
+                    ctx.moveTo(endScreenX + eux, endScreenY + euy);
+                    ctx.lineTo(endScreenX + eux * 0.6 + eperpX, endScreenY + euy * 0.6 + eperpY);
+                    ctx.lineTo(endScreenX + eux * 0.6 - eperpX, endScreenY + euy * 0.6 - eperpY);
+                    ctx.closePath();
+                    ctx.fillStyle = "#0277BD";
+                    ctx.fill();
+                }
+            }
         }
 
         // Long Both 노트 렌더링
@@ -924,6 +1065,74 @@ function drawPath() {
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText("L", screenX, screenY);
+
+            // 길이 표시 (longTime을 비트 단위로 처리)
+            if (note.longTime > 0) {
+                const longTimeBeat = note.longTime; // 이미 비트 단위
+                const endPathBeat = pathBeat + longTimeBeat;
+                
+                // 끝점 위치 계산
+                let endPos = null;
+                for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+                    const a = pathDirectionNotes[i];
+                    const b = pathDirectionNotes[i + 1];
+                    if (a.pathBeat <= endPathBeat && endPathBeat <= b.pathBeat) {
+                        const interp = (endPathBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+                        const pa = nodePositions[i];
+                        const pb = nodePositions[i + 1];
+                        endPos = {
+                            x: pa.x + (pb.x - pa.x) * interp,
+                            y: pa.y + (pb.y - pa.y) * interp
+                        };
+                        break;
+                    }
+                }
+
+                if (endPos) {
+                    const endScreenX = endPos.x * zoom + viewOffset.x;
+                    const endScreenY = endPos.y * zoom + viewOffset.y;
+                    
+                    // 굵은 막대 그리기
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "#E91E63";
+                    ctx.lineWidth = 8;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 막대 위에 반투명 오버레이
+                    ctx.beginPath();
+                    ctx.moveTo(screenX, screenY);
+                    ctx.lineTo(endScreenX, endScreenY);
+                    ctx.strokeStyle = "rgba(233, 30, 99, 0.3)";
+                    ctx.lineWidth = 12;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+
+                    // 끝점 표시 (Tab + Direction 모두)
+                    ctx.beginPath();
+                    ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
+                    ctx.fillStyle = "#C2185B";
+                    ctx.fill();
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // 끝점 화살표
+                    const [edx, edy] = directionToVector(note.direction);
+                    const emag = Math.hypot(edx, edy) || 1;
+                    const eux = (edx / emag) * 12;
+                    const euy = (edy / emag) * 12;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(endScreenX, endScreenY);
+                    ctx.lineTo(endScreenX + eux, endScreenY + euy);
+                    ctx.strokeStyle = "#C2185B";
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+            }
         }
     });
 
@@ -1192,7 +1401,12 @@ function getNotePosition(beat) {
     // 이 함수는 일반적으로 beat 값으로 호출되므로, beat 값 그대로 사용
     let pathBeat = beat;
 
-    const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
+    const directionNotes = notes.filter(n => 
+        n.type === "direction" || 
+        n.type === "both" || 
+        n.type === "longdirection" || 
+        n.type === "longboth"
+    ).sort((a, b) => a.beat - b.beat);
     const pathDirectionNotes = directionNotes.map((note, index) => {
         let noteBeat;
         if (note.beat === 0 && note.type === "direction") {
@@ -1385,11 +1599,12 @@ function renderNoteList() {
         if (note.isLong) {
             const inputLongTime = document.createElement("input");
             inputLongTime.type = "number";
-            inputLongTime.step = "0.1";
-            inputLongTime.min = "0.1";
-            inputLongTime.value = note.longTime || 1.0;
+            inputLongTime.step = "1";  // 비트 단위이므로 정수
+            inputLongTime.min = "1";   // 최소 1비트
+            inputLongTime.value = note.longTime || subdivisions;  // 기본값을 subdivisions로
+            inputLongTime.title = "비트 단위 길이";
             inputLongTime.addEventListener("change", () => {
-                note.longTime = parseFloat(inputLongTime.value) || 1.0;
+                note.longTime = parseInt(inputLongTime.value) || subdivisions;  // 정수로 처리
                 saveToStorage();
                 drawPath();
                 if (waveformData)
@@ -1784,7 +1999,12 @@ function updateDemoPlayerPosition(currentBeat) {
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
     const preDelaySeconds = getPreDelaySeconds();
 
-    const directionNotes = notes.filter(n => n.type === "direction").sort((a, b) => a.beat - b.beat);
+    const directionNotes = notes.filter(n => 
+        n.type === "direction" || 
+        n.type === "both" || 
+        n.type === "longdirection" || 
+        n.type === "longboth"
+    ).sort((a, b) => a.beat - b.beat);
 
     // pathBeat 기준으로 direction 노트들 변환 (경로 생성과 동일한 로직)
     const pathDirectionNotes = directionNotes.map((note, index) => {
@@ -1925,7 +2145,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("add-tab").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        // 모든 노트의 끝 위치를 고려 (롱노트의 경우 시작 + 길이)
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
         notes.push({
             type: "tab",
             beat: maxBeat + subdivisions,
@@ -1941,9 +2162,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("add-dir").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const dirs = notes.filter(n => n.type === "direction");
+        const dirs = notes.filter(n => 
+            n.type === "direction" || 
+            n.type === "longdirection" || 
+            n.type === "both" || 
+            n.type === "longboth"
+        );
         const maxDir = dirs[dirs.length - 1];
-        const newBeat = (maxDir?.beat ?? 0) + subdivisions;
+        // 롱노트의 경우 끝 위치를 고려
+        const lastDirEndBeat = maxDir ? (maxDir.beat + (maxDir.isLong ? (maxDir.longTime || 0) : 0)) : 0;
+        const newBeat = lastDirEndBeat + subdivisions;
         const inherited = maxDir?.direction ?? "none";
         notes.push({
             type: "direction",
@@ -1962,7 +2190,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Both 노트 추가
     document.getElementById("add-both").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
         notes.push({
             type: "both",
             beat: maxBeat + subdivisions,
@@ -1980,12 +2208,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Long Tab 노트 추가
     document.getElementById("add-long-tab").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
         notes.push({
             type: "longtab",
             beat: maxBeat + subdivisions,
             isLong: true,
-            longTime: 1.0  // 기본 1초
+            longTime: subdivisions  // 기본값을 subdivisions로 설정 (비트 단위)
         });
         saveToStorage();
         drawPath();
@@ -1997,16 +2225,22 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Long Direction 노트 추가
     document.getElementById("add-long-dir").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const dirs = notes.filter(n => n.type === "direction" || n.type === "longdirection");
+        const dirs = notes.filter(n => 
+            n.type === "direction" || 
+            n.type === "longdirection" || 
+            n.type === "both" || 
+            n.type === "longboth"
+        );
         const maxDir = dirs[dirs.length - 1];
-        const newBeat = (maxDir?.beat ?? 0) + subdivisions;
+        const lastDirEndBeat = maxDir ? (maxDir.beat + (maxDir.isLong ? (maxDir.longTime || 0) : 0)) : 0;
+        const newBeat = lastDirEndBeat + subdivisions;
         const inherited = maxDir?.direction ?? "none";
         notes.push({
             type: "longdirection",
             beat: newBeat,
             direction: inherited,
             isLong: true,
-            longTime: 1.0  // 기본 1초
+            longTime: subdivisions  // 기본값을 subdivisions로 설정 (비트 단위)
         });
         saveToStorage();
         drawPath();
@@ -2018,13 +2252,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Long Both 노트 추가
     document.getElementById("add-long-both").addEventListener("click", () => {
         const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
         notes.push({
             type: "longboth",
             beat: maxBeat + subdivisions,
             direction: "none",
             isLong: true,
-            longTime: 1.0  // 기본 1초
+            longTime: subdivisions  // 기본값을 subdivisions로 설정 (비트 단위)
         });
         saveToStorage();
         drawPath();
@@ -2086,7 +2320,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     musicTime: MUSIC_START_TIME + originalTime, // 음악 시작 후 시간
                     finalTime: finalTime, // 최종 노트 타이밍
                     isLong: n.isLong || false,
-                    longTime: n.longTime || 0.0,
+                    longTime: n.longTime || 0,  // 비트 단위
                     noteType: noteType,
                     direction: n.direction || "none"
                 };
@@ -2094,6 +2328,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             metadata: {
                 description: "Music starts at 3 seconds, with pre-delay correction",
                 timingExplanation: "finalTime = 3.0 + originalTime + preDelay (except for beat 0 direction note)",
+                longTimeUnit: "longTime values are in beat units, not seconds",
                 exportedAt: new Date().toISOString()
             }
         };
