@@ -47,7 +47,7 @@ body {
 #sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 50px; }   /* Type */
 #sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 65px; }   /* Beat */
 #sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 55px; }   /* Time */
-#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 60px; }   /* Long */
+#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 60px; }   /* Length */
 #sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 70px; }   /* Direction */
 #sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 40px; }   /* Delete */
 
@@ -59,7 +59,7 @@ body {
   border: 1px solid #666;
 }
 
-/* Long Time 입력 필드 크기 조정 */
+/* Length 입력 필드 크기 조정 */
 #sidebar td:nth-child(5) input {
   width: 55px;
   padding: 1px 3px;
