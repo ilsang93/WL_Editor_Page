@@ -135,9 +135,10 @@ function playNoteSound(noteType) {
     try {
         let audio = null;
 
-        if (noteType === 'tab' && tabSoundPool.length > 0) {
+        // 노트 타입에 따른 사운드 재생 (롱노트도 동일한 사운드 사용)
+        if ((noteType === 'tab' || noteType === 'longtab' || noteType === 'both' || noteType === 'longboth') && tabSoundPool.length > 0) {
             audio = getAvailableSound(tabSoundPool);
-        } else if (noteType === 'direction' && directionSoundPool.length > 0) {
+        } else if ((noteType === 'direction' || noteType === 'longdirection' || noteType === 'both' || noteType === 'longboth') && directionSoundPool.length > 0) {
             audio = getAvailableSound(directionSoundPool);
         }
 
@@ -560,7 +561,9 @@ function ensureInitialDirectionNote() {
         notes.unshift({
             type: "direction",
             beat: 0,
-            direction: "none"
+            direction: "none",
+            isLong: false,
+            longTime: 0
         });
     }
 }
@@ -789,6 +792,139 @@ function drawPath() {
             }
             ctx.fill();
         }
+
+        // Both 노트 렌더링 (Tab + Direction)
+        if (note.type === "both") {
+            // Tab 부분
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = "#9C27B0"; // 보라색
+            ctx.fill();
+            ctx.strokeStyle = "#4A148C";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Direction 부분
+            const [dx, dy] = directionToVector(note.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            const ux = (dx / mag) * 16;
+            const uy = (dy / mag) * 16;
+            const endX = screenX + ux;
+            const endY = screenY + uy;
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = "#9C27B0";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            const perpX = -uy * 0.5;
+            const perpY = ux * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+            ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+            ctx.closePath();
+            ctx.fillStyle = "#9C27B0";
+            ctx.fill();
+        }
+
+        // Long Tab 노트 렌더링
+        if (note.type === "longtab") {
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 7, 0, 2 * Math.PI); // 일반보다 크게
+            ctx.fillStyle = "#FF5722"; // 주황색
+            ctx.fill();
+            ctx.strokeStyle = "#BF360C";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 롱노트 표시 (원 안에 L 표시)
+            ctx.fillStyle = "white";
+            ctx.font = "bold 8px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("L", screenX, screenY);
+        }
+
+        // Long Direction 노트 렌더링
+        if (note.type === "longdirection") {
+            const [dx, dy] = directionToVector(note.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            const ux = (dx / mag) * 18; // 일반보다 크게
+            const uy = (dy / mag) * 18;
+            const endX = screenX + ux;
+            const endY = screenY + uy;
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = "#03A9F4"; // 밝은 파란색
+            ctx.lineWidth = 4; // 두껍게
+            ctx.stroke();
+
+            const perpX = -uy * 0.5;
+            const perpY = ux * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+            ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+            ctx.closePath();
+            ctx.fillStyle = "#03A9F4";
+            ctx.fill();
+
+            // 롱노트 표시 (화살표 중간에 L 표시)
+            ctx.fillStyle = "white";
+            ctx.font = "bold 8px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("L", screenX + ux * 0.3, screenY + uy * 0.3);
+        }
+
+        // Long Both 노트 렌더링
+        if (note.type === "longboth") {
+            // Tab 부분 (크게)
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 7, 0, 2 * Math.PI);
+            ctx.fillStyle = "#E91E63"; // 핑크색
+            ctx.fill();
+            ctx.strokeStyle = "#880E4F";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Direction 부분 (크게)
+            const [dx, dy] = directionToVector(note.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            const ux = (dx / mag) * 18;
+            const uy = (dy / mag) * 18;
+            const endX = screenX + ux;
+            const endY = screenY + uy;
+
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY);
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = "#E91E63";
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            const perpX = -uy * 0.5;
+            const perpY = ux * 0.5;
+            ctx.beginPath();
+            ctx.moveTo(endX, endY);
+            ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+            ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+            ctx.closePath();
+            ctx.fillStyle = "#E91E63";
+            ctx.fill();
+
+            // 롱노트 표시 (원 안에 L 표시)
+            ctx.fillStyle = "white";
+            ctx.font = "bold 8px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("L", screenX, screenY);
+        }
     });
 
     // 플레이어 그리기 부분도 pathDirectionNotes와 nodePositions 사용하도록 수정
@@ -976,8 +1112,18 @@ function loadFromStorage() {
             // 이전 버전 호환성 (notes가 배열인 경우)
             if (Array.isArray(parsed)) {
                 notes.splice(0, notes.length, ...parsed);
+                // 기존 노트들에 isLong과 longTime 필드 추가 (없는 경우)
+                notes.forEach(note => {
+                    if (note.isLong === undefined) note.isLong = false;
+                    if (note.longTime === undefined) note.longTime = 0;
+                });
             } else if (parsed.notes && Array.isArray(parsed.notes)) {
                 notes.splice(0, notes.length, ...parsed.notes);
+                // 기존 노트들에 isLong과 longTime 필드 추가 (없는 경우)
+                notes.forEach(note => {
+                    if (note.isLong === undefined) note.isLong = false;
+                    if (note.longTime === undefined) note.longTime = 0;
+                });
 
                 // BPM과 Subdivisions 복원 (추가)
                 if (parsed.bpm !== undefined) {
@@ -1177,13 +1323,29 @@ function renderNoteList() {
 
     notes.forEach((note, index) => {
         const tr = document.createElement("tr");
-        tr.className = note.type === "direction" ? "dir-note" : "tab-note";
+        // 노트 타입에 따른 CSS 클래스 설정
+        let className = "tab-note"; // 기본값
+        if (note.type === "direction" || note.type === "longdirection") {
+            className = "dir-note";
+        } else if (note.type === "both" || note.type === "longboth") {
+            className = "both-note";
+        } else if (note.type === "longtab") {
+            className = "long-tab-note";
+        }
+        tr.className = className;
 
         const tdIndex = document.createElement("td");
         tdIndex.textContent = index;
 
         const tdType = document.createElement("td");
-        tdType.textContent = note.type;
+        // 노트 타입 표시 개선
+        let typeDisplay = note.type;
+        switch(note.type) {
+            case "longtab": typeDisplay = "LTab"; break;
+            case "longdirection": typeDisplay = "LDir"; break;
+            case "longboth": typeDisplay = "LBoth"; break;
+        }
+        tdType.textContent = typeDisplay;
 
         const tdBeat = document.createElement("td");
         const inputBeat = document.createElement("input");
@@ -1218,8 +1380,28 @@ function renderNoteList() {
             tdTime.title = `원본: ${originalTime.toFixed(3)}s → 최종: ${finalTime.toFixed(3)}s (pre-delay: ${preDelaySeconds > 0 ? '+' : ''}${preDelaySeconds.toFixed(3)}s)`;
         }
 
+        // Long Time 필드 추가
+        const tdLong = document.createElement("td");
+        if (note.isLong) {
+            const inputLongTime = document.createElement("input");
+            inputLongTime.type = "number";
+            inputLongTime.step = "0.1";
+            inputLongTime.min = "0.1";
+            inputLongTime.value = note.longTime || 1.0;
+            inputLongTime.addEventListener("change", () => {
+                note.longTime = parseFloat(inputLongTime.value) || 1.0;
+                saveToStorage();
+                drawPath();
+                if (waveformData)
+                    drawWaveform();
+            });
+            tdLong.appendChild(inputLongTime);
+        } else {
+            tdLong.textContent = "-";
+        }
+
         const tdDir = document.createElement("td");
-        if (note.type === "direction") {
+        if (note.type === "direction" || note.type === "longdirection" || note.type === "both" || note.type === "longboth") {
             const select = document.createElement("select");
             ["none", "up", "down", "left", "right", "upleft", "upright", "downleft", "downright"].forEach(d => {
                 const opt = document.createElement("option");
@@ -1255,7 +1437,7 @@ function renderNoteList() {
         });
         tdDelete.appendChild(btn);
 
-        tr.append(tdIndex, tdType, tdBeat, tdTime, tdDir, tdDelete);
+        tr.append(tdIndex, tdType, tdBeat, tdTime, tdLong, tdDir, tdDelete);
         tr.addEventListener("click", (e) => {
             if (["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName))
                 return;
@@ -1746,7 +1928,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const maxBeat = Math.max(0, ...notes.map(n => n.beat));
         notes.push({
             type: "tab",
-            beat: maxBeat + subdivisions
+            beat: maxBeat + subdivisions,
+            isLong: false,
+            longTime: 0
         });
         saveToStorage();
         drawPath();
@@ -1764,7 +1948,83 @@ document.addEventListener("DOMContentLoaded", async () => {
         notes.push({
             type: "direction",
             beat: newBeat,
-            direction: inherited
+            direction: inherited,
+            isLong: false,
+            longTime: 0
+        });
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData)
+            drawWaveform();
+    });
+
+    // Both 노트 추가
+    document.getElementById("add-both").addEventListener("click", () => {
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        notes.push({
+            type: "both",
+            beat: maxBeat + subdivisions,
+            direction: "none",
+            isLong: false,
+            longTime: 0
+        });
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData)
+            drawWaveform();
+    });
+
+    // Long Tab 노트 추가
+    document.getElementById("add-long-tab").addEventListener("click", () => {
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        notes.push({
+            type: "longtab",
+            beat: maxBeat + subdivisions,
+            isLong: true,
+            longTime: 1.0  // 기본 1초
+        });
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData)
+            drawWaveform();
+    });
+
+    // Long Direction 노트 추가
+    document.getElementById("add-long-dir").addEventListener("click", () => {
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        const dirs = notes.filter(n => n.type === "direction" || n.type === "longdirection");
+        const maxDir = dirs[dirs.length - 1];
+        const newBeat = (maxDir?.beat ?? 0) + subdivisions;
+        const inherited = maxDir?.direction ?? "none";
+        notes.push({
+            type: "longdirection",
+            beat: newBeat,
+            direction: inherited,
+            isLong: true,
+            longTime: 1.0  // 기본 1초
+        });
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData)
+            drawWaveform();
+    });
+
+    // Long Both 노트 추가
+    document.getElementById("add-long-both").addEventListener("click", () => {
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        const maxBeat = Math.max(0, ...notes.map(n => n.beat));
+        notes.push({
+            type: "longboth",
+            beat: maxBeat + subdivisions,
+            direction: "none",
+            isLong: true,
+            longTime: 1.0  // 기본 1초
         });
         saveToStorage();
         drawPath();
@@ -1806,14 +2066,26 @@ document.addEventListener("DOMContentLoaded", async () => {
                     finalTime = originalTime + preDelaySeconds;
                 }
 
+                // 노트 타입 매핑 개선
+                let noteType;
+                switch(n.type) {
+                    case "tab": noteType = "Tab"; break;
+                    case "direction": noteType = "Direction"; break;
+                    case "both": noteType = "Both"; break;
+                    case "longtab": noteType = "LongTab"; break;
+                    case "longdirection": noteType = "LongDirection"; break;
+                    case "longboth": noteType = "LongBoth"; break;
+                    default: noteType = "Tab"; break;
+                }
+
                 return {
                     beat: n.beat,
                     originalTime: originalTime, // BPM 기준 원본 시간
                     musicTime: MUSIC_START_TIME + originalTime, // 음악 시작 후 시간
                     finalTime: finalTime, // 최종 노트 타이밍
-                    isLong: false,
-                    longTime: 0.0,
-                    noteType: n.type === "direction" ? "Direction" : "Tab",
+                    isLong: n.isLong || false,
+                    longTime: n.longTime || 0.0,
+                    noteType: noteType,
                     direction: n.direction || "none"
                 };
             }),
@@ -1876,10 +2148,25 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     json.noteList.forEach(n => {
                         const beat = n.beat !== undefined ? n.beat : timeToBeat(n.time || 0, bpm, subdivisions);
+                        
+                        // 노트 타입 매핑 개선
+                        let type;
+                        switch(n.noteType) {
+                            case "Tab": type = "tab"; break;
+                            case "Direction": type = "direction"; break;
+                            case "Both": type = "both"; break;
+                            case "LongTab": type = "longtab"; break;
+                            case "LongDirection": type = "longdirection"; break;
+                            case "LongBoth": type = "longboth"; break;
+                            default: type = "tab"; break;
+                        }
+                        
                         notes.push({
-                            type: n.noteType === "Direction" ? "direction" : "tab",
+                            type: type,
                             beat: beat,
-                            direction: n.direction || "none"
+                            direction: n.direction || "none",
+                            isLong: n.isLong || false,
+                            longTime: n.longTime || 0
                         });
                     });
 
