@@ -866,6 +866,9 @@ function drawPath() {
                 const longTimeBeat = note.longTime; // 이미 비트 단위
                 const endPathBeat = pathBeat + longTimeBeat;
                 
+                // 경로를 따라 막대 그리기
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8);
+                
                 // 끝점 위치 계산
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -887,24 +890,6 @@ function drawPath() {
                     const endScreenX = endPos.x * zoom + viewOffset.x;
                     const endScreenY = endPos.y * zoom + viewOffset.y;
                     
-                    // 굵은 막대 그리기 (더 뚜렷하게)
-                    ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "#FF5722";
-                    ctx.lineWidth = 8; // 더 굵게
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 막대 위에 반투명 오버레이
-                    ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "rgba(255, 87, 34, 0.3)";
-                    ctx.lineWidth = 12;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
                     // 끝점 표시 (더 명확하게)
                     ctx.beginPath();
                     ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
@@ -956,6 +941,9 @@ function drawPath() {
                 const longTimeBeat = note.longTime; // 이미 비트 단위
                 const endPathBeat = pathBeat + longTimeBeat;
                 
+                // 경로를 따라 막대 그리기
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#03A9F4", 8);
+                
                 // 끝점 위치 계산
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -977,48 +965,14 @@ function drawPath() {
                     const endScreenX = endPos.x * zoom + viewOffset.x;
                     const endScreenY = endPos.y * zoom + viewOffset.y;
                     
-                    // 굵은 막대 그리기 (실선으로 변경)
+                    // 끝점 표시 (점으로만)
                     ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "#03A9F4";
-                    ctx.lineWidth = 8;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 막대 위에 반투명 오버레이
-                    ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "rgba(3, 169, 244, 0.3)";
-                    ctx.lineWidth = 12;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 끝점 화살표
-                    const [edx, edy] = directionToVector(note.direction);
-                    const emag = Math.hypot(edx, edy) || 1;
-                    const eux = (edx / emag) * 15;
-                    const euy = (edy / emag) * 15;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(endScreenX, endScreenY);
-                    ctx.lineTo(endScreenX + eux, endScreenY + euy);
-                    ctx.strokeStyle = "#0277BD";
-                    ctx.lineWidth = 4;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 끝점 화살표 머리
-                    const eperpX = -euy * 0.4;
-                    const eperpY = eux * 0.4;
-                    ctx.beginPath();
-                    ctx.moveTo(endScreenX + eux, endScreenY + euy);
-                    ctx.lineTo(endScreenX + eux * 0.6 + eperpX, endScreenY + euy * 0.6 + eperpY);
-                    ctx.lineTo(endScreenX + eux * 0.6 - eperpX, endScreenY + euy * 0.6 - eperpY);
-                    ctx.closePath();
+                    ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
                     ctx.fillStyle = "#0277BD";
                     ctx.fill();
+                    ctx.strokeStyle = "white";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
                 }
             }
         }
@@ -1071,6 +1025,9 @@ function drawPath() {
                 const longTimeBeat = note.longTime; // 이미 비트 단위
                 const endPathBeat = pathBeat + longTimeBeat;
                 
+                // 경로를 따라 막대 그리기
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8);
+                
                 // 끝점 위치 계산
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -1092,44 +1049,13 @@ function drawPath() {
                     const endScreenX = endPos.x * zoom + viewOffset.x;
                     const endScreenY = endPos.y * zoom + viewOffset.y;
                     
-                    // 굵은 막대 그리기
-                    ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "#E91E63";
-                    ctx.lineWidth = 8;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 막대 위에 반투명 오버레이
-                    ctx.beginPath();
-                    ctx.moveTo(screenX, screenY);
-                    ctx.lineTo(endScreenX, endScreenY);
-                    ctx.strokeStyle = "rgba(233, 30, 99, 0.3)";
-                    ctx.lineWidth = 12;
-                    ctx.lineCap = "round";
-                    ctx.stroke();
-
-                    // 끝점 표시 (Tab + Direction 모두)
+                    // 끝점 표시 (점으로만)
                     ctx.beginPath();
                     ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
                     ctx.fillStyle = "#C2185B";
                     ctx.fill();
                     ctx.strokeStyle = "white";
                     ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    // 끝점 화살표
-                    const [edx, edy] = directionToVector(note.direction);
-                    const emag = Math.hypot(edx, edy) || 1;
-                    const eux = (edx / emag) * 12;
-                    const euy = (edy / emag) * 12;
-                    
-                    ctx.beginPath();
-                    ctx.moveTo(endScreenX, endScreenY);
-                    ctx.lineTo(endScreenX + eux, endScreenY + euy);
-                    ctx.strokeStyle = "#C2185B";
-                    ctx.lineWidth = 3;
                     ctx.stroke();
                 }
             }
@@ -1992,6 +1918,108 @@ function getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions
         }
     }
     return null;
+}
+
+// 경로를 따라 롱노트 막대를 그리는 함수
+function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePositions, color, lineWidth) {
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    const segments = Math.max(10, Math.floor((endPathBeat - startPathBeat) * 2)); // 세그먼트 수 계산
+    
+    // 메인 막대 그리기
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    
+    let firstPoint = true;
+    for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const currentBeat = startPathBeat + (endPathBeat - startPathBeat) * t;
+        
+        // 현재 위치 계산
+        let pos = null;
+        for (let j = 0; j < pathDirectionNotes.length - 1; j++) {
+            const a = pathDirectionNotes[j];
+            const b = pathDirectionNotes[j + 1];
+            const pa = nodePositions[j];
+            const pb = nodePositions[j + 1];
+
+            if (a.pathBeat <= currentBeat && currentBeat <= b.pathBeat) {
+                const interp = (currentBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+                pos = {
+                    x: pa.x + (pb.x - pa.x) * interp,
+                    y: pa.y + (pb.y - pa.y) * interp
+                };
+                break;
+            }
+        }
+        
+        if (pos) {
+            const screenX = pos.x * zoom + viewOffset.x;
+            const screenY = pos.y * zoom + viewOffset.y;
+            
+            if (firstPoint) {
+                ctx.moveTo(screenX, screenY);
+                firstPoint = false;
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+        }
+    }
+    ctx.stroke();
+    
+    // 반투명 오버레이 그리기 (더 굵게)
+    const overlayColor = color.replace(/rgb\([^)]+\)/, (match) => {
+        const values = match.match(/\d+/g);
+        return `rgba(${values[0]}, ${values[1]}, ${values[2]}, 0.3)`;
+    }).replace(/#([0-9A-Fa-f]{6})/, (match, hex) => {
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        return `rgba(${r}, ${g}, ${b}, 0.3)`;
+    });
+    
+    ctx.strokeStyle = overlayColor;
+    ctx.lineWidth = lineWidth + 4;
+    ctx.beginPath();
+    
+    firstPoint = true;
+    for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const currentBeat = startPathBeat + (endPathBeat - startPathBeat) * t;
+        
+        // 현재 위치 계산
+        let pos = null;
+        for (let j = 0; j < pathDirectionNotes.length - 1; j++) {
+            const a = pathDirectionNotes[j];
+            const b = pathDirectionNotes[j + 1];
+            const pa = nodePositions[j];
+            const pb = nodePositions[j + 1];
+
+            if (a.pathBeat <= currentBeat && currentBeat <= b.pathBeat) {
+                const interp = (currentBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
+                pos = {
+                    x: pa.x + (pb.x - pa.x) * interp,
+                    y: pa.y + (pb.y - pa.y) * interp
+                };
+                break;
+            }
+        }
+        
+        if (pos) {
+            const screenX = pos.x * zoom + viewOffset.x;
+            const screenY = pos.y * zoom + viewOffset.y;
+            
+            if (firstPoint) {
+                ctx.moveTo(screenX, screenY);
+                firstPoint = false;
+            } else {
+                ctx.lineTo(screenX, screenY);
+            }
+        }
+    }
+    ctx.stroke();
 }
 
 function updateDemoPlayerPosition(currentBeat) {
