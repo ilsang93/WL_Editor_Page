@@ -221,6 +221,138 @@ function timeToBeat(time, bpm, subdivisions) {
     return Math.round((time * bpm * subdivisions) / 60);
 }
 
+// 차트 검증 함수
+function validateChart(notes, bpm, subdivisions, preDelaySeconds) {
+    const errors = [];
+    const warnings = [];
+    let validatedNotes = [...notes]; // 원본 복사
+
+    // 노트들을 beat 순으로 정렬
+    validatedNotes.sort((a, b) => a.beat - b.beat);
+
+    // 1. 노트 중복 검사 (같은 beat 값 불가)
+    const beatCounts = {};
+    validatedNotes.forEach(note => {
+        beatCounts[note.beat] = (beatCounts[note.beat] || 0) + 1;
+        if (beatCounts[note.beat] > 1) {
+            errors.push(`비트 ${note.beat}에 중복된 노트가 있습니다.`);
+        }
+    });
+
+    // 2. 시간 간격 검사 (0.08초 미만 금지)
+    for (let i = 0; i < validatedNotes.length - 1; i++) {
+        const currentNote = validatedNotes[i];
+        const nextNote = validatedNotes[i + 1];
+        
+        const currentTime = beatToTime(currentNote.beat, bpm, subdivisions);
+        const nextTime = beatToTime(nextNote.beat, bpm, subdivisions);
+        const timeDiff = nextTime - currentTime;
+        
+        if (timeDiff < 0.08) {
+            errors.push(`노트 ${i}번과 ${i+1}번 사이 간격이 너무 짧습니다. (${timeDiff.toFixed(3)}초 < 0.08초)`);
+        }
+    }
+
+    // 3. 롱노트 중복 및 충돌 검사
+    const longNoteRanges = [];
+    validatedNotes.forEach((note, index) => {
+        if (note.isLong && note.longTime > 0) {
+            const startBeat = note.beat;
+            const endBeat = note.beat + note.longTime;
+            const noteType = note.type;
+            
+            longNoteRanges.push({
+                index,
+                startBeat,
+                endBeat,
+                type: noteType,
+                note
+            });
+        }
+    });
+
+    // 3-1. 롱노트들 간의 중복 검사
+    for (let i = 0; i < longNoteRanges.length; i++) {
+        const range1 = longNoteRanges[i];
+        
+        for (let j = i + 1; j < longNoteRanges.length; j++) {
+            const range2 = longNoteRanges[j];
+            
+            // 시간 범위 겹침 검사
+            const overlap = !(range1.endBeat <= range2.startBeat || range2.endBeat <= range1.startBeat);
+            
+            if (overlap) {
+                // LongTab 구간 도중 LongTab 금지
+                if (range1.type === "longtab" && range2.type === "longtab") {
+                    errors.push(`LongTab 노트끼리 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
+                }
+                // LongDirection 구간 도중 다른 LongDirection 금지
+                if (range1.type === "longdirection" && range2.type === "longdirection") {
+                    errors.push(`LongDirection 노트끼리 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
+                }
+                // LongBoth 구간 도중 다른 LongDirection, LongTab, LongBoth 금지
+                if (range1.type === "longboth" && (range2.type === "longdirection" || range2.type === "longtab" || range2.type === "longboth")) {
+                    errors.push(`LongBoth 노트 구간에 다른 롱노트가 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
+                }
+                if (range2.type === "longboth" && (range1.type === "longdirection" || range1.type === "longtab" || range1.type === "longboth")) {
+                    errors.push(`LongBoth 노트 구간에 다른 롱노트가 겹칩니다. (${range2.startBeat}-${range2.endBeat} 비트와 ${range1.startBeat}-${range1.endBeat} 비트)`);
+                }
+            }
+        }
+    }
+
+    // 3-2. 롱노트 구간 내 일반노트 검사
+    longNoteRanges.forEach(longRange => {
+        validatedNotes.forEach((note, index) => {
+            if (!note.isLong && note.beat > longRange.startBeat && note.beat < longRange.endBeat) {
+                // LongBoth 구간에는 Tab 노트만 허용
+                if (longRange.type === "longboth" && note.type !== "tab") {
+                    errors.push(`LongBoth 노트 구간(${longRange.startBeat}-${longRange.endBeat} 비트)에는 Tab 노트만 허용됩니다. ${note.beat} 비트의 ${note.type} 노트를 제거해주세요.`);
+                }
+                // LongTab 구간에는 tab, direction, both 허용 (이미 허용되므로 별도 검사 불필요)
+                // LongDirection 구간에는 모든 노트 허용 (별도 검사 불필요)
+            }
+        });
+    });
+
+    // 4. 마지막 노트 이후 3초 Direction/none 노트 추가
+    if (validatedNotes.length > 0) {
+        const lastNote = validatedNotes[validatedNotes.length - 1];
+        const lastNoteBeat = lastNote.beat + (lastNote.isLong ? lastNote.longTime : 0);
+        const lastNoteTime = beatToTime(lastNoteBeat, bpm, subdivisions);
+        const endTime = lastNoteTime + 3.0; // 3초 추가
+        const endBeat = timeToBeat(endTime, bpm, subdivisions);
+
+        // 마지막 노트가 Direction/none 노트가 아닌 경우에만 추가
+        const needsEndNote = !(lastNote.type === "direction" && lastNote.direction === "none");
+        
+        if (needsEndNote) {
+            validatedNotes.push({
+                type: "direction",
+                beat: endBeat,
+                direction: "none",
+                isLong: false,
+                longTime: 0
+            });
+            warnings.push(`마지막 노트 이후 3초 지점에 Direction/none 노트를 자동 추가했습니다. (${endBeat} 비트)`);
+        }
+    }
+
+    // 검증 결과 반환
+    const isValid = errors.length === 0;
+    
+    if (warnings.length > 0) {
+        console.log('차트 검증 경고:', warnings);
+    }
+
+    return {
+        isValid,
+        errors,
+        warnings,
+        notes: validatedNotes
+    };
+}
+
 // BPM/Subdivisions 변경 시 시간 기반으로 노트 업데이트
 function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdivisions) {
     console.log(`Updating notes from BPM ${oldBpm}/${oldSubdivisions} to ${newBpm}/${newSubdivisions}`);
@@ -2310,13 +2442,23 @@ document.addEventListener("DOMContentLoaded", async () => {
         const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0); // ms 단위
         const preDelaySeconds = preDelayValue / 1000; // 계산용으로만 사용
 
+        // 검증 로직 실행
+        const validationResult = validateChart(notes, bpm, subdivisions, preDelaySeconds);
+        if (!validationResult.isValid) {
+            alert(`차트 검증 실패:\n\n${validationResult.errors.join('\n')}\n\n수정 후 다시 시도해주세요.`);
+            return;
+        }
+
+        // 검증된 노트 리스트 사용 (마지막 노트 추가 등)
+        const validatedNotes = validationResult.notes;
+
         const exportData = {
             diffIndex: 5,
             level: 10,
             bpm: bpm,
             subdivisions: subdivisions,
             preDelay: preDelayValue, // 변경: ms 단위로 저장
-            noteList: notes.map(n => {
+            noteList: validatedNotes.map(n => {
                 const originalTime = beatToTime(n.beat, bpm, subdivisions);
 
                 // 0번 direction 노트는 보정하지 않음
@@ -2340,13 +2482,19 @@ document.addEventListener("DOMContentLoaded", async () => {
                     default: noteType = "Tab"; break;
                 }
 
+                // LongTime을 시간값으로 변환
+                let longTimeInSeconds = 0;
+                if (n.isLong && n.longTime > 0) {
+                    longTimeInSeconds = beatToTime(n.longTime, bpm, subdivisions);
+                }
+
                 return {
                     beat: n.beat,
                     originalTime: originalTime, // BPM 기준 원본 시간
                     musicTime: MUSIC_START_TIME + originalTime, // 음악 시작 후 시간
                     finalTime: finalTime, // 최종 노트 타이밍
                     isLong: n.isLong || false,
-                    longTime: n.longTime || 0,  // 비트 단위
+                    longTime: longTimeInSeconds, // 시간 단위로 변환
                     noteType: noteType,
                     direction: n.direction || "none"
                 };
@@ -2355,7 +2503,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 description: "Music starts at 3 seconds, with pre-delay correction",
                 timingExplanation: "finalTime = 3.0 + originalTime + preDelay (except for beat 0 direction note)",
                 preDelayUnit: "milliseconds", // 단위 명시 추가
-                longTimeUnit: "longTime values are in beat units, not seconds",
+                longTimeUnit: "longTime values are in seconds", // 시간 단위로 변경
+                validationApplied: "Chart validated and auto-corrected",
                 exportedAt: new Date().toISOString()
             }
         };
