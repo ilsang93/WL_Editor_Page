@@ -2794,5 +2794,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     drawPath();
     renderNoteList();
 
+    // 키보드 단축키
+    document.addEventListener('keydown', (e) => {
+        // 입력 필드에 포커스가 있을 때는 단축키 작동 안 함
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        switch (e.key) {
+            case 'q':
+                addNote({ type: "tab", isLong: false, longTime: 0 });
+                break;
+            case 'w':
+                addNote({ type: "direction", isLong: false, longTime: 0 });
+                break;
+            case 'e':
+                addNote({ type: "both", isLong: false, longTime: 0 });
+                break;
+            case 'a':
+                addNote({ type: "longtab", isLong: true });
+                break;
+            case 's':
+                addNote({ type: "longdirection", isLong: true });
+                break;
+            case 'd':
+                addNote({ type: "longboth", isLong: true });
+                break;
+        }
+    });
+
     console.log('Initialization complete');
 });
