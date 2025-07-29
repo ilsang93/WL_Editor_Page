@@ -26,22 +26,6 @@
       <br><br>
       <label><input type="checkbox" id="batch-edit-toggle"> 노트 일괄 수정</label>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>NO.</th>
-          <th>Type</th>
-          <th>Beat</th>
-          <th>Time</th>
-          <th>Length</th>
-          <th>Direction</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="note-list">
-        <!-- script.js가 여기 <tr>을 동적으로 추가함 -->
-      </tbody>
-    </table>
   </div>
 
   <!-- 사이드바 토글 버튼 (사이드바 밖에 위치) -->
@@ -127,6 +111,22 @@
 
   <!-- 마우스 트리거 영역 -->
   <div class="waveform-trigger-zone"></div>
+
+  <!-- 타임라인 컨테이너 (하단 위치) -->
+  <div id="timeline-container">
+    <div id="timeline-header">
+      <canvas id="timeline-waveform-canvas"></canvas>
+      <div id="timeline-ruler"></div>
+    </div>
+    <div id="timeline-content">
+      <div id="timeline-track">
+        <!-- 노트 아이템들이 여기 동적으로 추가됨 -->
+      </div>
+    </div>
+    <div id="timeline-scrollbar">
+      <input type="range" id="timeline-slider" min="0" max="100" value="0" step="1">
+    </div>
+  </div>
 
   <script src="audio-sync-module.js"></script>
   <script src="script.js"></script>

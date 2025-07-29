@@ -140,7 +140,7 @@ body {
 #canvas {
   display: block;
   width: 100%;
-  height: calc(100vh - 120px);
+  height: calc(100vh - 320px); /* 타임라인 공간 확보 */
   background: #494949;
   cursor: grab;
 }
@@ -580,4 +580,270 @@ input[type="range"]::-moz-range-thumb {
 
 .waveform-trigger-zone.sidebar-hidden {
   left: 0; /* 사이드바가 숨겨졌을 때 전체 너비 사용 */
+}
+
+/* 타임라인 컨테이너 */
+#timeline-container {
+  position: fixed;
+  bottom: 0;
+  left: 400px; /* 사이드바 너비만큼 오프셋 */
+  right: 0;
+  height: 200px;
+  background: #2a2a2a;
+  border-top: 2px solid #555;
+  overflow: hidden;
+  z-index: 200;
+  transition: left 0.3s ease; /* 사이드바 토글 애니메이션 */
+}
+
+#timeline-container.sidebar-hidden {
+  left: 0; /* 사이드바가 숨겨졌을 때 전체 너비 사용 */
+}
+
+#timeline-header {
+  height: 40px;
+  background: #1e1e1e;
+  border-bottom: 1px solid #555;
+  position: relative;
+  overflow: hidden;
+}
+
+#timeline-waveform-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+  z-index: 1;
+}
+
+#timeline-ruler {
+  height: 100%;
+  position: relative;
+  background: transparent;
+  z-index: 2;
+}
+
+#timeline-content {
+  height: calc(100% - 60px);
+  overflow: hidden;
+  position: relative;
+}
+
+#timeline-track {
+  height: 100%;
+  position: relative;
+  background: repeating-linear-gradient(
+    to right,
+    transparent 0px,
+    transparent 99px,
+    #444 100px
+  );
+}
+
+#timeline-scrollbar {
+  height: 20px;
+  background: #1a1a1a;
+  border-top: 1px solid #555;
+  padding: 2px;
+}
+
+#timeline-slider {
+  width: 100%;
+  height: 16px;
+  background: #333;
+  outline: none;
+  border-radius: 8px;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+#timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 16px;
+  background: #4CAF50;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+#timeline-slider::-moz-range-thumb {
+  width: 20px;
+  height: 16px;
+  background: #4CAF50;
+  cursor: pointer;
+  border-radius: 8px;
+  border: none;
+}
+
+/* 타임라인 노트 아이템 */
+.timeline-note {
+  position: absolute;
+  height: 30px;
+  min-width: 8px;
+  border-radius: 4px;
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
+  border: 2px solid transparent;
+  transition: transform 0.1s ease;
+  user-select: none;
+  z-index: 10;
+}
+
+.timeline-note:hover {
+  transform: scale(1.1);
+  z-index: 20;
+}
+
+.timeline-note.selected {
+  border-color: #fff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  z-index: 30;
+}
+
+.timeline-note.dragging {
+  transform: scale(1.2);
+  z-index: 40;
+  opacity: 0.8;
+}
+
+/* 노트 타입별 색상 */
+.timeline-note.tab {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+  top: 10px;
+}
+
+.timeline-note.direction {
+  background: linear-gradient(135deg, #FF5722, #D84315);
+  top: 50px;
+}
+
+.timeline-note.both {
+  background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+  top: 90px;
+}
+
+.timeline-note.long-tab {
+  background: linear-gradient(135deg, #00BCD4, #0097A7);
+  top: 10px;
+  min-width: 20px;
+}
+
+.timeline-note.long-direction {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+  top: 50px;
+  min-width: 20px;
+}
+
+.timeline-note.long-both {
+  background: linear-gradient(135deg, #607D8B, #455A64);
+  top: 90px;
+  min-width: 20px;
+}
+
+/* 롱 노트의 길이 표시 */
+.timeline-note.long-tab::after,
+.timeline-note.long-direction::after,
+.timeline-note.long-both::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -2px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transform: translateY(-50%);
+}
+
+/* 타임라인 눈금 */
+.timeline-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #666;
+}
+
+.timeline-tick.major {
+  background: #888;
+  width: 2px;
+}
+
+.timeline-tick-label {
+  position: absolute;
+  top: 5px;
+  font-size: 10px;
+  color: #aaa;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* 재생 헤드 */
+.timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #4CAF50;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.timeline-playhead::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 8px solid #4CAF50;
+}
+
+/* 마우스 커서 바늘 */
+.timeline-cursor-needle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.8);
+  z-index: 45;
+  pointer-events: none;
+  display: none;
+}
+
+.timeline-cursor-needle::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  border-bottom: 6px solid rgba(255, 255, 255, 0.8);
+}
+
+.timeline-cursor-needle::after {
+  content: attr(data-time);
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
 }

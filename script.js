@@ -989,6 +989,11 @@ function processAudioForWaveform(audioFile) {
                     generateWaveformData(buffer);
                     drawWaveform();
                     saveToStorage();
+                    
+                    // 타임라인 새로고침
+                    if (timelineManager && timelineManager.refresh) {
+                        timelineManager.refresh();
+                    }
                 })
                 .catch(err => {
                     console.warn('AudioContext decoding failed:', err);
@@ -1020,6 +1025,12 @@ function tryAudioElementMethod(audioFile) {
         generateDummyWaveform(audio.duration);
         drawWaveform();
         saveToStorage();
+        
+        // 타임라인 새로고침
+        if (timelineManager && timelineManager.refresh) {
+            timelineManager.refresh();
+        }
+        
         URL.revokeObjectURL(url);
     });
 
@@ -1162,6 +1173,11 @@ function updateDemo() {
 
     drawPath();
     updateWaveformProgress();
+
+    // 타임라인 재생 헤드 업데이트
+    if (timelineManager && timelineManager.updatePlayhead) {
+        timelineManager.updatePlayhead();
+    }
 
     if (highlightedNoteTimer > 0) {
         highlightedNoteTimer -= 1 / 60;
@@ -1789,6 +1805,14 @@ function focusNoteAtIndex(index) {
         return;
     }
 
+    // 타임라인 매니저가 아직 초기화되지 않은 경우에 대한 안전 장치
+    if (!timelineManager || !timelineManager.track) {
+        console.warn('타임라인 매니저가 아직 초기화되지 않았습니다.');
+        selectedNoteIndex = index;
+        drawPath();
+        return;
+    }
+
     selectedNoteIndex = index;
     console.log('focusNoteAtIndex - selectedNoteIndex set to:', selectedNoteIndex);
     const note = notes[index];
@@ -1850,16 +1874,31 @@ function focusNoteAtIndex(index) {
         viewOffset.y = canvas.height / 2 - noteCanvasPos.y * zoom;
     }
 
-    // 노트 리스트 하이라이트 업데이트
-    const tbody = document.getElementById("note-list");
-    Array.from(tbody.children).forEach((row, i) => {
-        if (i === index) {
-            row.classList.add("highlight");
-            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        } else {
-            row.classList.remove("highlight");
-        }
-    });
+    // 타임라인 노트 하이라이트 업데이트
+    if (timelineManager && timelineManager.track) {
+        const timelineNotes = timelineManager.track.querySelectorAll('.timeline-note');
+        timelineNotes.forEach((noteElement, i) => {
+            const noteIndex = parseInt(noteElement.dataset.noteIndex);
+            if (noteIndex === index) {
+                noteElement.classList.add("selected");
+                timelineManager.selectedNoteElement = noteElement;
+                
+                // 타임라인에서 해당 노트 위치로 스크롤
+                const noteLeft = parseFloat(noteElement.style.left) || 0;
+                const containerWidth = timelineManager.container.clientWidth;
+                const targetScroll = Math.max(0, noteLeft + timelineManager.scrollOffset - containerWidth * 0.5);
+                const maxScroll = Math.max(0, timelineManager.totalDuration * timelineManager.pixelsPerSecond - containerWidth);
+                timelineManager.scrollOffset = Math.min(targetScroll, maxScroll);
+                
+                if (maxScroll > 0) {
+                    timelineManager.scrollbar.value = (timelineManager.scrollOffset / maxScroll) * 100;
+                }
+                timelineManager.updateTimelineView();
+            } else {
+                noteElement.classList.remove("selected");
+            }
+        });
+    }
 
     drawPath();
 }
@@ -2079,6 +2118,7 @@ function setupToggleFeatures() {
     const main = document.getElementById('main');
     const waveformContainer = document.getElementById('waveform-container');
     const waveformTriggerZone = document.querySelector('.waveform-trigger-zone');
+    const timelineContainer = document.getElementById('timeline-container');
 
     sidebarToggle.addEventListener('click', () => {
         const isHidden = sidebar.classList.contains('hidden');
@@ -2087,15 +2127,17 @@ function setupToggleFeatures() {
             sidebar.classList.remove('hidden');
             sidebarToggle.classList.remove('hidden');
             main.classList.remove('sidebar-hidden');
-            waveformContainer.classList.remove('sidebar-hidden');
-            waveformTriggerZone.classList.remove('sidebar-hidden');
+            if (waveformContainer) waveformContainer.classList.remove('sidebar-hidden');
+            if (waveformTriggerZone) waveformTriggerZone.classList.remove('sidebar-hidden');
+            if (timelineContainer) timelineContainer.classList.remove('sidebar-hidden');
             sidebarToggle.textContent = '◀';
         } else {
             sidebar.classList.add('hidden');
             sidebarToggle.classList.add('hidden');
             main.classList.add('sidebar-hidden');
-            waveformContainer.classList.add('sidebar-hidden');
-            waveformTriggerZone.classList.add('sidebar-hidden');
+            if (waveformContainer) waveformContainer.classList.add('sidebar-hidden');
+            if (waveformTriggerZone) waveformTriggerZone.classList.add('sidebar-hidden');
+            if (timelineContainer) timelineContainer.classList.add('sidebar-hidden');
             sidebarToggle.textContent = '▶';
         }
 
@@ -2106,6 +2148,11 @@ function setupToggleFeatures() {
                 drawWaveform();
             }
             drawPath();
+            
+            // 타임라인 새로고침
+            if (timelineManager && timelineManager.refresh) {
+                timelineManager.refresh();
+            }
         }, 300);
     });
 
@@ -2488,6 +2535,11 @@ function handleBpmChange(newBpm) {
     renderNoteList();
     if (waveformData)
         drawWaveform();
+    
+    // 타임라인 새로고침
+    if (timelineManager && timelineManager.refresh) {
+        timelineManager.refresh();
+    }
 }
 
 // Subdivisions 필드 변경 핸들러
@@ -2508,6 +2560,11 @@ function handleSubdivisionsChange(newSubdivisions) {
     renderNoteList();
     if (waveformData)
         drawWaveform();
+    
+    // 타임라인 새로고침
+    if (timelineManager && timelineManager.refresh) {
+        timelineManager.refresh();
+    }
 }
 
 // Pre-delay 변경 핸들러
@@ -2778,6 +2835,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 indicator.remove();
 
             saveToStorage();
+            
+            // 타임라인 새로고침 (오디오 파일 제거 시)
+            if (timelineManager && timelineManager.refresh) {
+                timelineManager.refresh();
+            }
+            
             return;
         }
 
@@ -2961,3 +3024,629 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     console.log('Initialization complete');
 });
+
+// =================================================================
+// 타임라인 관리자
+// =================================================================
+
+let timelineManager = {
+    container: null,
+    track: null,
+    ruler: null,
+    scrollbar: null,
+    playhead: null,
+    waveformCanvas: null,
+    waveformCtx: null,
+    cursorNeedle: null,
+    totalDuration: 0,
+    pixelsPerSecond: 100,
+    minPixelsPerSecond: 20,
+    maxPixelsPerSecond: 500,
+    scrollOffset: 0,
+    draggedNote: null,
+    dragOffset: { x: 0, y: 0 },
+    selectedNoteElement: null,
+    isDraggingTimeline: false,
+    timelineDragStart: { x: 0, scrollOffset: 0 },
+
+    init() {
+        this.container = document.getElementById('timeline-container');
+        this.track = document.getElementById('timeline-track');
+        this.ruler = document.getElementById('timeline-ruler');
+        this.scrollbar = document.getElementById('timeline-slider');
+        this.waveformCanvas = document.getElementById('timeline-waveform-canvas');
+        this.waveformCtx = this.waveformCanvas ? this.waveformCanvas.getContext('2d') : null;
+        
+        if (!this.container || !this.track || !this.ruler || !this.scrollbar) {
+            console.error('타임라인 요소를 찾을 수 없습니다.');
+            return;
+        }
+
+        this.setupEventListeners();
+        this.updateTimelineDuration();
+        this.renderTimeline();
+        
+        console.log('타임라인 초기화 완료');
+    },
+
+    setupEventListeners() {
+        // 스크롤바 이벤트
+        this.scrollbar.addEventListener('input', (e) => {
+            this.scrollOffset = (parseFloat(e.target.value) / 100) * Math.max(0, this.totalDuration * this.pixelsPerSecond - this.container.clientWidth);
+            this.updateTimelineView();
+        });
+
+        // 타임라인 클릭 이벤트
+        this.track.addEventListener('click', (e) => {
+            if (e.target === this.track) {
+                this.deselectAllNotes();
+            }
+        });
+
+        // 키보드 이벤트
+        document.addEventListener('keydown', (e) => {
+            if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedNoteElement) {
+                this.deleteSelectedNote();
+                e.preventDefault();
+            }
+        });
+
+        // 마우스 커서 바늘 이벤트
+        this.container.addEventListener('mouseenter', () => {
+            this.showCursorNeedle();
+        });
+
+        this.container.addEventListener('mouseleave', () => {
+            this.hideCursorNeedle();
+        });
+
+        this.container.addEventListener('mousemove', (e) => {
+            this.updateCursorNeedle(e);
+        });
+
+        // 마우스 휠 확대/축소 이벤트
+        this.container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            this.handleZoom(e);
+        });
+
+        // 타임라인 패닝 이벤트
+        this.container.addEventListener('mousedown', (e) => {
+            if (e.target === this.track || e.target === this.container) {
+                this.startTimelineDrag(e);
+            }
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (this.isDraggingTimeline) {
+                this.updateTimelineDrag(e);
+            }
+        });
+
+        document.addEventListener('mouseup', (e) => {
+            if (this.isDraggingTimeline) {
+                this.endTimelineDrag(e);
+            }
+        });
+    },
+
+    updateTimelineDuration() {
+        const preDelaySeconds = getPreDelaySeconds ? getPreDelaySeconds() : 0;
+        const audioDuration = audioBuffer && audioBuffer.duration ? audioBuffer.duration : 60;
+        this.totalDuration = 3 + audioDuration + preDelaySeconds; // MUSIC_START_TIME + 오디오 길이 + pre-delay
+        
+        // 초기 픽셀 비율은 기본값 사용 (수동 줌 우선)
+        if (this.pixelsPerSecond === 100) { // 초기값인 경우에만 자동 조정
+            const containerWidth = this.container.clientWidth;
+            this.pixelsPerSecond = Math.max(this.minPixelsPerSecond, 
+                Math.min(this.maxPixelsPerSecond, containerWidth / this.totalDuration));
+        }
+    },
+
+    renderTimeline() {
+        this.renderWaveform();
+        this.renderRuler();
+        this.renderNotes();
+        this.updatePlayhead();
+    },
+
+    renderRuler() {
+        if (!this.ruler) return;
+        
+        this.ruler.innerHTML = '';
+        
+        const rulerWidth = this.totalDuration * this.pixelsPerSecond;
+        this.ruler.style.width = rulerWidth + 'px';
+        
+        // 눈금 생성
+        const tickInterval = this.pixelsPerSecond >= 100 ? 1 : 5; // 픽셀이 충분하면 1초마다, 아니면 5초마다
+        
+        for (let time = 0; time <= this.totalDuration; time += tickInterval) {
+            const x = time * this.pixelsPerSecond;
+            
+            const tick = document.createElement('div');
+            tick.className = 'timeline-tick' + (time % 10 === 0 ? ' major' : '');
+            tick.style.left = x + 'px';
+            this.ruler.appendChild(tick);
+            
+            if (time % (tickInterval * 2) === 0) {
+                const label = document.createElement('div');
+                label.className = 'timeline-tick-label';
+                label.style.left = x + 'px';
+                label.textContent = this.formatTime(time);
+                this.ruler.appendChild(label);
+            }
+        }
+    },
+
+    renderNotes() {
+        if (!this.track) return;
+        
+        // 기존 노트 요소들 제거
+        const existingNotes = this.track.querySelectorAll('.timeline-note');
+        existingNotes.forEach(note => note.remove());
+        
+        // 노트들을 원본 인덱스와 함께 시간순으로 정렬
+        const notesWithIndex = notes.map((note, originalIndex) => ({
+            note: note,
+            originalIndex: originalIndex,
+            time: this.beatToTime(note.beat)
+        }));
+        
+        notesWithIndex.sort((a, b) => a.time - b.time);
+        
+        notesWithIndex.forEach((item) => {
+            const noteElement = this.createNoteElement(item.note, item.originalIndex);
+            this.track.appendChild(noteElement);
+        });
+        
+        this.updateTimelineView();
+    },
+
+    createNoteElement(note, index) {
+        const noteElement = document.createElement('div');
+        noteElement.className = `timeline-note ${note.type}`;
+        noteElement.dataset.noteIndex = index;
+        
+        // 노트 객체 자체를 참조로 저장 (디버깅용)
+        noteElement._noteRef = note;
+        
+        const time = this.beatToTime(note.beat);
+        const x = time * this.pixelsPerSecond;
+        noteElement.style.left = x + 'px';
+        
+        // 롱 노트의 경우 길이 설정
+        if (note.isLong && note.longTime) {
+            const longDuration = note.longTime / 1000; // ms를 s로 변환
+            const width = Math.max(20, longDuration * this.pixelsPerSecond);
+            noteElement.style.width = width + 'px';
+        }
+        
+        // 노트 내용 표시
+        const content = document.createElement('div');
+        content.textContent = note.beat.toString();
+        noteElement.appendChild(content);
+        
+        // 드래그 이벤트 설정
+        this.setupNoteDragEvents(noteElement);
+        
+        return noteElement;
+    },
+
+    setupNoteDragEvents(noteElement) {
+        let isDragging = false;
+        let startX = 0;
+        let startY = 0;
+        let originalX = 0;
+        
+        noteElement.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            originalX = parseFloat(noteElement.style.left) || 0;
+            
+            noteElement.classList.add('dragging');
+            this.selectNote(noteElement);
+            
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+        
+        const onMouseMove = (e) => {
+            if (!isDragging) return;
+            
+            const deltaX = e.clientX - startX;
+            let newX = Math.max(0, originalX + deltaX);
+            const maxX = this.totalDuration * this.pixelsPerSecond - noteElement.offsetWidth;
+            newX = Math.min(newX, maxX);
+            
+            // 스냅 기능: subdivision에 따라 그리드에 맞춤
+            const subdivisions = parseInt(document.getElementById("subdivisions")?.value || 16);
+            const bpm = parseFloat(document.getElementById("bpm")?.value || 120);
+            const beatPixelWidth = (60 / (bpm * subdivisions)) * this.pixelsPerSecond;
+            
+            if (beatPixelWidth > 5) { // 충분히 큰 경우에만 스냅 적용
+                const snapX = Math.round(newX / beatPixelWidth) * beatPixelWidth;
+                newX = snapX;
+            }
+            
+            noteElement.style.left = newX + 'px';
+            
+            // 실시간으로 beat 정보 표시 (개발용)
+            const newTime = newX / this.pixelsPerSecond;
+            const newBeat = this.timeToBeat(newTime);
+            noteElement.title = `Beat: ${newBeat}, Time: ${this.formatTime(newTime)}`;
+        };
+        
+        const onMouseUp = (e) => {
+            if (!isDragging) return;
+            
+            isDragging = false;
+            noteElement.classList.remove('dragging');
+            
+            // 최종 위치를 beat로 변환하여 노트 업데이트
+            const finalX = parseFloat(noteElement.style.left);
+            const finalTime = finalX / this.pixelsPerSecond;
+            const finalBeat = this.timeToBeat(finalTime);
+            
+            // 노트 객체 직접 참조를 사용하여 beat 업데이트
+            const noteRef = noteElement._noteRef;
+            if (noteRef && finalBeat >= 0) {
+                const originalBeat = noteRef.beat;
+                noteRef.beat = finalBeat;
+                
+                console.log(`노트 이동: Beat ${originalBeat} → ${finalBeat}, Time: ${this.formatTime(finalTime)}`);
+                
+                this.renderNotes(); // 다시 렌더링하여 정렬 적용
+                
+                // 캔버스 업데이트 (기존 함수들 호출)
+                if (typeof drawPath === 'function') drawPath();
+                if (typeof saveToStorage === 'function') saveToStorage();
+            } else {
+                // 잘못된 위치면 원래 위치로 복원
+                noteElement.style.left = originalX + 'px';
+            }
+            
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        
+        // 노트 선택 이벤트
+        noteElement.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isDragging) {
+                this.selectNote(noteElement);
+            }
+        });
+    },
+
+    selectNote(noteElement) {
+        this.deselectAllNotes();
+        noteElement.classList.add('selected');
+        this.selectedNoteElement = noteElement;
+        
+        // 기존 선택 로직과 연동
+        const noteIndex = parseInt(noteElement.dataset.noteIndex);
+        if (typeof focusNoteAtIndex === 'function') {
+            selectedNoteIndex = noteIndex;
+        }
+    },
+
+    deselectAllNotes() {
+        const selectedNotes = this.track.querySelectorAll('.timeline-note.selected');
+        selectedNotes.forEach(note => note.classList.remove('selected'));
+        this.selectedNoteElement = null;
+    },
+
+    deleteSelectedNote() {
+        if (!this.selectedNoteElement) return;
+        
+        // 노트 객체 직접 참조를 사용하여 삭제
+        const noteRef = this.selectedNoteElement._noteRef;
+        if (noteRef) {
+            const noteIndex = notes.indexOf(noteRef);
+            if (noteIndex !== -1) {
+                notes.splice(noteIndex, 1);
+                this.renderNotes();
+                
+                // 캔버스 업데이트
+                if (typeof drawPath === 'function') drawPath();
+                if (typeof saveToStorage === 'function') saveToStorage();
+            }
+        }
+        
+        this.selectedNoteElement = null;
+    },
+
+    updateTimelineView() {
+        if (!this.track || !this.ruler) return;
+        
+        this.track.style.transform = `translateX(-${this.scrollOffset}px)`;
+        this.ruler.style.transform = `translateX(-${this.scrollOffset}px)`;
+        
+        // waveform도 다시 그리기 (스크롤 반영)
+        this.renderWaveform();
+    },
+
+    updatePlayhead() {
+        if (!isPlaying || !this.track) return;
+        
+        let playheadElement = this.track.querySelector('.timeline-playhead');
+        if (!playheadElement) {
+            playheadElement = document.createElement('div');
+            playheadElement.className = 'timeline-playhead';
+            this.track.appendChild(playheadElement);
+        }
+        
+        // 타임라인의 노트들은 MUSIC_START_TIME(3초) + pre-delay 위치에 배치됨
+        // 재생 헤드는 elapsedTime + MUSIC_START_TIME 위치에 있어야 노트와 일치
+        const currentElapsedTime = elapsedTime || 0;
+        const timelineTime = currentElapsedTime + 3; // MUSIC_START_TIME 추가
+        
+        const x = timelineTime * this.pixelsPerSecond;
+        const displayX = x - this.scrollOffset;
+        playheadElement.style.left = displayX + 'px';
+        
+        // 자동 스크롤
+        const containerWidth = this.container.clientWidth;
+        if (displayX > containerWidth * 0.8 || displayX < containerWidth * 0.2) {
+            this.scrollOffset = Math.max(0, x - containerWidth * 0.5);
+            const maxScroll = Math.max(0, this.totalDuration * this.pixelsPerSecond - containerWidth);
+            this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
+            
+            if (maxScroll > 0) {
+                this.scrollbar.value = (this.scrollOffset / maxScroll) * 100;
+            }
+            this.updateTimelineView();
+        }
+    },
+
+    beatToTime(beat) {
+        const bpm = parseFloat(document.getElementById("bpm")?.value || 120);
+        const subdivisions = parseInt(document.getElementById("subdivisions")?.value || 16);
+        const preDelaySeconds = getPreDelaySeconds ? getPreDelaySeconds() : 0;
+        
+        // 기존 beatToTime 함수와 동일하게 계산 후 타임라인 오프셋 추가
+        const beatTime = (beat * 60) / (bpm * subdivisions);
+        return beatTime + 3 + preDelaySeconds; // MUSIC_START_TIME + pre-delay 포함
+    },
+
+    timeToBeat(time) {
+        const bpm = parseFloat(document.getElementById("bpm")?.value || 120);
+        const subdivisions = parseInt(document.getElementById("subdivisions")?.value || 16);
+        const preDelaySeconds = getPreDelaySeconds ? getPreDelaySeconds() : 0;
+        
+        // 타임라인 오프셋을 제거한 실제 음악 시간으로 변환
+        const adjustedTime = time - 3 - preDelaySeconds; // MUSIC_START_TIME과 pre-delay 제외
+        const beat = (adjustedTime * bpm * subdivisions) / 60;
+        return Math.max(0, Math.round(beat)); // 음수 방지
+    },
+
+    formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    },
+
+    renderWaveform() {
+        if (!this.waveformCanvas || !this.waveformCtx) return;
+        
+        // 캔버스 크기 설정
+        const rect = this.waveformCanvas.getBoundingClientRect();
+        this.waveformCanvas.width = rect.width;
+        this.waveformCanvas.height = rect.height;
+        
+        const ctx = this.waveformCtx;
+        const width = this.waveformCanvas.width;
+        const height = this.waveformCanvas.height;
+        
+        // 캔버스 초기화
+        ctx.clearRect(0, 0, width, height);
+        
+        // waveformData가 없으면 간단한 그라데이션으로 대체
+        if (!waveformData || !audioBuffer) {
+            const gradient = ctx.createLinearGradient(0, 0, width, 0);
+            gradient.addColorStop(0, 'rgba(76, 175, 80, 0.1)');
+            gradient.addColorStop(0.5, 'rgba(76, 175, 80, 0.3)');
+            gradient.addColorStop(1, 'rgba(76, 175, 80, 0.1)');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+            return;
+        }
+        
+        // 실제 waveform 데이터 그리기
+        const totalWidth = this.totalDuration * this.pixelsPerSecond;
+        const preDelaySeconds = getPreDelaySeconds ? getPreDelaySeconds() : 0;
+        const musicStartTime = 3 + preDelaySeconds; // MUSIC_START_TIME + pre-delay
+        const musicStartX = (musicStartTime / this.totalDuration) * totalWidth;
+        const musicWidth = (audioBuffer.duration / this.totalDuration) * totalWidth;
+        
+        // waveform 데이터를 타임라인 크기에 맞게 조정
+        const samplesPerPixel = Math.max(1, Math.floor(waveformData.length / musicWidth));
+        
+        ctx.fillStyle = 'rgba(76, 175, 80, 0.6)';
+        ctx.strokeStyle = 'rgba(76, 175, 80, 0.8)';
+        ctx.lineWidth = 1;
+        
+        // 음악 영역만 그리기
+        const visibleStartX = Math.max(0, this.scrollOffset);
+        const visibleEndX = Math.min(totalWidth, this.scrollOffset + width);
+        
+        if (musicStartX < visibleEndX && (musicStartX + musicWidth) > visibleStartX) {
+            ctx.beginPath();
+            ctx.moveTo(Math.max(0, musicStartX - this.scrollOffset), height / 2);
+            
+            for (let x = Math.max(musicStartX, visibleStartX); x < Math.min(musicStartX + musicWidth, visibleEndX); x += 2) {
+                const dataIndex = Math.floor(((x - musicStartX) / musicWidth) * waveformData.length);
+                if (dataIndex >= 0 && dataIndex < waveformData.length) {
+                    const amplitude = waveformData[dataIndex] || 0;
+                    const y = height / 2 + (amplitude * height / 4);
+                    ctx.lineTo(x - this.scrollOffset, y);
+                }
+            }
+            
+            ctx.lineTo(Math.min(musicStartX + musicWidth, visibleEndX) - this.scrollOffset, height / 2);
+            ctx.stroke();
+            
+            // 채우기 효과
+            ctx.lineTo(Math.min(musicStartX + musicWidth, visibleEndX) - this.scrollOffset, height);
+            ctx.lineTo(Math.max(0, musicStartX - this.scrollOffset), height);
+            ctx.closePath();
+            ctx.fill();
+        }
+    },
+
+    // 외부에서 호출할 수 있는 업데이트 함수들
+    refresh() {
+        this.updateTimelineDuration();
+        this.renderTimeline();
+    },
+
+    addNote(noteProps) {
+        // 기존 addNote 함수 호출 후 타임라인 업데이트
+        this.renderNotes();
+    },
+
+    // 커서 바늘 관련 함수들
+    showCursorNeedle() {
+        if (!this.cursorNeedle) {
+            this.cursorNeedle = document.createElement('div');
+            this.cursorNeedle.className = 'timeline-cursor-needle';
+            this.track.appendChild(this.cursorNeedle);
+        }
+        this.cursorNeedle.style.display = 'block';
+    },
+
+    hideCursorNeedle() {
+        if (this.cursorNeedle) {
+            this.cursorNeedle.style.display = 'none';
+        }
+    },
+
+    updateCursorNeedle(e) {
+        if (!this.cursorNeedle || this.isDraggingTimeline) return;
+
+        const rect = this.container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const timelineX = mouseX + this.scrollOffset;
+        const time = timelineX / this.pixelsPerSecond;
+        const beat = this.timeToBeat(time);
+
+        // 바늘 위치 업데이트 (마우스 위치와 정확히 일치)
+        this.cursorNeedle.style.left = mouseX + 'px';
+        
+        // 시간 정보 표시
+        const timeText = `${this.formatTime(time)} (Beat: ${Math.max(0, beat)})`;
+        this.cursorNeedle.setAttribute('data-time', timeText);
+    },
+
+    // 줌 핸들러
+    handleZoom(e) {
+        const rect = this.container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseTimelineX = mouseX + this.scrollOffset;
+        const mouseTime = mouseTimelineX / this.pixelsPerSecond;
+
+        // 줌 팩터 계산
+        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+        const newPixelsPerSecond = Math.min(this.maxPixelsPerSecond, 
+            Math.max(this.minPixelsPerSecond, this.pixelsPerSecond * zoomFactor));
+
+        if (newPixelsPerSecond === this.pixelsPerSecond) return; // 변화 없음
+
+        // 마우스 위치를 중심으로 줌
+        const oldPixelsPerSecond = this.pixelsPerSecond;
+        this.pixelsPerSecond = newPixelsPerSecond;
+
+        // 스크롤 위치 조정 (마우스 위치 기준으로)
+        const newMouseTimelineX = mouseTime * this.pixelsPerSecond;
+        const newScrollOffset = newMouseTimelineX - mouseX;
+        
+        // 스크롤 범위 제한
+        const maxScroll = Math.max(0, this.totalDuration * this.pixelsPerSecond - this.container.clientWidth);
+        this.scrollOffset = Math.max(0, Math.min(newScrollOffset, maxScroll));
+
+        // 스크롤바 업데이트
+        if (maxScroll > 0) {
+            this.scrollbar.value = (this.scrollOffset / maxScroll) * 100;
+        } else {
+            this.scrollbar.value = 0;
+        }
+
+        // 렌더링 업데이트
+        this.renderTimeline();
+
+        console.log(`줌: ${oldPixelsPerSecond.toFixed(1)} → ${this.pixelsPerSecond.toFixed(1)} px/s`);
+    },
+
+    // 타임라인 패닝 함수들
+    startTimelineDrag(e) {
+        this.isDraggingTimeline = true;
+        this.timelineDragStart.x = e.clientX;
+        this.timelineDragStart.scrollOffset = this.scrollOffset;
+        this.container.style.cursor = 'grabbing';
+        e.preventDefault();
+    },
+
+    updateTimelineDrag(e) {
+        if (!this.isDraggingTimeline) return;
+
+        const deltaX = e.clientX - this.timelineDragStart.x;
+        const newScrollOffset = this.timelineDragStart.scrollOffset - deltaX;
+
+        // 스크롤 범위 제한
+        const maxScroll = Math.max(0, this.totalDuration * this.pixelsPerSecond - this.container.clientWidth);
+        this.scrollOffset = Math.max(0, Math.min(newScrollOffset, maxScroll));
+
+        // 스크롤바 업데이트
+        if (maxScroll > 0) {
+            this.scrollbar.value = (this.scrollOffset / maxScroll) * 100;
+        } else {
+            this.scrollbar.value = 0;
+        }
+
+        this.updateTimelineView();
+    },
+
+    endTimelineDrag(e) {
+        this.isDraggingTimeline = false;
+        this.container.style.cursor = 'default';
+    }
+};
+
+// 기존 함수들과의 통합을 위한 래퍼 함수들
+function renderNoteList() {
+    // 기존 테이블 렌더링 대신 타임라인 렌더링
+    if (timelineManager && timelineManager.renderNotes) {
+        timelineManager.renderNotes();
+    }
+}
+
+// 기존 addNote 함수를 확장
+const originalAddNote = window.addNote;
+if (originalAddNote) {
+    window.addNote = function(noteProps) {
+        const result = originalAddNote.call(this, noteProps);
+        if (timelineManager) {
+            timelineManager.addNote(noteProps);
+        }
+        return result;
+    };
+}
+
+// 초기화
+document.addEventListener('DOMContentLoaded', () => {
+    // 기존 초기화 후에 타임라인 초기화
+    setTimeout(() => {
+        if (timelineManager) {
+            timelineManager.init();
+        }
+    }, 100);
+});
+
+// 전역 접근을 위한 노출
+window.timelineManager = timelineManager;
