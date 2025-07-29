@@ -25,6 +25,7 @@ let savedAudioFile = null; // 저장된 오디오 파일 정보
 
 let highlightedNoteIndex = null;
 let highlightedNoteTimer = 0;
+let selectedNoteIndex = null; // 현재 선택된 노트의 인덱스
 
 let globalAnimationFrameId = null;
 let isDrawLoopRunning = false;
@@ -598,6 +599,38 @@ function drawPath() {
             ctx.arc(x, y, radius, 0, 2 * Math.PI);
             ctx.strokeStyle = `rgba(255, 200, 0, ${alpha})`;
             ctx.lineWidth = 3;
+            ctx.stroke();
+        }
+    }
+
+    // 선택된 노트 하이라이트 (노란색 원)
+    if (selectedNoteIndex !== null && notes[selectedNoteIndex]) {
+        const note = notes[selectedNoteIndex];
+        let pathBeat;
+        if (note.beat === 0 && note.type === "direction") {
+            pathBeat = 0;
+        } else {
+            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            const adjustedTime = originalTime + preDelaySeconds;
+            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+        }
+
+        const pos = getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions);
+        if (pos) {
+            const x = pos.x * zoom + viewOffset.x;
+            const y = pos.y * zoom + viewOffset.y;
+
+            ctx.beginPath();
+            ctx.arc(x, y, 12, 0, 2 * Math.PI); // 좀 더 큰 원
+            ctx.strokeStyle = `rgba(255, 255, 0, 0.8)`; // 노란색
+            ctx.lineWidth = 4;
+            ctx.stroke();
+
+            // 애니메이션 효과를 위한 추가 원 (선택 사항)
+            ctx.beginPath();
+            ctx.arc(x, y, 15, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(255, 255, 0, 0.4)`; // 더 투명한 노란색
+            ctx.lineWidth = 2;
             ctx.stroke();
         }
     }
@@ -1599,6 +1632,16 @@ function renderNoteList() {
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
     const preDelaySeconds = getPreDelaySeconds();
 
+    // 중복 beat 값 감지
+    const beatCounts = {};
+    const duplicateBeats = new Set();
+    notes.forEach(note => {
+        beatCounts[note.beat] = (beatCounts[note.beat] || 0) + 1;
+        if (beatCounts[note.beat] > 1) {
+            duplicateBeats.add(note.beat);
+        }
+    });
+
     notes.forEach((note, index) => {
         const tr = document.createElement("tr");
         let className = "tab-note";
@@ -1610,6 +1653,14 @@ function renderNoteList() {
             className = "long-tab-note";
         }
         tr.className = className;
+        if (index === selectedNoteIndex) {
+            tr.classList.add("highlight");
+        }
+        
+        // 중복 beat 값인 경우 빨간색으로 표시
+        if (duplicateBeats.has(note.beat)) {
+            tr.classList.add("duplicate-beat");
+        }
 
         const tdIndex = document.createElement("td");
         tdIndex.textContent = index;
@@ -1728,6 +1779,89 @@ function renderNoteList() {
         });
         tbody.appendChild(tr);
     });
+}
+
+function focusNoteAtIndex(index) {
+    if (index < 0 || index >= notes.length) {
+        selectedNoteIndex = null;
+        drawPath();
+        renderNoteList();
+        return;
+    }
+
+    selectedNoteIndex = index;
+    console.log('focusNoteAtIndex - selectedNoteIndex set to:', selectedNoteIndex);
+    const note = notes[index];
+
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    const preDelaySeconds = getPreDelaySeconds();
+
+    let pathBeat;
+    if (note.beat === 0 && note.type === "direction") {
+        pathBeat = 0;
+    } else {
+        const originalTime = beatToTime(note.beat, bpm, subdivisions);
+        const adjustedTime = originalTime + preDelaySeconds;
+        pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+    }
+
+    const directionNotes = notes.filter(n =>
+        n.type === "direction" ||
+        n.type === "both" ||
+        n.type === "longdirection" ||
+        n.type === "longboth"
+    ).sort((a, b) => a.beat - b.beat);
+
+    const pathDirectionNotes = directionNotes.map((n, i) => {
+        let pBeat;
+        if (n.beat === 0 && n.type === "direction") {
+            pBeat = 0;
+        } else {
+            const originalTime = beatToTime(n.beat, bpm, subdivisions);
+            const adjustedTime = originalTime + preDelaySeconds;
+            pBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+        }
+        return { ...n, pathBeat: pBeat };
+    }).sort((a, b) => a.pathBeat - b.pathBeat);
+
+    const nodePositions = [];
+    let pos = { x: 0, y: 0 };
+    nodePositions.push(pos);
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i + 1];
+        const dBeat = b.pathBeat - a.pathBeat;
+        const dist = (8 * dBeat) / subdivisions;
+        const [dx, dy] = directionToVector(a.direction);
+        const mag = Math.hypot(dx, dy) || 1;
+        const next = {
+            x: pos.x + (dx / mag) * dist,
+            y: pos.y + (dy / mag) * dist
+        };
+        pos = next;
+        nodePositions.push(pos);
+    }
+
+    const noteCanvasPos = getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions);
+
+    if (noteCanvasPos) {
+        viewOffset.x = canvas.width / 2 - noteCanvasPos.x * zoom;
+        viewOffset.y = canvas.height / 2 - noteCanvasPos.y * zoom;
+    }
+
+    // 노트 리스트 하이라이트 업데이트
+    const tbody = document.getElementById("note-list");
+    Array.from(tbody.children).forEach((row, i) => {
+        if (i === index) {
+            row.classList.add("highlight");
+            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        } else {
+            row.classList.remove("highlight");
+        }
+    });
+
+    drawPath();
 }
 
 function updateWaveformSlider() {
@@ -1990,6 +2124,38 @@ function setupToggleFeatures() {
     });
 }
 
+function setupNoteButtons() {
+    // Tab 노트 추가
+    document.getElementById('add-tab').addEventListener('click', () => {
+        addNote({ type: "tab", isLong: false, longTime: 0 });
+    });
+
+    // Direction 노트 추가
+    document.getElementById('add-dir').addEventListener('click', () => {
+        addNote({ type: "direction", isLong: false, longTime: 0 });
+    });
+
+    // Both 노트 추가
+    document.getElementById('add-both').addEventListener('click', () => {
+        addNote({ type: "both", isLong: false, longTime: 0 });
+    });
+
+    // Long Tab 노트 추가
+    document.getElementById('add-long-tab').addEventListener('click', () => {
+        addNote({ type: "longtab", isLong: true });
+    });
+
+    // Long Direction 노트 추가
+    document.getElementById('add-long-dir').addEventListener('click', () => {
+        addNote({ type: "longdirection", isLong: true });
+    });
+
+    // Long Both 노트 추가  
+    document.getElementById('add-long-both').addEventListener('click', () => {
+        addNote({ type: "longboth", isLong: true });
+    });
+}
+
 function setupVolumeControls() {
     const musicVolumeSlider = document.getElementById("music-volume");
     const sfxVolumeSlider = document.getElementById("sfx-volume");
@@ -2188,50 +2354,6 @@ function getNotePosition(beat) {
     return null;
 }
 
-function focusNoteAtIndex(index) {
-    const note = notes[index];
-    if (!note)
-        return;
-
-    const bpm = parseFloat(document.getElementById("bpm").value || 120);
-    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-    const preDelaySeconds = getPreDelaySeconds();
-
-    let pathBeat;
-    if (note.beat === 0 && note.type === "direction") {
-        pathBeat = 0;
-    } else {
-        const adjustedTime = beatToTime(note.beat, bpm, subdivisions) - preDelaySeconds;
-        pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
-    }
-
-    const pos = getNotePosition(pathBeat);
-    if (!pos)
-        return;
-
-    viewOffset.x = canvas.width / 2 - pos.x * zoom;
-    viewOffset.y = canvas.height / 2 - pos.y * zoom;
-
-    drawPath();
-
-    const rows = document.querySelectorAll("#note-list .note-row, #note-list tr");
-    rows.forEach(r => r.classList.remove("highlight"));
-    if (rows[index]) {
-        rows[index].classList.add("highlight");
-        rows[index].scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-        });
-    }
-
-    highlightedNoteIndex = index;
-    highlightedNoteTimer = 0.5;
-
-    if (!isDrawLoopRunning) {
-        isDrawLoopRunning = true;
-        drawLoop();
-    }
-}
 
 function drawLoop() {
     if (highlightedNoteTimer > 0) {
@@ -2264,12 +2386,35 @@ function addNote(noteProps) {
     let newBeat;
     let insertionIndex;
 
-    if (highlightedNoteIndex !== null && highlightedNoteIndex < notes.length) {
-        insertionIndex = highlightedNoteIndex + 1;
-        const selectedNote = notes[highlightedNoteIndex];
-        let interval = (highlightedNoteIndex > 0) ? (selectedNote.beat - notes[highlightedNoteIndex - 1].beat) : subdivisions;
-        if (interval <= 0) interval = subdivisions;
+    console.log('addNote called - selectedNoteIndex:', selectedNoteIndex, 'notes.length:', notes.length);
+
+    if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
+        const selectedNote = notes[selectedNoteIndex];
+        
+        // 선택된 노트와 직전 노트의 간격을 계산
+        let interval;
+        if (selectedNoteIndex > 0) {
+            const previousNote = notes[selectedNoteIndex - 1];
+            interval = selectedNote.beat - previousNote.beat;
+            console.log(`Interval calculation: ${selectedNote.beat} - ${previousNote.beat} = ${interval}`);
+        } else {
+            // 첫 번째 노트라면 기본 간격 사용
+            interval = subdivisions;
+            console.log(`First note - using default interval: ${interval}`);
+        }
+        
+        // 간격이 0 이하라면 기본 간격 사용
+        if (interval <= 0) {
+            interval = subdivisions;
+            console.log(`Invalid interval - using default: ${interval}`);
+        }
+        
+        // 선택된 노트 + 간격으로 새 노트 beat 설정
         newBeat = selectedNote.beat + interval;
+        console.log(`New note beat: ${selectedNote.beat} + ${interval} = ${newBeat}`);
+        
+        // 선택된 노트 바로 다음 위치에 삽입
+        insertionIndex = selectedNoteIndex + 1;
     } else {
         insertionIndex = notes.length;
         const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
@@ -2414,6 +2559,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         subdivisionsField.dataset.previousValue = subdivisionsField.value || "16";
     }
 
+    if (bpmField) {
+        bpmField.addEventListener("change", (e) => {
+            handleBpmChange(parseFloat(e.target.value || 120));
+        });
+    }
+
+    if (subdivisionsField) {
+        subdivisionsField.addEventListener("change", (e) => {
+            handleSubdivisionsChange(parseInt(e.target.value || 16));
+        });
+    }
+
     if (preDelayField) {
         preDelayField.addEventListener("change", handlePreDelayChange);
     }
@@ -2428,29 +2585,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     });
 
-    document.getElementById("add-tab").addEventListener("click", () => {
-        addNote({ type: "tab", isLong: false, longTime: 0 });
-    });
-
-    document.getElementById("add-dir").addEventListener("click", () => {
-        addNote({ type: "direction", isLong: false, longTime: 0 });
-    });
-
-    document.getElementById("add-both").addEventListener("click", () => {
-        addNote({ type: "both", isLong: false, longTime: 0 });
-    });
-
-    document.getElementById("add-long-tab").addEventListener("click", () => {
-        addNote({ type: "longtab", isLong: true });
-    });
-
-    document.getElementById("add-long-dir").addEventListener("click", () => {
-        addNote({ type: "longdirection", isLong: true });
-    });
-
-    document.getElementById("add-long-both").addEventListener("click", () => {
-        addNote({ type: "longboth", isLong: true });
-    });
 
     document.getElementById("sort-notes").addEventListener("click", () => {
         notes.sort((a, b) => a.beat - b.beat);
@@ -2785,6 +2919,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     setupVolumeControls();
+    setupToggleFeatures();
+    setupNoteButtons();
 
     ensureInitialDirectionNote();
     loadFromStorage();
@@ -2796,8 +2932,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 키보드 단축키
     document.addEventListener('keydown', (e) => {
-        // 입력 필드에 포커스가 있을 때는 단축키 작동 안 함
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        // 입력 필드나 버튼에 포커스가 있을 때는 단축키 작동 안 함
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
             return;
         }
 

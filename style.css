@@ -95,6 +95,16 @@ body {
   background: #666 !important;
 }
 
+#sidebar tr.duplicate-beat {
+  background: #cc4444 !important;
+  border: 2px solid #ff6666 !important;
+}
+
+#sidebar tr.duplicate-beat.highlight {
+  background: #aa3333 !important;
+  border: 2px solid #ff6666 !important;
+}
+
 /* 사이드바 토글 버튼 */
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
