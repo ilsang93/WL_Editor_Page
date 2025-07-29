@@ -371,7 +371,11 @@ function drawPath() {
             ctx.fillText("L", screenX, screenY);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
+                // longTime(ms)을 비트 단위로 변환
+                const bpm = parseFloat(document.getElementById("bpm").value || 120);
+                const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+                const longTimeSeconds = note.longTime / 1000;
+                const longTimeBeat = (longTimeSeconds * bpm * subdivisions) / 60;
                 const endPathBeat = pathBeat + longTimeBeat;
 
                 drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8);
@@ -439,7 +443,11 @@ function drawPath() {
             ctx.fillText("L", screenX + ux * 0.3, screenY + uy * 0.3);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
+                // longTime(ms)을 비트 단위로 변환
+                const bpm = parseFloat(document.getElementById("bpm").value || 120);
+                const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+                const longTimeSeconds = note.longTime / 1000;
+                const longTimeBeat = (longTimeSeconds * bpm * subdivisions) / 60;
                 const endPathBeat = pathBeat + longTimeBeat;
 
                 drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#03A9F4", 8);
@@ -515,7 +523,11 @@ function drawPath() {
             ctx.fillText("L", screenX, screenY);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
+                // longTime(ms)을 비트 단위로 변환
+                const bpm = parseFloat(document.getElementById("bpm").value || 120);
+                const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+                const longTimeSeconds = note.longTime / 1000;
+                const longTimeBeat = (longTimeSeconds * bpm * subdivisions) / 60;
                 const endPathBeat = pathBeat + longTimeBeat;
 
                 drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8);
@@ -3082,6 +3094,13 @@ let timelineManager = {
                 this.deselectAllNotes();
             }
         });
+        
+        // 컨테이너 클릭시에도 선택 해제
+        this.container.addEventListener('click', (e) => {
+            if (e.target === this.container || e.target === this.ruler) {
+                this.deselectAllNotes();
+            }
+        });
 
         // 키보드 이벤트
         document.addEventListener('keydown', (e) => {
@@ -3110,9 +3129,9 @@ let timelineManager = {
             this.handleZoom(e);
         });
 
-        // 타임라인 패닝 이벤트
+        // 타임라인 패닝 이벤트 - ruler도 드래그 가능하도록 추가
         this.container.addEventListener('mousedown', (e) => {
-            if (e.target === this.track || e.target === this.container) {
+            if (e.target === this.track || e.target === this.container || e.target === this.ruler) {
                 this.startTimelineDrag(e);
             }
         });
@@ -3155,25 +3174,59 @@ let timelineManager = {
         
         this.ruler.innerHTML = '';
         
-        const rulerWidth = this.totalDuration * this.pixelsPerSecond;
+        // 컨테이너 너비와 총 길이 중 더 큰 값을 사용하여 항상 전체 영역 커버
+        const calculatedWidth = this.totalDuration * this.pixelsPerSecond;
+        const containerWidth = this.container.clientWidth;
+        const rulerWidth = Math.max(calculatedWidth, containerWidth);
         this.ruler.style.width = rulerWidth + 'px';
         
-        // 눈금 생성
-        const tickInterval = this.pixelsPerSecond >= 100 ? 1 : 5; // 픽셀이 충분하면 1초마다, 아니면 5초마다
+        // 눈금 생성 - 더 촘촘하게, 비트값과 시간값 함께 표시
+        let tickInterval = 0.25; // 기본 0.25초 간격 (매우 촘촘하게)
+        let labelInterval = 1; // 1초마다 라벨
+        
+        if (this.pixelsPerSecond >= 300) {
+            tickInterval = 0.1; // 0.1초 간격
+            labelInterval = 0.5; // 0.5초마다 라벨
+        } else if (this.pixelsPerSecond >= 200) {
+            tickInterval = 0.25; // 0.25초 간격
+            labelInterval = 1; // 1초마다 라벨
+        } else if (this.pixelsPerSecond >= 100) {
+            tickInterval = 0.5; // 0.5초 간격
+            labelInterval = 2; // 2초마다 라벨
+        } else if (this.pixelsPerSecond >= 50) {
+            tickInterval = 1; // 1초 간격
+            labelInterval = 5; // 5초마다 라벨
+        } else {
+            tickInterval = 2; // 2초 간격
+            labelInterval = 10; // 10초마다 라벨
+        }
+        
+        const bpm = parseInt(document.getElementById('bpm')?.value || 120);
+        const subdivisions = parseInt(document.getElementById('subdivisions')?.value || 16);
         
         for (let time = 0; time <= this.totalDuration; time += tickInterval) {
             const x = time * this.pixelsPerSecond;
             
             const tick = document.createElement('div');
-            tick.className = 'timeline-tick' + (time % 10 === 0 ? ' major' : '');
+            tick.className = 'timeline-tick' + (time % (labelInterval * 4) === 0 ? ' major' : '');
             tick.style.left = x + 'px';
             this.ruler.appendChild(tick);
             
-            if (time % (tickInterval * 2) === 0) {
+            if (time % labelInterval === 0) {
                 const label = document.createElement('div');
                 label.className = 'timeline-tick-label';
                 label.style.left = x + 'px';
-                label.textContent = this.formatTime(time);
+                
+                // 비트값 계산 (pre-delay와 MUSIC_START_TIME 고려)
+                const preDelaySeconds = getPreDelaySeconds ? getPreDelaySeconds() : 0;
+                const adjustedTime = time - 3 - preDelaySeconds; // MUSIC_START_TIME과 pre-delay 제외
+                const beat = Math.max(0, Math.round((adjustedTime * bpm * subdivisions) / 60));
+                
+                // 시간과 비트값을 함께 표시
+                const timeStr = this.formatTime(time);
+                label.innerHTML = `${timeStr}<br>B:${beat}`;
+                label.style.lineHeight = '1.1';
+                
                 this.ruler.appendChild(label);
             }
         }
@@ -3200,6 +3253,12 @@ let timelineManager = {
             this.track.appendChild(noteElement);
         });
         
+        // 트랙 너비도 ruler와 동일하게 설정
+        const calculatedWidth = this.totalDuration * this.pixelsPerSecond;
+        const containerWidth = this.container.clientWidth;
+        const trackWidth = Math.max(calculatedWidth, containerWidth);
+        this.track.style.width = trackWidth + 'px';
+        
         this.updateTimelineView();
     },
 
@@ -3222,13 +3281,99 @@ let timelineManager = {
             noteElement.style.width = width + 'px';
         }
         
-        // 노트 내용 표시
-        const content = document.createElement('div');
-        content.textContent = note.beat.toString();
-        noteElement.appendChild(content);
+        // 툴팁 이벤트 설정 (body에 직접 추가하는 방식)
+        let tooltip = null;
+        
+        noteElement.addEventListener('mouseenter', (e) => {
+            // 기존 툴팁이 있으면 제거
+            if (tooltip) {
+                document.body.removeChild(tooltip);
+            }
+            
+            // 새 툴팁 생성
+            tooltip = document.createElement('div');
+            tooltip.className = 'timeline-note-tooltip';
+            tooltip.style.position = 'fixed';
+            tooltip.style.zIndex = '99999';
+            tooltip.style.opacity = '1';
+            
+            // 비트값과 시간값 표시
+            if (note.isLong && note.longTime) {
+                const startBeat = note.beat;
+                const startTime = time;
+                const endTime = startTime + (note.longTime / 1000);
+                const endBeat = this.timeToBeat(endTime);
+                
+                tooltip.innerHTML = `Start: Beat ${startBeat}, ${this.formatTime(startTime)}<br>End: Beat ${endBeat}, ${this.formatTime(endTime)}<br>Duration: ${note.longTime}ms`;
+            } else {
+                const timeStr = this.formatTime(time);
+                tooltip.innerHTML = `Beat: ${note.beat}<br>Time: ${timeStr}`;
+            }
+            
+            // body에 추가
+            document.body.appendChild(tooltip);
+            
+            // 위치 계산
+            const rect = noteElement.getBoundingClientRect();
+            const tooltipRect = tooltip.getBoundingClientRect();
+            
+            // 노트 위쪽에 표시
+            const left = rect.left + rect.width / 2 - tooltipRect.width / 2;
+            const top = rect.top - tooltipRect.height - 10;
+            
+            tooltip.style.left = Math.max(10, left) + 'px';
+            tooltip.style.top = Math.max(10, top) + 'px';
+        });
+        
+        noteElement.addEventListener('mouseleave', () => {
+            // 드래그 중이 아닐 때만 툴팁 제거
+            if (!noteElement.classList.contains('dragging')) {
+                if (tooltip && document.body.contains(tooltip)) {
+                    document.body.removeChild(tooltip);
+                    tooltip = null;
+                }
+            }
+        });
+        
+        // 툴팁 업데이트 함수
+        const updateTooltip = () => {
+            if (tooltip) {
+                const currentTime = this.beatToTime(note.beat);
+                const timeStr = this.formatTime(currentTime);
+                
+                if (note.isLong && note.longTime) {
+                    const startBeat = note.beat;
+                    const startTime = currentTime;
+                    const endTime = startTime + (note.longTime / 1000);
+                    const endBeat = this.timeToBeat(endTime);
+                    
+                    tooltip.innerHTML = `Start: Beat ${startBeat}, ${this.formatTime(startTime)}<br>End: Beat ${endBeat}, ${this.formatTime(endTime)}<br>Duration: ${note.longTime}ms`;
+                } else {
+                    tooltip.innerHTML = `Beat: ${note.beat}<br>Time: ${timeStr}`;
+                }
+            }
+        };
+        
+        // 노트 참조에 업데이트 함수 저장
+        noteElement._updateTooltip = updateTooltip;
+        
+        // 일반 노트는 내용 숨김 (세로선 형태이므로)
+        if (!note.isLong) {
+            // 일반 노트는 텍스트 표시하지 않음
+        } else {
+            // 롱 노트만 내용 표시
+            const content = document.createElement('div');
+            content.textContent = note.beat.toString();
+            noteElement.appendChild(content);
+        }
         
         // 드래그 이벤트 설정
         this.setupNoteDragEvents(noteElement);
+        
+        // 롱 노트인 경우 리사이즈 핸들 추가
+        if (note.isLong) {
+            this.setupLongNoteResize(noteElement, note);
+        }
         
         return noteElement;
     },
@@ -3275,10 +3420,25 @@ let timelineManager = {
             
             noteElement.style.left = newX + 'px';
             
-            // 실시간으로 beat 정보 표시 (개발용)
+            // 실시간으로 beat 정보 표시 및 툴팁 업데이트
             const newTime = newX / this.pixelsPerSecond;
             const newBeat = this.timeToBeat(newTime);
             noteElement.title = `Beat: ${newBeat}, Time: ${this.formatTime(newTime)}`;
+            
+            // 드래그 중에도 노트 데이터 업데이트 (실시간)
+            const noteRef = noteElement._noteRef;
+            if (noteRef) {
+                noteRef.beat = newBeat;
+                // 툴팁 업데이트
+                if (noteElement._updateTooltip) {
+                    noteElement._updateTooltip();
+                }
+                // 선택된 노트인 경우 사이드바 정보 업데이트
+                if (noteElement.classList.contains('selected')) {
+                    const noteIndex = parseInt(noteElement.dataset.noteIndex);
+                    this.updateSelectedNoteInfo(noteRef, noteIndex);
+                }
+            }
         };
         
         const onMouseUp = (e) => {
@@ -3310,6 +3470,21 @@ let timelineManager = {
                 noteElement.style.left = originalX + 'px';
             }
             
+            // 드래그 완료 후 툴팁 제거 (마우스가 노트 밖에 있는 경우)
+            setTimeout(() => {
+                const rect = noteElement.getBoundingClientRect();
+                const mouseInside = e.clientX >= rect.left && e.clientX <= rect.right && 
+                                  e.clientY >= rect.top && e.clientY <= rect.bottom;
+                if (!mouseInside) {
+                    const tooltips = document.querySelectorAll('.timeline-note-tooltip');
+                    tooltips.forEach(tip => {
+                        if (document.body.contains(tip)) {
+                            document.body.removeChild(tip);
+                        }
+                    });
+                }
+            }, 100);
+            
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
         };
@@ -3323,6 +3498,169 @@ let timelineManager = {
         });
     },
 
+    setupLongNoteResize(noteElement, note) {
+        // 좌측 끝에 리사이즈 핸들 추가
+        const leftResizeHandle = document.createElement('div');
+        leftResizeHandle.className = 'long-note-resize-handle-left';
+        leftResizeHandle.style.cssText = `
+            position: absolute;
+            left: -5px;
+            top: 0;
+            width: 10px;
+            height: 100%;
+            cursor: ew-resize;
+            background: rgba(255, 255, 255, 0.3);
+            opacity: 0;
+            transition: opacity 0.2s;
+        `;
+        
+        // 우측 끝에 리사이즈 핸들 추가
+        const rightResizeHandle = document.createElement('div');
+        rightResizeHandle.className = 'long-note-resize-handle-right';
+        rightResizeHandle.style.cssText = `
+            position: absolute;
+            right: -5px;
+            top: 0;
+            width: 10px;
+            height: 100%;
+            cursor: ew-resize;
+            background: rgba(255, 255, 255, 0.3);
+            opacity: 0;
+            transition: opacity 0.2s;
+        `;
+        
+        noteElement.appendChild(leftResizeHandle);
+        noteElement.appendChild(rightResizeHandle);
+        
+        // 마우스 오버시 핸들 표시
+        noteElement.addEventListener('mouseenter', () => {
+            leftResizeHandle.style.opacity = '1';
+            rightResizeHandle.style.opacity = '1';
+        });
+        
+        noteElement.addEventListener('mouseleave', () => {
+            leftResizeHandle.style.opacity = '0';
+            rightResizeHandle.style.opacity = '0';
+        });
+        
+        // 우측 리사이즈 이벤트
+        let isRightResizing = false;
+        let rightStartX = 0;
+        let rightOriginalWidth = 0;
+        
+        rightResizeHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            isRightResizing = true;
+            rightStartX = e.clientX;
+            rightOriginalWidth = noteElement.offsetWidth;
+            
+            document.addEventListener('mousemove', onRightResizeMove);
+            document.addEventListener('mouseup', onRightResizeUp);
+        });
+        
+        const onRightResizeMove = (e) => {
+            if (!isRightResizing) return;
+            
+            const deltaX = e.clientX - rightStartX;
+            const newWidth = Math.max(20, rightOriginalWidth + deltaX);
+            
+            noteElement.style.width = newWidth + 'px';
+            
+            // longTime 업데이트
+            const newDuration = (newWidth / this.pixelsPerSecond) * 1000; // ms로 변환
+            note.longTime = Math.round(newDuration);
+            
+            // 툴팁 업데이트
+            if (noteElement._updateTooltip) {
+                noteElement._updateTooltip();
+            }
+            
+            // 선택된 노트인 경우 사이드바 정보 업데이트
+            if (noteElement.classList.contains('selected')) {
+                const noteIndex = parseInt(noteElement.dataset.noteIndex);
+                this.updateSelectedNoteInfo(note, noteIndex);
+            }
+        };
+        
+        const onRightResizeUp = (e) => {
+            if (!isRightResizing) return;
+            
+            isRightResizing = false;
+            console.log(`롱노트 우측 크기 조정: ${note.longTime}ms`);
+            
+            document.removeEventListener('mousemove', onRightResizeMove);
+            document.removeEventListener('mouseup', onRightResizeUp);
+        };
+        
+        // 좌측 리사이즈 이벤트
+        let isLeftResizing = false;
+        let leftStartX = 0;
+        let leftOriginalLeft = 0;
+        let leftOriginalWidth = 0;
+        
+        leftResizeHandle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            isLeftResizing = true;
+            leftStartX = e.clientX;
+            leftOriginalLeft = parseFloat(noteElement.style.left) || 0;
+            leftOriginalWidth = noteElement.offsetWidth;
+            
+            document.addEventListener('mousemove', onLeftResizeMove);
+            document.addEventListener('mouseup', onLeftResizeUp);
+        });
+        
+        const onLeftResizeMove = (e) => {
+            if (!isLeftResizing) return;
+            
+            const deltaX = e.clientX - leftStartX;
+            const newLeft = leftOriginalLeft + deltaX;
+            const newWidth = Math.max(20, leftOriginalWidth - deltaX);
+            
+            // 최소 너비 보장
+            if (newWidth >= 20) {
+                noteElement.style.left = newLeft + 'px';
+                noteElement.style.width = newWidth + 'px';
+                
+                // 노트 시작 위치와 길이 업데이트
+                const newTime = newLeft / this.pixelsPerSecond;
+                const newBeat = this.timeToBeat(newTime);
+                
+                // 노트 객체 업데이트
+                note.beat = newBeat;
+                const newDuration = (newWidth / this.pixelsPerSecond) * 1000; // ms로 변환
+                note.longTime = Math.round(newDuration);
+                
+                // 툴팁 업데이트
+                if (noteElement._updateTooltip) {
+                    noteElement._updateTooltip();
+                }
+                
+                // 선택된 노트인 경우 사이드바 정보 업데이트
+                if (noteElement.classList.contains('selected')) {
+                    const noteIndex = parseInt(noteElement.dataset.noteIndex);
+                    this.updateSelectedNoteInfo(note, noteIndex);
+                }
+            }
+        };
+        
+        const onLeftResizeUp = (e) => {
+            if (!isLeftResizing) return;
+            
+            isLeftResizing = false;
+            console.log(`롱노트 좌측 크기 조정: Beat ${note.beat}, Duration ${note.longTime}ms`);
+            
+            // 노트 재정렬 (시간 순서가 바뀔 수 있으므로)
+            this.renderNotes();
+            
+            document.removeEventListener('mousemove', onLeftResizeMove);
+            document.removeEventListener('mouseup', onLeftResizeUp);
+        };
+    },
+
     selectNote(noteElement) {
         this.deselectAllNotes();
         noteElement.classList.add('selected');
@@ -3333,12 +3671,85 @@ let timelineManager = {
         if (typeof focusNoteAtIndex === 'function') {
             selectedNoteIndex = noteIndex;
         }
+        
+        // 선택된 노트 정보를 사이드바에 표시
+        this.updateSelectedNoteInfo(noteElement._noteRef, noteIndex);
     },
 
     deselectAllNotes() {
         const selectedNotes = this.track.querySelectorAll('.timeline-note.selected');
         selectedNotes.forEach(note => note.classList.remove('selected'));
         this.selectedNoteElement = null;
+        
+        // 사이드바 선택 정보 숨김
+        this.hideSelectedNoteInfo();
+    },
+
+    updateSelectedNoteInfo(note, noteIndex) {
+        const infoPanel = document.getElementById('selected-note-info');
+        const noteDetails = document.getElementById('note-details');
+        const directionSelector = document.getElementById('direction-selector');
+        const noteDirectionSelect = document.getElementById('note-direction');
+        
+        if (!infoPanel || !noteDetails) return;
+        
+        // 노트 기본 정보 표시
+        const time = this.beatToTime(note.beat);
+        let infoHtml = `
+            <div><strong>Index:</strong> ${noteIndex}</div>
+            <div><strong>Type:</strong> ${note.type}</div>
+            <div><strong>Beat:</strong> ${note.beat}</div>
+            <div><strong>Time:</strong> ${this.formatTime(time)}</div>
+        `;
+        
+        if (note.isLong && note.longTime) {
+            const endTime = time + (note.longTime / 1000);
+            const endBeat = this.timeToBeat(endTime);
+            infoHtml += `
+                <div><strong>Duration:</strong> ${note.longTime}ms</div>
+                <div><strong>End Beat:</strong> ${endBeat}</div>
+                <div><strong>End Time:</strong> ${this.formatTime(endTime)}</div>
+            `;
+        }
+        
+        if (note.direction && note.direction !== 'none') {
+            infoHtml += `<div><strong>Direction:</strong> ${note.direction}</div>`;
+        }
+        
+        noteDetails.innerHTML = infoHtml;
+        
+        // 방향 선택기 표시 여부 결정
+        const hasDirection = note.type === 'direction' || note.type === 'both' || 
+                           note.type === 'longdirection' || note.type === 'longboth';
+        
+        if (hasDirection) {
+            directionSelector.style.display = 'block';
+            noteDirectionSelect.value = note.direction || 'none';
+            
+            // 방향 변경 이벤트 리스너 (기존 리스너 제거 후 새로 추가)
+            const newSelect = noteDirectionSelect.cloneNode(true);
+            noteDirectionSelect.parentNode.replaceChild(newSelect, noteDirectionSelect);
+            
+            newSelect.addEventListener('change', (e) => {
+                note.direction = e.target.value;
+                // 정보 패널 업데이트
+                this.updateSelectedNoteInfo(note, noteIndex);
+                // 캔버스 업데이트
+                if (typeof drawPath === 'function') drawPath();
+                if (typeof saveToStorage === 'function') saveToStorage();
+            });
+        } else {
+            directionSelector.style.display = 'none';
+        }
+        
+        infoPanel.style.display = 'block';
+    },
+
+    hideSelectedNoteInfo() {
+        const infoPanel = document.getElementById('selected-note-info');
+        if (infoPanel) {
+            infoPanel.style.display = 'none';
+        }
     },
 
     deleteSelectedNote() {
@@ -3428,7 +3839,8 @@ let timelineManager = {
     formatTime(seconds) {
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
+        const ms = Math.floor((seconds * 1000) % 1000);
+        return `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0')}`;
     },
 
     renderWaveform() {
@@ -3536,8 +3948,8 @@ let timelineManager = {
         const time = timelineX / this.pixelsPerSecond;
         const beat = this.timeToBeat(time);
 
-        // 바늘 위치 업데이트 (마우스 위치와 정확히 일치)
-        this.cursorNeedle.style.left = mouseX + 'px';
+        // 바늘 위치 업데이트 (마우스 위치와 정확히 일치하도록 스크롤 오프셋 고려)
+        this.cursorNeedle.style.left = timelineX + 'px';
         
         // 시간 정보 표시
         const timeText = `${this.formatTime(time)} (Beat: ${Math.max(0, beat)})`;

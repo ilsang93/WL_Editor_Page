@@ -25,6 +25,31 @@
       </label>
       <br><br>
       <label><input type="checkbox" id="batch-edit-toggle"> 노트 일괄 수정</label>
+      <br><br>
+      
+      <!-- 선택된 노트 정보 표시 영역 -->
+      <div id="selected-note-info" style="display: none; border-top: 1px solid #555; padding-top: 10px; margin-top: 10px;">
+        <h4 style="margin: 0 0 8px 0; color: #ccc; font-size: 12px;">Selected Note</h4>
+        <div id="note-details" style="font-size: 11px; color: #aaa; line-height: 1.4;">
+          <!-- 노트 상세 정보가 여기 표시됨 -->
+        </div>
+        
+        <!-- 방향 선택 영역 (방향 노트인 경우에만 표시) -->
+        <div id="direction-selector" style="display: none; margin-top: 10px;">
+          <label style="color: #ccc; font-size: 11px; display: block; margin-bottom: 5px;">Direction:</label>
+          <select id="note-direction" style="width: 100%; padding: 2px; font-size: 10px;">
+            <option value="none">None</option>
+            <option value="up">Up</option>
+            <option value="down">Down</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+            <option value="upleft">Up-Left</option>
+            <option value="upright">Up-Right</option>
+            <option value="downleft">Down-Left</option>
+            <option value="downright">Down-Right</option>
+          </select>
+        </div>
+      </div>
     </div>
   </div>
 
