@@ -35,6 +35,8 @@
           <th>Time</th>
           <th>Length</th>
           <th>Direction</th>
+          <th>BPM</th>
+          <th>Sub</th>
           <th></th>
         </tr>
       </thead>
@@ -51,7 +53,7 @@
     <div id="top-bar">
       <button id="save-json">Save Json</button>
       <button id="load-json">Load Json</button>
-      <button id="sort-notes">Sort by Beat</button>
+      <button id="sort-notes">Sort by Time</button>
       <button id="clear-notes">Clear All</button>
       <div id="volume-controls">
         <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
@@ -90,12 +92,17 @@
       </div>
 
       <div id="note-controls">
-        <button class="tab" id="add-tab">Tab +</button>
-        <button class="dir" id="add-dir">Direction +</button>
-        <button class="both" id="add-both">Both +</button>
-        <button class="long-tab" id="add-long-tab">Long Tab +</button>
-        <button class="long-dir" id="add-long-dir">Long Direction +</button>
-        <button class="long-both" id="add-long-both">Long Both +</button>
+        <div class="note-controls-row">
+          <button class="tab" id="add-tab">Tab +</button>
+          <button class="dir" id="add-dir">Direction +</button>
+          <button class="both" id="add-both">Both +</button>
+          <button class="node" id="add-node">Node +</button>
+        </div>
+        <div class="note-controls-row">
+          <button class="long-tab" id="add-long-tab">Long Tab +</button>
+          <button class="long-dir" id="add-long-dir">Long Direction +</button>
+          <button class="long-both" id="add-long-both">Long Both +</button>
+        </div>
       </div>
       <div class="controls">
         <label for="camera-tracking">카메라 추적</label>

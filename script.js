@@ -168,8 +168,12 @@ function drawPath() {
         if (note.beat === 0 && note.type === "direction") {
             pathBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
         return {
@@ -244,8 +248,12 @@ function drawPath() {
         if (note.beat === 0 && note.type === "direction") {
             pathBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
 
@@ -355,6 +363,25 @@ function drawPath() {
             ctx.fill();
         }
 
+        // Node 노트 렌더링 (BPM 지정용, 변속 표시)
+        if (note.type === "node") {
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = "#607D8B"; // 회색 계열
+            ctx.fill();
+            ctx.strokeStyle = "#263238";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // BPM 텍스트 표시
+            ctx.fillStyle = "white";
+            ctx.font = "bold 8px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            const noteBpm = note.bpm || 120;
+            ctx.fillText(noteBpm.toString(), screenX, screenY);
+        }
+
         if (note.type === "longtab") {
             ctx.beginPath();
             ctx.arc(screenX, screenY, 7, 0, 2 * Math.PI);
@@ -371,10 +398,14 @@ function drawPath() {
             ctx.fillText("L", screenX, screenY);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
-                const endPathBeat = pathBeat + longTimeBeat;
+                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                const noteBpm = note.bpm || bpm;
+                const noteSubdivisions = note.subdivisions || subdivisions;
+                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                const endPathBeat = pathBeat + longTimeInGlobalBeats;
 
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8);
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8, noteSubdivisions);
 
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -439,10 +470,14 @@ function drawPath() {
             ctx.fillText("L", screenX + ux * 0.3, screenY + uy * 0.3);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
-                const endPathBeat = pathBeat + longTimeBeat;
+                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                const noteBpm = note.bpm || bpm;
+                const noteSubdivisions = note.subdivisions || subdivisions;
+                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                const endPathBeat = pathBeat + longTimeInGlobalBeats;
 
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#03A9F4", 8);
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#03A9F4", 8, noteSubdivisions);
 
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -515,10 +550,14 @@ function drawPath() {
             ctx.fillText("L", screenX, screenY);
 
             if (note.longTime > 0) {
-                const longTimeBeat = note.longTime;
-                const endPathBeat = pathBeat + longTimeBeat;
+                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                const noteBpm = note.bpm || bpm;
+                const noteSubdivisions = note.subdivisions || subdivisions;
+                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                const endPathBeat = pathBeat + longTimeInGlobalBeats;
 
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8);
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8, noteSubdivisions);
 
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -582,8 +621,12 @@ function drawPath() {
         if (note.beat === 0 && note.type === "direction") {
             pathBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
 
@@ -610,8 +653,12 @@ function drawPath() {
         if (note.beat === 0 && note.type === "direction") {
             pathBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
 
@@ -680,8 +727,8 @@ function ensureInitialDirectionNote() {
     }
 }
 
-function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePositions, color, lineWidth) {
-    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePositions, color, lineWidth, noteSubdivisions) {
+    const subdivisions = noteSubdivisions || parseInt(document.getElementById("subdivisions").value || 16);
     const segments = Math.max(10, Math.floor((endPathBeat - startPathBeat) * 2));
 
     ctx.strokeStyle = color;
@@ -1136,6 +1183,8 @@ function updateDemo() {
     const bpm = parseFloat(document.getElementById("bpm").value || 120);
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
+    // TODO: 변속 기능 - 각 노트의 BPM을 고려한 복합 시간 계산 필요
+    // 현재는 전역 BPM으로만 계산하지만, 향후 각 구간별 BPM 변화를 반영해야 함
     const currentBeat = timeToBeat(elapsedTime, bpm, subdivisions);
 
     checkNoteHits(elapsedTime);
@@ -1245,8 +1294,12 @@ function updateDemoPlayerPosition(currentBeat) {
         if (note.beat === 0 && note.type === "direction") {
             pathBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
         return {
@@ -1449,12 +1502,18 @@ function loadFromStorage() {
                 notes.forEach(note => {
                     if (note.isLong === undefined) note.isLong = false;
                     if (note.longTime === undefined) note.longTime = 0;
+                    // 기존 노트에 BPM/subdivision이 없으면 현재 설정값으로 초기화
+                    if (note.bpm === undefined) note.bpm = parseFloat(document.getElementById("bpm").value || 120);
+                    if (note.subdivisions === undefined) note.subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
                 });
             } else if (parsed.notes && Array.isArray(parsed.notes)) {
                 notes.splice(0, notes.length, ...parsed.notes);
                 notes.forEach(note => {
                     if (note.isLong === undefined) note.isLong = false;
                     if (note.longTime === undefined) note.longTime = 0;
+                    // 기존 노트에 BPM/subdivision이 없으면 현재 설정값으로 초기화
+                    if (note.bpm === undefined) note.bpm = parseFloat(document.getElementById("bpm").value || 120);
+                    if (note.subdivisions === undefined) note.subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
                 });
 
                 if (parsed.bpm !== undefined) {
@@ -1540,7 +1599,12 @@ function validateChart(notes, bpm, subdivisions, preDelaySeconds) {
     validatedNotes.forEach((note, index) => {
         if (note.isLong && note.longTime > 0) {
             const startBeat = note.beat;
-            const endBeat = note.beat + note.longTime;
+            // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+            const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+            const endBeat = note.beat + longTimeInGlobalBeats;
             const noteType = note.type;
 
             longNoteRanges.push({
@@ -1590,7 +1654,15 @@ function validateChart(notes, bpm, subdivisions, preDelaySeconds) {
 
     if (validatedNotes.length > 0) {
         const lastNote = validatedNotes[validatedNotes.length - 1];
-        const lastNoteBeat = lastNote.beat + (lastNote.isLong ? lastNote.longTime : 0);
+        let lastNoteBeat = lastNote.beat;
+        if (lastNote.isLong && lastNote.longTime > 0) {
+            // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+            const noteBpm = lastNote.bpm || bpm;
+            const noteSubdivisions = lastNote.subdivisions || subdivisions;
+            const longTimeInSeconds = beatToTime(lastNote.longTime, noteBpm, noteSubdivisions);
+            const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+            lastNoteBeat = lastNote.beat + longTimeInGlobalBeats;
+        }
         const lastNoteTime = beatToTime(lastNoteBeat, bpm, subdivisions);
         const endTime = lastNoteTime + 3.0;
         const endBeat = timeToBeat(endTime, bpm, subdivisions);
@@ -1651,6 +1723,8 @@ function renderNoteList() {
             className = "both-note";
         } else if (note.type === "longtab") {
             className = "long-tab-note";
+        } else if (note.type === "node") {
+            className = "node-note";
         }
         tr.className = className;
         if (index === selectedNoteIndex) {
@@ -1671,6 +1745,7 @@ function renderNoteList() {
             case "longtab": typeDisplay = "LTab"; break;
             case "longdirection": typeDisplay = "LDir"; break;
             case "longboth": typeDisplay = "LBoth"; break;
+            case "node": typeDisplay = "Node"; break;
         }
         tdType.textContent = typeDisplay;
 
@@ -1702,7 +1777,10 @@ function renderNoteList() {
         tdBeat.appendChild(inputBeat);
 
         const tdTime = document.createElement("td");
-        const originalTime = beatToTime(note.beat, bpm, subdivisions);
+        // 각 노트의 BPM/subdivision 사용
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
 
         if (note.beat === 0 && note.type === "direction") {
             tdTime.textContent = `${originalTime.toFixed(3)}s`;
@@ -1757,6 +1835,18 @@ function renderNoteList() {
             tdDir.textContent = "-";
         }
 
+        // BPM 컬럼 추가
+        const tdBpm = document.createElement("td");
+        tdBpm.textContent = note.bpm || bpm; // 노트에 BPM이 없으면 현재 BPM 사용
+        tdBpm.style.fontSize = "11px";
+        tdBpm.style.color = "#666";
+
+        // Subdivisions 컬럼 추가  
+        const tdSubdivisions = document.createElement("td");
+        tdSubdivisions.textContent = note.subdivisions || subdivisions; // 노트에 subdivision이 없으면 현재 값 사용
+        tdSubdivisions.style.fontSize = "11px";
+        tdSubdivisions.style.color = "#666";
+
         const tdDelete = document.createElement("td");
         const btn = document.createElement("button");
         btn.textContent = "삭제";
@@ -1771,7 +1861,7 @@ function renderNoteList() {
         });
         tdDelete.appendChild(btn);
 
-        tr.append(tdIndex, tdType, tdBeat, tdTime, tdLong, tdDir, tdDelete);
+        tr.append(tdIndex, tdType, tdBeat, tdTime, tdLong, tdDir, tdBpm, tdSubdivisions, tdDelete);
         tr.addEventListener("click", (e) => {
             if (["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName))
                 return;
@@ -2140,6 +2230,11 @@ function setupNoteButtons() {
         addNote({ type: "both", isLong: false, longTime: 0 });
     });
 
+    // Node 노트 추가 (BPM 지정만 가능)
+    document.getElementById('add-node').addEventListener('click', () => {
+        addNote({ type: "node", isLong: false, longTime: 0 });
+    });
+
     // Long Tab 노트 추가
     document.getElementById('add-long-tab').addEventListener('click', () => {
         addNote({ type: "longtab", isLong: true });
@@ -2314,8 +2409,12 @@ function getNotePosition(beat) {
         if (note.beat === 0 && note.type === "direction") {
             noteBeat = 0;
         } else {
-            const originalTime = beatToTime(note.beat, bpm, subdivisions);
+            // 각 노트의 개별 BPM/subdivision 사용
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             const adjustedTime = originalTime + preDelaySeconds;
+            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
             noteBeat = timeToBeat(adjustedTime, bpm, subdivisions);
         }
         return {
@@ -2416,14 +2515,35 @@ function addNote(noteProps) {
         // 선택된 노트 바로 다음 위치에 삽입
         insertionIndex = selectedNoteIndex + 1;
     } else {
+        // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
+        const bpm = parseFloat(document.getElementById("bpm").value || 120);
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        
         insertionIndex = notes.length;
-        const maxBeat = Math.max(0, ...notes.map(n => n.beat + (n.isLong ? (n.longTime || 0) : 0)));
+        const maxBeat = Math.max(0, ...notes.map(n => {
+            let endBeat = n.beat;
+            if (n.isLong && n.longTime > 0) {
+                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                const noteBpm = n.bpm || bpm;
+                const noteSubdivisions = n.subdivisions || subdivisions;
+                const longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
+                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                endBeat = n.beat + longTimeInGlobalBeats;
+            }
+            return endBeat;
+        }));
         newBeat = maxBeat + subdivisions;
     }
+
+    // 현재 BPM/Subdivisions 가져오기
+    const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
+    const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
     const newNote = {
         ...noteProps,
         beat: newBeat,
+        bpm: currentBpm,          // 노트별 BPM 저장
+        subdivisions: currentSubdivisions  // 노트별 subdivision 저장
     };
 
     if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
@@ -2474,10 +2594,16 @@ function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdi
 function handleBpmChange(newBpm) {
     const oldBpm = parseFloat(document.getElementById("bpm").dataset.previousValue || 120);
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    const isBatchEdit = document.getElementById("batch-edit-toggle").checked;
 
-    console.log(`BPM changed from ${oldBpm} to ${newBpm}`);
+    console.log(`BPM changed from ${oldBpm} to ${newBpm}, batch edit: ${isBatchEdit}`);
 
-    if (oldBpm !== newBpm && notes.length > 0) {
+    // 체크박스가 체크되어 있을 때만 기존 노트들 업데이트
+    if (isBatchEdit && oldBpm !== newBpm && notes.length > 0) {
+        // 모든 노트의 BPM을 새로운 값으로 업데이트
+        notes.forEach(note => {
+            note.bpm = newBpm;
+        });
         updateNotesForTimeBasedChange(oldBpm, subdivisions, newBpm, subdivisions);
     }
 
@@ -2494,10 +2620,16 @@ function handleBpmChange(newBpm) {
 function handleSubdivisionsChange(newSubdivisions) {
     const bpm = parseFloat(document.getElementById("bpm").value || 120);
     const oldSubdivisions = parseInt(document.getElementById("subdivisions").dataset.previousValue || 16);
+    const isBatchEdit = document.getElementById("batch-edit-toggle").checked;
 
-    console.log(`Subdivisions changed from ${oldSubdivisions} to ${newSubdivisions}`);
+    console.log(`Subdivisions changed from ${oldSubdivisions} to ${newSubdivisions}, batch edit: ${isBatchEdit}`);
 
-    if (oldSubdivisions !== newSubdivisions && notes.length > 0) {
+    // 체크박스가 체크되어 있을 때만 기존 노트들 업데이트
+    if (isBatchEdit && oldSubdivisions !== newSubdivisions && notes.length > 0) {
+        // 모든 노트의 subdivisions을 새로운 값으로 업데이트
+        notes.forEach(note => {
+            note.subdivisions = newSubdivisions;
+        });
         updateNotesForTimeBasedChange(bpm, oldSubdivisions, bpm, newSubdivisions);
     }
 
@@ -2587,7 +2719,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
     document.getElementById("sort-notes").addEventListener("click", () => {
-        notes.sort((a, b) => a.beat - b.beat);
+        // 시간 기준으로 정렬 (각 노트의 BPM과 subdivision을 고려)
+        notes.sort((a, b) => {
+            const timeA = beatToTime(a.beat, a.bpm || 120, a.subdivisions || 16);
+            const timeB = beatToTime(b.beat, b.bpm || 120, b.subdivisions || 16);
+            return timeA - timeB;
+        });
         saveToStorage();
         drawPath();
         renderNoteList();
@@ -2634,13 +2771,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                     default: noteType = "Tab"; break;
                 }
 
+                // LongTime을 각 노트의 BPM/subdivision으로 시간값 변환
                 let longTimeInSeconds = 0;
                 if (n.isLong && n.longTime > 0) {
-                    longTimeInSeconds = beatToTime(n.longTime, bpm, subdivisions);
+                    const noteBpm = n.bpm || bpm;
+                    const noteSubdivisions = n.subdivisions || subdivisions;
+                    longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
                 }
 
                 return {
                     beat: n.beat,
+                    bpm: n.bpm || bpm, // 노트별 BPM 추가
+                    subdivisions: n.subdivisions || subdivisions, // 노트별 subdivision 추가
                     originalTime: originalTime,
                     musicTime: MUSIC_START_TIME + originalTime,
                     finalTime: finalTime,
@@ -2655,7 +2797,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 description: "Music starts at 3 seconds, with pre-delay correction",
                 timingExplanation: "finalTime = 3.0 + originalTime + preDelay (except for beat 0 direction note)",
                 preDelayUnit: "milliseconds",
-                longTimeUnit: "longTime values are in seconds, longTimeBeat values are in beats",
+                longTimeUnit: "longTime values are in seconds (calculated using each note's individual BPM/subdivisions)",
+                bpmExplanation: "Top-level bpm/subdivisions are global defaults. Each note has individual bpm/subdivisions for variable tempo support",
                 validationApplied: "Chart validated and auto-corrected",
                 exportedAt: new Date().toISOString()
             }
@@ -2726,7 +2869,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                         if (n.longTimeBeat !== undefined) {
                             longTimeBeat = n.longTimeBeat;
                         } else if (n.longTime !== undefined && n.longTime > 0) {
-                            longTimeBeat = timeToBeat(n.longTime, bpm, subdivisions);
+                            // 각 노트의 개별 BPM/subdivision으로 longTime(시간) → longTimeBeat(비트) 변환
+                            const noteBpm = n.bpm || bpm;
+                            const noteSubdivisions = n.subdivisions || subdivisions;
+                            longTimeBeat = timeToBeat(n.longTime, noteBpm, noteSubdivisions);
                         }
 
                         notes.push({
@@ -2734,7 +2880,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                             beat: beat,
                             direction: n.direction || "none",
                             isLong: n.isLong || false,
-                            longTime: longTimeBeat
+                            longTime: longTimeBeat,
+                            bpm: n.bpm || bpm, // 노트별 BPM 로드 (없으면 전역 BPM 사용)
+                            subdivisions: n.subdivisions || subdivisions // 노트별 subdivision 로드 (없으면 전역 값 사용)
                         });
                     });
 
@@ -2744,6 +2892,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     document.getElementById("bpm").dataset.previousValue = bpm;
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
+
+                    // 초기 direction 노트 확인 및 추가
+                    ensureInitialDirectionNote();
 
                     saveToStorage();
                     drawPath();

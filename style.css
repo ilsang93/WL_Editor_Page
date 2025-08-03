@@ -11,7 +11,7 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  width: 400px;
+  width: 480px; /* 400px → 480px로 확장 */
   height: 100vh;
   background: #333;
   overflow-y: auto;
@@ -22,7 +22,7 @@ body {
 }
 
 #sidebar.hidden {
-  left: -400px; /* 완전히 숨김 */
+  left: -480px; /* 완전히 숨김 */
 }
 
 #sidebar table {
@@ -42,18 +42,20 @@ body {
   font-size: 11px; /* 폰트 크기 줄임 */
 }
 
-/* 열 너비 지정 - 더 컴팩트하게 */
-#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 25px; }   /* NO. */
+/* 열 너비 지정 - 사이드바 확장에 맞춰 조정 */
+#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 30px; }   /* NO. */
 #sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 50px; }   /* Type */
-#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 65px; }   /* Beat */
+#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 60px; }   /* Beat */
 #sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 55px; }   /* Time */
-#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 60px; }   /* Length */
+#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 55px; }   /* Length */
 #sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 70px; }   /* Direction */
-#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 40px; }   /* Delete */
+#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 40px; }   /* BPM */
+#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 35px; }   /* Sub */
+#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 45px; }   /* Delete */
 
 /* Beat 입력 필드 크기 조정 */
 #sidebar td:nth-child(3) input {
-  width: 58px; /* 더 작게 */
+  width: 53px; /* 컬럼 확장에 맞춰 조정 */
   padding: 1px 3px;
   font-size: 10px;
   border: 1px solid #666;
@@ -61,7 +63,7 @@ body {
 
 /* Length 입력 필드 크기 조정 */
 #sidebar td:nth-child(5) input {
-  width: 55px;
+  width: 50px; /* 컬럼 확장에 맞춰 조정 */
   padding: 1px 3px;
   font-size: 10px;
   border: 1px solid #666;
@@ -69,15 +71,15 @@ body {
 
 /* Direction 선택 필드 크기 조정 */
 #sidebar td:nth-child(6) select {
-  width: 65px; /* 더 작게 */
+  width: 65px; /* 컬럼 확장에 맞춰 조정 */
   padding: 1px;
   font-size: 10px;
   border: 1px solid #666;
 }
 
 /* 삭제 버튼 크기 조정 */
-#sidebar td:nth-child(7) button {
-  width: 35px; /* 더 작게 */
+#sidebar td:nth-child(9) button {
+  width: 40px; /* 컬럼 확장에 맞춰 조정 */
   padding: 1px 3px;
   font-size: 9px;
   border: 1px solid #666;
@@ -109,7 +111,7 @@ body {
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
   top: 50%;
-  left: 400px; /* 사이드바 오른쪽에 위치 */
+  left: 480px; /* 사이드바 오른쪽에 위치 */
   width: 40px;
   height: 60px;
   background: #333;
@@ -129,7 +131,7 @@ body {
 
 .sidebar-toggle:hover {
   background: #444;
-  left: 405px;
+  left: 485px; /* 480px + 5px */
   top: 50%;
 }
 
@@ -213,7 +215,7 @@ button:disabled {
   width: auto;
   height: auto;
   background: #444;
-  padding: 10px 16px;
+  padding: 8px 12px; /* 10px 16px → 8px 12px로 축소 */
   border: 1px solid #555;
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
@@ -262,23 +264,52 @@ button:disabled {
   flex-direction: column;
   align-items: center; /* 수평 중앙 정렬 */
   justify-content: center; /* 수직 중앙 정렬 */
-  gap: 10px;
+  gap: 6px; /* 10px → 6px로 축소 */
   text-align: center;
 }
 
 #audio-controls,
 #playback-controls,
-#time-controls,
-#note-controls {
+#time-controls {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
+  gap: 4px; /* 6px → 4px로 축소 */
+}
+
+#note-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.note-controls-row {
+  display: flex;
+  justify-content: center;
   gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* 컨트롤바 내 입력 요소들 크기 축소 */
+#control-bar input[type="range"] {
+  width: 120px; /* 기본 크기보다 작게 */
+  height: 20px;
+}
+
+#control-bar input[type="file"] {
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+#demo-time {
+  font-size: 11px;
+  padding: 2px 4px;
 }
 
 /* #main의 margin-bottom 제거 */
 #main {
-  margin-left: 400px;
+  margin-left: 480px; /* 400px → 480px로 조정 */
   position: relative;
   height: 100vh;
   overflow: hidden;
@@ -365,7 +396,8 @@ input[type="range"]::-moz-range-thumb {
 
 #note-controls button {
   font-weight: bold;
-  padding: 8px 16px;
+  padding: 6px 12px; /* 8px 16px → 6px 12px로 축소 */
+  font-size: 12px; /* 폰트 크기 명시 */
 }
 
 #note-controls button.tab {
@@ -393,6 +425,15 @@ input[type="range"]::-moz-range-thumb {
 
 #note-controls button.both:hover {
   background: linear-gradient(135deg, #7B1FA2, #4A148C);
+}
+
+#note-controls button.node {
+  background: linear-gradient(135deg, #607D8B, #455A64);
+  border: 1px solid #263238;
+}
+
+#note-controls button.node:hover {
+  background: linear-gradient(135deg, #455A64, #263238);
 }
 
 #note-controls button.long-tab {
@@ -443,15 +484,15 @@ input[type="range"]::-moz-range-thumb {
 /* Waveform Container - 플로팅 기능 */
 #waveform-container {
   position: fixed;
-  bottom: -260px; /* 기본적으로 숨겨진 상태 */
-  left: 400px; /* 사이드바 너비만큼 오프셋 */
+  bottom: -240px; /* 기본적으로 숨겨진 상태 (260px → 240px) */
+  left: 480px; /* 사이드바 너비만큼 오프셋 (400px → 480px) */
   right: 0;
-  height: 310px;
+  height: 280px; /* 310px → 280px로 축소 */
   background: rgba(40, 40, 40, 0.95);
   border-top: 3px solid #4CAF50;
   transition: bottom 0.3s ease, left 0.3s ease; /* left도 애니메이션 */
   z-index: 250; /* control-bar보다 아래에 */
-  padding: 10px;
+  padding: 8px; /* 10px → 8px로 축소 */
   box-sizing: border-box;
   backdrop-filter: blur(5px);
   pointer-events: auto;
@@ -467,18 +508,19 @@ input[type="range"]::-moz-range-thumb {
 
 #waveform-controls {
   display: flex;
-  gap: 5px;
-  margin-bottom: 5px;
+  gap: 4px; /* 5px → 4px로 축소 */
+  margin-bottom: 4px; /* 5px → 4px로 축소 */
   align-items: center;
 }
 
 #waveform-controls button {
-  padding: 5px 10px;
+  padding: 4px 8px; /* 5px 10px → 4px 8px로 축소 */
   background: #333;
   color: white;
   border: 1px solid #555;
   cursor: pointer;
   border-radius: 3px;
+  font-size: 11px; /* 폰트 크기 축소 */
 }
 
 #waveform-controls button:hover {
