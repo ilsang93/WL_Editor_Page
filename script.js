@@ -1,3 +1,41 @@
+// 모듈 임포트
+import { 
+    lerp, 
+    getNoteTimingParams, 
+    convertNoteTypeToExternal, 
+    convertExternalToNoteType,
+    calculateLongNoteTime,
+    calculatePathBeat,
+    timeToBeat,
+    beatToTime,
+    directionToVector,
+    getPreDelaySeconds
+} from './utils.js';
+
+import { 
+    drawCircle, 
+    drawText, 
+    drawDirectionArrow, 
+    processLongNote,
+    drawWaveform,
+    drawRuler
+} from './canvas.js';
+
+import { 
+    SoundPool,
+    formatTime
+} from './audio.js';
+
+import { 
+    validateNote, 
+    validateChart, 
+    noteToJsonFormat, 
+    jsonToNoteFormat,
+    sortNotesByTime,
+    ensureInitialDirectionNote,
+    getNoteColor
+} from './notes.js';
+
 // 전역 변수들
 let zoom = 30;
 let viewOffset = {
@@ -71,46 +109,155 @@ const rulerCanvas = document.getElementById("ruler-canvas");
 const rulerCtx = rulerCanvas.getContext("2d");
 const waveformSlider = document.getElementById("waveform-slider");
 
-
-// 유틸리티 함수들
-function lerp(start, end, amt) {
-    return (1 - amt) * start + amt * end;
+// Wrapper function for drawWaveform to maintain compatibility
+function drawWaveformWrapper() {
+    if (!waveformData || !waveformCanvas || !hasAudioFile) return;
+    
+    // Use the imported drawWaveform function but call the local complex version
+    drawWaveformLocal();
 }
 
-function getPreDelaySeconds() {
-    const preDelayMs = parseInt(document.getElementById("pre-delay").value || 0);
-    return preDelayMs / 1000;
+// Local complex drawWaveform function
+function drawWaveformLocal() {
+    if (!waveformData || !waveformCanvas || !hasAudioFile)
+        return;
+
+    resizeWaveformCanvas();
+
+    const width = waveformCanvas.width;
+    const height = waveformCanvas.height;
+    const centerY = height / 2;
+    const preDelaySeconds = getPreDelaySeconds();
+    const totalDuration = MUSIC_START_TIME + audioBuffer.duration + preDelaySeconds;
+    const musicStartRatio = MUSIC_START_TIME / totalDuration;
+
+    waveformCtx.clearRect(0, 0, width, height);
+
+    const musicStartX = width * musicStartRatio;
+    waveformCtx.fillStyle = 'rgba(100, 100, 100, 0.8)';
+    waveformCtx.fillRect(0, 0, musicStartX, height);
+
+    waveformCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    waveformCtx.font = '12px Arial';
+    waveformCtx.textAlign = 'center';
+    waveformCtx.fillText('게임 시작', musicStartX / 2, height / 2 - 10);
+    waveformCtx.fillText('(3초 후 음악 시작)', musicStartX / 2, height / 2 + 5);
+    if (preDelaySeconds !== 0) {
+        waveformCtx.font = '10px Arial';
+        waveformCtx.fillStyle = 'rgba(255, 200, 100, 0.9)';
+        waveformCtx.fillText(`Pre-delay: ${preDelaySeconds > 0 ? '+' : ''}${(preDelaySeconds * 1000).toFixed(0)}ms`, musicStartX / 2, height / 2 + 18);
+    }
+
+    const musicWidth = width - musicStartX;
+    const scaleX = musicWidth / waveformData.length;
+
+    waveformCtx.fillStyle = '#4CAF50';
+    for (let i = 0; i < waveformData.length; i++) {
+        const dataPoint = waveformData[i];
+        const x = musicStartX + i * scaleX;
+        const minHeight = Math.abs(dataPoint.min) * centerY;
+        const maxHeight = Math.abs(dataPoint.max) * centerY;
+
+        waveformCtx.fillRect(x, centerY - maxHeight, Math.max(1, scaleX), maxHeight + minHeight);
+    }
+
+    const duration = totalDuration;
+    const rulerHeight = 32;
+    rulerCanvas.width = width;
+    rulerCanvas.height = rulerHeight;
+
+    rulerCtx.clearRect(0, 0, width, rulerHeight);
+    rulerCtx.fillStyle = '#2c2c2c';
+    rulerCtx.fillRect(0, 0, width, rulerHeight);
+
+    rulerCtx.strokeStyle = '#555';
+    rulerCtx.lineWidth = 1;
+    rulerCtx.font = '10px Arial';
+    rulerCtx.textAlign = 'left';
+
+    const timeInterval = Math.max(0.1, duration / 50);
+
+    for (let time = 0; time <= duration; time += 0.1) {
+        const x = (time / duration) * width;
+        const isSecond = Math.abs(time % 1) < 0.05;
+
+        rulerCtx.strokeStyle = time < MUSIC_START_TIME ? '#888' : '#666';
+        rulerCtx.beginPath();
+        rulerCtx.moveTo(x, 0);
+        rulerCtx.lineTo(x, isSecond ? 15 : 8);
+        rulerCtx.stroke();
+
+        if (isSecond && time % Math.max(1, Math.floor(timeInterval)) === 0) {
+            rulerCtx.fillStyle = time < MUSIC_START_TIME ? '#aaa' : '#ccc';
+            if (time < MUSIC_START_TIME) {
+                rulerCtx.fillText(`${time.toFixed(0)}s`, x + 1, 28);
+            } else {
+                const musicTime = time - MUSIC_START_TIME;
+                rulerCtx.fillText(`♪${musicTime.toFixed(musicTime < 1 ? 1 : 0)}s`, x + 1, 28);
+            }
+        }
+    }
+
+    const startX = (MUSIC_START_TIME / duration) * width;
+    rulerCtx.strokeStyle = '#ff4444';
+    rulerCtx.lineWidth = 2;
+    rulerCtx.beginPath();
+    rulerCtx.moveTo(startX, 0);
+    rulerCtx.lineTo(startX, rulerHeight);
+    rulerCtx.stroke();
+
+    rulerCtx.fillStyle = '#ff4444';
+    rulerCtx.font = 'bold 10px Arial';
+    rulerCtx.fillText('음악 시작', startX + 2, 12);
+    rulerCtx.font = '8px Arial';
+    rulerCtx.fillText('(3초)', startX + 2, 22);
 }
 
-function beatToTime(beat, bpm, subdivisions) {
-    return (beat * 60) / (bpm * subdivisions);
+// Local generateWaveformData function
+function generateWaveformDataLocal(buffer) {
+    if (!buffer || !buffer.getChannelData) {
+        console.error('Invalid audio buffer');
+        return;
+    }
+
+    try {
+        const channelData = buffer.getChannelData(0);
+        const samples = channelData.length;
+        const blockSize = Math.max(1, Math.floor(samples / 2000));
+
+        waveformData = [];
+        for (let i = 0; i < samples; i += blockSize) {
+            let min = 0;
+            let max = 0;
+
+            for (let j = 0; j < blockSize && i + j < samples; j++) {
+                const sample = channelData[i + j];
+                if (sample > max)
+                    max = sample;
+                if (sample < min)
+                    min = sample;
+            }
+
+            waveformData.push({
+                min,
+                max
+            });
+        }
+
+        console.log(`Generated ${waveformData.length} waveform data points`);
+    } catch (error) {
+        console.error('Error generating waveform data:', error);
+        waveformData = [];
+        for (let i = 0; i < 2000; i++) {
+            const intensity = Math.random() * 0.5;
+            waveformData.push({
+                min: -intensity,
+                max: intensity
+            });
+        }
+    }
 }
 
-function timeToBeat(time, bpm, subdivisions) {
-    return Math.round((time * bpm * subdivisions) / 60);
-}
-
-function directionToVector(dir) {
-    const map = {
-        none: [0, 0],
-        up: [0, -1],
-        down: [0, 1],
-        left: [-1, 0],
-        right: [1, 0],
-        upleft: [-1, -1],
-        upright: [1, -1],
-        downleft: [-1, 1],
-        downright: [1, 1]
-    };
-    return map[dir] || [0, 0];
-}
-
-function formatTime(sec) {
-    const min = Math.floor(sec / 60);
-    const secRemain = Math.floor(sec % 60);
-    const ms = Math.floor((sec * 1000) % 1000 / 10);
-    return `${String(min).padStart(2, '0')}:${String(secRemain).padStart(2, '0')}:${String(ms).padStart(2, '0')}`;
-}
 
 // 캔버스 관련 함수들
 function resizeCanvas() {
@@ -149,7 +296,7 @@ function drawGrid() {
 function drawPath() {
     resizeCanvas();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ensureInitialDirectionNote();
+    ensureInitialDirectionNote(notes);
 
     const preDelaySeconds = getPreDelaySeconds();
 
@@ -298,18 +445,7 @@ function drawPath() {
         const screenY = pos.y * zoom + viewOffset.y;
 
         // pathBeat 계산 (롱노트용)
-        let pathBeat;
-        if (note.beat === 0 && note.type === "direction") {
-            pathBeat = 0;
-        } else {
-            // 각 노트의 개별 BPM/subdivision 사용
-            const noteBpm = note.bpm || bpm;
-            const noteSubdivisions = note.subdivisions || subdivisions;
-            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
-            const adjustedTime = originalTime + preDelaySeconds;
-            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
-            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
-        }
+        const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
 
         if (note.type === "tab") {
             ctx.beginPath();
@@ -446,13 +582,12 @@ function drawPath() {
 
             if (note.longTime > 0) {
                 // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-                const noteBpm = note.bpm || bpm;
-                const noteSubdivisions = note.subdivisions || subdivisions;
-                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+                const longTimeInSeconds = calculateLongNoteTime(note, bpm, subdivisions);
                 const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
                 const endPathBeat = pathBeat + longTimeInGlobalBeats;
+                const timing = getNoteTimingParams(note, bpm, subdivisions);
 
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8, noteSubdivisions);
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8, timing.subdivisions);
 
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -486,125 +621,35 @@ function drawPath() {
         }
 
         if (note.type === "longdirection") {
+            drawDirectionArrow(ctx, screenX, screenY, note.direction, "#03A9F4");
+            
             const [dx, dy] = directionToVector(note.direction);
             const mag = Math.hypot(dx, dy) || 1;
             const ux = (dx / mag) * 18;
             const uy = (dy / mag) * 18;
-            const endX = screenX + ux;
-            const endY = screenY + uy;
+            drawText(ctx, "L", screenX + ux * 0.3, screenY + uy * 0.3);
 
-            ctx.beginPath();
-            ctx.moveTo(screenX, screenY);
-            ctx.lineTo(endX, endY);
-            ctx.strokeStyle = "#03A9F4";
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            const perpX = -uy * 0.5;
-            const perpY = ux * 0.5;
-            ctx.beginPath();
-            ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-            ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-            ctx.closePath();
-            ctx.fillStyle = "#03A9F4";
-            ctx.fill();
-
-            ctx.fillStyle = "white";
-            ctx.font = "bold 8px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText("L", screenX + ux * 0.3, screenY + uy * 0.3);
-
-            if (note.longTime > 0) {
-                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-                const noteBpm = note.bpm || bpm;
-                const noteSubdivisions = note.subdivisions || subdivisions;
-                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
-                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
-                const endPathBeat = pathBeat + longTimeInGlobalBeats;
-
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#03A9F4", 8, noteSubdivisions);
-
-                let endPos = null;
-                for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-                    const a = pathDirectionNotes[i];
-                    const b = pathDirectionNotes[i + 1];
-                    if (a.pathBeat <= endPathBeat && endPathBeat <= b.pathBeat) {
-                        const interp = (endPathBeat - a.pathBeat) / (b.pathBeat - a.pathBeat);
-                        const pa = nodePositions[i];
-                        const pb = nodePositions[i + 1];
-                        endPos = {
-                            x: pa.x + (pb.x - pa.x) * interp,
-                            y: pa.y + (pb.y - pa.y) * interp
-                        };
-                        break;
-                    }
-                }
-
-                if (endPos) {
-                    const endScreenX = endPos.x * zoom + viewOffset.x;
-                    const endScreenY = endPos.y * zoom + viewOffset.y;
-
-                    ctx.beginPath();
-                    ctx.arc(endScreenX, endScreenY, 6, 0, 2 * Math.PI);
-                    ctx.fillStyle = "#0277BD";
-                    ctx.fill();
-                    ctx.strokeStyle = "white";
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                }
+            const endPos = processLongNote(note, pathBeat, pathDirectionNotes, nodePositions, "#03A9F4", bpm, subdivisions, drawLongNoteBar);
+            if (endPos) {
+                const endScreenX = endPos.x * zoom + viewOffset.x;
+                const endScreenY = endPos.y * zoom + viewOffset.y;
+                drawCircle(ctx, endScreenX, endScreenY, 6, "#0277BD", "white", 2);
             }
         }
 
         if (note.type === "longboth") {
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, 7, 0, 2 * Math.PI);
-            ctx.fillStyle = "#E91E63";
-            ctx.fill();
-            ctx.strokeStyle = "#880E4F";
-            ctx.lineWidth = 3;
-            ctx.stroke();
-
-            const [dx, dy] = directionToVector(note.direction);
-            const mag = Math.hypot(dx, dy) || 1;
-            const ux = (dx / mag) * 18;
-            const uy = (dy / mag) * 18;
-            const endX = screenX + ux;
-            const endY = screenY + uy;
-
-            ctx.beginPath();
-            ctx.moveTo(screenX, screenY);
-            ctx.lineTo(endX, endY);
-            ctx.strokeStyle = "#E91E63";
-            ctx.lineWidth = 4;
-            ctx.stroke();
-
-            const perpX = -uy * 0.5;
-            const perpY = ux * 0.5;
-            ctx.beginPath();
-            ctx.moveTo(endX, endY);
-            ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-            ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-            ctx.closePath();
-            ctx.fillStyle = "#E91E63";
-            ctx.fill();
-
-            ctx.fillStyle = "white";
-            ctx.font = "bold 8px Arial";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText("L", screenX, screenY);
+            drawCircle(ctx, screenX, screenY, 7, "#E91E63", "#880E4F", 3);
+            drawDirectionArrow(ctx, screenX, screenY, note.direction, "#E91E63");
+            drawText(ctx, "L", screenX, screenY);
 
             if (note.longTime > 0) {
                 // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-                const noteBpm = note.bpm || bpm;
-                const noteSubdivisions = note.subdivisions || subdivisions;
-                const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
+                const longTimeInSeconds = calculateLongNoteTime(note, bpm, subdivisions);
                 const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
                 const endPathBeat = pathBeat + longTimeInGlobalBeats;
+                const timing = getNoteTimingParams(note, bpm, subdivisions);
 
-                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8, noteSubdivisions);
+                drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8, timing.subdivisions);
 
                 let endPos = null;
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
@@ -664,20 +709,11 @@ function drawPath() {
 
     if (highlightedNoteIndex !== null && highlightedNoteTimer > 0) {
         const note = notes[highlightedNoteIndex];
-        let pathBeat;
-        if (note.beat === 0 && note.type === "direction") {
-            pathBeat = 0;
-        } else {
-            // 각 노트의 개별 BPM/subdivision 사용
-            const noteBpm = note.bpm || bpm;
-            const noteSubdivisions = note.subdivisions || subdivisions;
-            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
-            const adjustedTime = originalTime + preDelaySeconds;
-            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
-            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
-        }
+        const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
+        const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+        const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
 
-        const pos = getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions);
+        const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
             const x = pos.x * zoom + viewOffset.x;
             const y = pos.y * zoom + viewOffset.y;
@@ -696,20 +732,11 @@ function drawPath() {
     // 선택된 노트 하이라이트 (노란색 원)
     if (selectedNoteIndex !== null && notes[selectedNoteIndex]) {
         const note = notes[selectedNoteIndex];
-        let pathBeat;
-        if (note.beat === 0 && note.type === "direction") {
-            pathBeat = 0;
-        } else {
-            // 각 노트의 개별 BPM/subdivision 사용
-            const noteBpm = note.bpm || bpm;
-            const noteSubdivisions = note.subdivisions || subdivisions;
-            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
-            const adjustedTime = originalTime + preDelaySeconds;
-            // pathBeat 계산은 전역 BPM/subdivision으로 통일 (경로 생성을 위해)
-            pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
-        }
+        const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
+        const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+        const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
 
-        const pos = getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions);
+        const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
             const x = pos.x * zoom + viewOffset.x;
             const y = pos.y * zoom + viewOffset.y;
@@ -762,21 +789,6 @@ function drawPath() {
     }
 }
 
-function ensureInitialDirectionNote() {
-    if (!notes.find(n => n.beat === 0 && n.type === "direction")) {
-        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
-        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-        notes.unshift({
-            type: "direction",
-            beat: 0,
-            direction: "none",
-            isLong: false,
-            longTime: 0,
-            bpm: currentBpm,
-            subdivisions: currentSubdivisions
-        });
-    }
-}
 
 function initializeNoteBpmSubdivisions() {
     const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
@@ -976,116 +988,6 @@ function resizeWaveformCanvas() {
     rulerCanvas.height = 40;
 }
 
-function drawWaveform() {
-    if (!waveformData || !waveformCanvas || !hasAudioFile)
-        return;
-
-    resizeWaveformCanvas();
-
-    const width = waveformCanvas.width;
-    const height = waveformCanvas.height;
-    const centerY = height / 2;
-    const preDelaySeconds = getPreDelaySeconds();
-    const totalDuration = MUSIC_START_TIME + audioBuffer.duration + preDelaySeconds;
-    const musicStartRatio = MUSIC_START_TIME / totalDuration;
-
-    waveformCtx.clearRect(0, 0, width, height);
-
-    const musicStartX = width * musicStartRatio;
-    waveformCtx.fillStyle = 'rgba(100, 100, 100, 0.8)';
-    waveformCtx.fillRect(0, 0, musicStartX, height);
-
-    waveformCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    waveformCtx.font = '12px Arial';
-    waveformCtx.textAlign = 'center';
-    waveformCtx.fillText('게임 시작', musicStartX / 2, height / 2 - 10);
-    waveformCtx.fillText('(3초 후 음악 시작)', musicStartX / 2, height / 2 + 5);
-    if (preDelaySeconds !== 0) {
-        waveformCtx.font = '10px Arial';
-        waveformCtx.fillStyle = 'rgba(255, 200, 100, 0.9)';
-        waveformCtx.fillText(`Pre-delay: ${preDelaySeconds > 0 ? '+' : ''}${(preDelaySeconds * 1000).toFixed(0)}ms`, musicStartX / 2, height / 2 + 18);
-    }
-
-    waveformCtx.fillStyle = '#4CAF50';
-    const musicAreaWidth = width * (audioBuffer.duration / totalDuration);
-    for (let i = 0; i < waveformData.length; i++) {
-        const x = musicStartX + (i * musicAreaWidth / waveformData.length);
-        const minHeight = waveformData[i].min * centerY;
-        const maxHeight = waveformData[i].max * centerY;
-
-        if (x >= musicStartX && x < width) {
-            waveformCtx.fillRect(x, centerY - maxHeight, Math.max(1, musicAreaWidth / waveformData.length - 1), maxHeight);
-            waveformCtx.fillRect(x, centerY, Math.max(1, musicAreaWidth / waveformData.length - 1), -minHeight);
-        }
-    }
-
-    drawRuler();
-}
-
-function drawRuler() {
-    if (!audioBuffer || !hasAudioFile)
-        return;
-
-    const width = rulerCanvas.width;
-    const height = rulerCanvas.height;
-    const preDelaySeconds = getPreDelaySeconds();
-    const duration = MUSIC_START_TIME + audioBuffer.duration + preDelaySeconds;
-
-    rulerCtx.clearRect(0, 0, width, height);
-
-    rulerCtx.strokeStyle = '#666';
-    rulerCtx.fillStyle = '#ccc';
-    rulerCtx.font = '9px Arial';
-
-    const pixelsPerSecond = width / duration;
-    let timeInterval = 1;
-
-    if (pixelsPerSecond < 30)
-        timeInterval = 10;
-    else if (pixelsPerSecond < 60)
-        timeInterval = 5;
-    else if (pixelsPerSecond < 120)
-        timeInterval = 2;
-    else if (pixelsPerSecond > 500)
-        timeInterval = 0.1;
-    else if (pixelsPerSecond > 250)
-        timeInterval = 0.5;
-
-    for (let time = 0; time <= duration; time += timeInterval) {
-        const x = (time / duration) * width;
-        const isSecond = time % 1 === 0;
-
-        rulerCtx.strokeStyle = time < MUSIC_START_TIME ? '#888' : '#666';
-        rulerCtx.beginPath();
-        rulerCtx.moveTo(x, 0);
-        rulerCtx.lineTo(x, isSecond ? 15 : 8);
-        rulerCtx.stroke();
-
-        if (isSecond && time % Math.max(1, Math.floor(timeInterval)) === 0) {
-            rulerCtx.fillStyle = time < MUSIC_START_TIME ? '#aaa' : '#ccc';
-            if (time < MUSIC_START_TIME) {
-                rulerCtx.fillText(`${time.toFixed(0)}s`, x + 1, 28);
-            } else {
-                const musicTime = time - MUSIC_START_TIME;
-                rulerCtx.fillText(`♪${musicTime.toFixed(musicTime < 1 ? 1 : 0)}s`, x + 1, 28);
-            }
-        }
-    }
-
-    const startX = (MUSIC_START_TIME / duration) * width;
-    rulerCtx.strokeStyle = '#ff4444';
-    rulerCtx.lineWidth = 2;
-    rulerCtx.beginPath();
-    rulerCtx.moveTo(startX, 0);
-    rulerCtx.lineTo(startX, height);
-    rulerCtx.stroke();
-
-    rulerCtx.fillStyle = '#ff4444';
-    rulerCtx.font = 'bold 10px Arial';
-    rulerCtx.fillText('음악 시작', startX + 2, 12);
-    rulerCtx.font = '8px Arial';
-    rulerCtx.fillText('(3초)', startX + 2, 22);
-}
 
 function processAudioForWaveform(audioFile) {
     console.log('Processing audio file:', audioFile.name);
@@ -1106,8 +1008,8 @@ function processAudioForWaveform(audioFile) {
                 .then(buffer => {
                     console.log('AudioContext decoding successful');
                     audioBuffer = buffer;
-                    generateWaveformData(buffer);
-                    drawWaveform();
+                    generateWaveformDataLocal(buffer);
+                    drawWaveformWrapper();
                     saveToStorage();
                 })
                 .catch(err => {
@@ -1138,7 +1040,7 @@ function tryAudioElementMethod(audioFile) {
         console.log('Audio metadata loaded, duration:', audio.duration);
         audioBuffer = { duration: audio.duration };
         generateDummyWaveform(audio.duration);
-        drawWaveform();
+        drawWaveformWrapper();
         saveToStorage();
         URL.revokeObjectURL(url);
     });
@@ -1149,7 +1051,7 @@ function tryAudioElementMethod(audioFile) {
         savedAudioFile = null;
         audioBuffer = null;
         waveformData = null;
-        drawWaveform();
+        drawWaveformWrapper();
         URL.revokeObjectURL(url);
     });
 
@@ -1160,54 +1062,11 @@ function tryAudioElementMethod(audioFile) {
             savedAudioFile = null;
             audioBuffer = null;
             waveformData = null;
-            drawWaveform();
+            drawWaveformWrapper();
         }
     }, 5000);
 }
 
-function generateWaveformData(buffer) {
-    if (!buffer || !buffer.getChannelData) {
-        console.error('Invalid audio buffer');
-        return;
-    }
-
-    try {
-        const channelData = buffer.getChannelData(0);
-        const samples = channelData.length;
-        const blockSize = Math.max(1, Math.floor(samples / 2000));
-
-        waveformData = [];
-        for (let i = 0; i < samples; i += blockSize) {
-            let min = 0;
-            let max = 0;
-
-            for (let j = 0; j < blockSize && i + j < samples; j++) {
-                const sample = channelData[i + j];
-                if (sample > max)
-                    max = sample;
-                if (sample < min)
-                    min = sample;
-            }
-
-            waveformData.push({
-                min,
-                max
-            });
-        }
-
-        console.log(`Generated ${waveformData.length} waveform data points`);
-    } catch (error) {
-        console.error('Error generating waveform data:', error);
-        waveformData = [];
-        for (let i = 0; i < 2000; i++) {
-            const intensity = Math.random() * 0.5;
-            waveformData.push({
-                min: -intensity,
-                max: intensity
-            });
-        }
-    }
-}
 
 function generateDummyWaveform(duration) {
     console.log('Generating dummy waveform for duration:', duration);
@@ -1605,7 +1464,7 @@ async function saveAudioFile(file) {
     });
 }
 
-async function loadAudioFile() {
+async function loadAudioFileFromDB() {
     if (!db) await initDB();
 
     return new Promise((resolve, reject) => {
@@ -1693,7 +1552,7 @@ function loadFromStorage() {
                     document.getElementById("pre-delay").value = adjustedPreDelay;
                 }
 
-                loadAudioFile().then(audioFile => {
+                loadAudioFileFromDB().then(audioFile => {
                     if (audioFile) {
                         console.log('Auto-loading saved audio file:', audioFile.name);
 
@@ -1730,137 +1589,8 @@ function loadFromStorage() {
     }
 }
 
-function validateChart(notes, bpm, subdivisions, preDelaySeconds) {
-    const errors = [];
-    const warnings = [];
-    let validatedNotes = [...notes];
+// validateChart function moved to notes.js module
 
-    validatedNotes.sort((a, b) => a.beat - b.beat);
-
-    const beatCounts = {};
-    validatedNotes.forEach(note => {
-        beatCounts[note.beat] = (beatCounts[note.beat] || 0) + 1;
-        if (beatCounts[note.beat] > 1) {
-            errors.push(`비트 ${note.beat}에 중복된 노트가 있습니다.`);
-        }
-    });
-
-    for (let i = 0; i < validatedNotes.length - 1; i++) {
-        const currentNote = validatedNotes[i];
-        const nextNote = validatedNotes[i + 1];
-
-        const currentTime = beatToTime(currentNote.beat, bpm, subdivisions);
-        const nextTime = beatToTime(nextNote.beat, bpm, subdivisions);
-        const timeDiff = nextTime - currentTime;
-
-        if (timeDiff < 0.08) {
-            errors.push(`노트 ${i}번과 ${i + 1}번 사이 간격이 너무 짧습니다. (${timeDiff.toFixed(3)}초 < 0.08초)`);
-        }
-    }
-
-    const longNoteRanges = [];
-    validatedNotes.forEach((note, index) => {
-        if (note.isLong && note.longTime > 0) {
-            const startBeat = note.beat;
-            // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-            const noteBpm = note.bpm || bpm;
-            const noteSubdivisions = note.subdivisions || subdivisions;
-            const longTimeInSeconds = beatToTime(note.longTime, noteBpm, noteSubdivisions);
-            const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
-            const endBeat = note.beat + longTimeInGlobalBeats;
-            const noteType = note.type;
-
-            longNoteRanges.push({
-                index,
-                startBeat,
-                endBeat,
-                type: noteType,
-                note
-            });
-        }
-    });
-
-    for (let i = 0; i < longNoteRanges.length; i++) {
-        const range1 = longNoteRanges[i];
-
-        for (let j = i + 1; j < longNoteRanges.length; j++) {
-            const range2 = longNoteRanges[j];
-
-            const overlap = !(range1.endBeat <= range2.startBeat || range2.endBeat <= range1.startBeat);
-
-            if (overlap) {
-                if (range1.type === "longtab" && range2.type === "longtab") {
-                    errors.push(`LongTab 노트끼리 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
-                }
-                if (range1.type === "longdirection" && range2.type === "longdirection") {
-                    errors.push(`LongDirection 노트끼리 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
-                }
-                if (range1.type === "longboth" && (range2.type === "longdirection" || range2.type === "longtab" || range2.type === "longboth")) {
-                    errors.push(`LongBoth 노트 구간에 다른 롱노트가 겹칩니다. (${range1.startBeat}-${range1.endBeat} 비트와 ${range2.startBeat}-${range2.endBeat} 비트)`);
-                }
-                if (range2.type === "longboth" && (range1.type === "longdirection" || range1.type === "longtab" || range1.type === "longboth")) {
-                    errors.push(`LongBoth 노트 구간에 다른 롱노트가 겹칩니다. (${range2.startBeat}-${range2.endBeat} 비트와 ${range1.startBeat}-${range1.endBeat} 비트)`);
-                }
-            }
-        }
-    }
-
-    longNoteRanges.forEach(longRange => {
-        validatedNotes.forEach((note, index) => {
-            if (!note.isLong && note.beat > longRange.startBeat && note.beat < longRange.endBeat) {
-                if (longRange.type === "longboth" && note.type !== "tab") {
-                    errors.push(`LongBoth 노트 구간(${longRange.startBeat}-${longRange.endBeat} 비트)에는 Tab 노트만 허용됩니다. ${note.beat} 비트의 ${note.type} 노트를 제거해주세요.`);
-                }
-            }
-        });
-    });
-
-    if (validatedNotes.length > 0) {
-        const lastNote = validatedNotes[validatedNotes.length - 1];
-        let lastNoteBeat = lastNote.beat;
-        if (lastNote.isLong && lastNote.longTime > 0) {
-            // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-            const noteBpm = lastNote.bpm || bpm;
-            const noteSubdivisions = lastNote.subdivisions || subdivisions;
-            const longTimeInSeconds = beatToTime(lastNote.longTime, noteBpm, noteSubdivisions);
-            const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
-            lastNoteBeat = lastNote.beat + longTimeInGlobalBeats;
-        }
-        const lastNoteTime = beatToTime(lastNoteBeat, bpm, subdivisions);
-        const endTime = lastNoteTime + 3.0;
-        const endBeat = timeToBeat(endTime, bpm, subdivisions);
-
-        const needsEndNote = !(lastNote.type === "direction" && lastNote.direction === "none");
-
-        if (needsEndNote) {
-            const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
-            const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-            validatedNotes.push({
-                type: "direction",
-                beat: endBeat,
-                direction: "none",
-                isLong: false,
-                longTime: 0,
-                bpm: currentBpm,
-                subdivisions: currentSubdivisions
-            });
-            warnings.push(`마지막 노트 이후 3초 지점에 Direction/none 노트를 자동 추가했습니다. (${endBeat} 비트)`);
-        }
-    }
-
-    const isValid = errors.length === 0;
-
-    if (warnings.length > 0) {
-        console.log('차트 검증 경고:', warnings);
-    }
-
-    return {
-        isValid,
-        errors,
-        warnings,
-        notes: validatedNotes
-    };
-}
 
 // UI 관련 함수들
 function renderNoteList() {
@@ -1939,7 +1669,7 @@ function renderNoteList() {
             drawPath();
             renderNoteList();
             if (waveformData)
-                drawWaveform();
+                drawWaveformWrapper();
         });
         tdBeat.appendChild(inputBeat);
 
@@ -1972,7 +1702,7 @@ function renderNoteList() {
                 saveToStorage();
                 drawPath();
                 if (waveformData)
-                    drawWaveform();
+                    drawWaveformWrapper();
             });
             tdLong.appendChild(inputLongTime);
         } else {
@@ -1995,7 +1725,7 @@ function renderNoteList() {
                 saveToStorage();
                 drawPath();
                 if (waveformData)
-                    drawWaveform();
+                    drawWaveformWrapper();
             });
             tdDir.appendChild(select);
         } else {
@@ -2019,7 +1749,7 @@ function renderNoteList() {
                 saveToStorage();
                 drawPath();
                 renderNoteList();
-                if (waveformData) drawWaveform();
+                if (waveformData) drawWaveformWrapper();
             } else {
                 inputBpm.value = note.bpm || bpm; // 복원
             }
@@ -2045,7 +1775,7 @@ function renderNoteList() {
             saveToStorage();
             drawPath();
             renderNoteList();
-            if (waveformData) drawWaveform();
+            if (waveformData) drawWaveformWrapper();
         });
         tdSubdivisions.appendChild(selectSubdivisions);
 
@@ -2075,7 +1805,7 @@ function renderNoteList() {
             drawPath();
             renderNoteList();
             if (waveformData)
-                drawWaveform();
+                drawWaveformWrapper();
         });
         tdDelete.appendChild(btn);
 
@@ -2105,14 +1835,7 @@ function focusNoteAtIndex(index) {
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
     const preDelaySeconds = getPreDelaySeconds();
 
-    let pathBeat;
-    if (note.beat === 0 && note.type === "direction") {
-        pathBeat = 0;
-    } else {
-        const originalTime = beatToTime(note.beat, bpm, subdivisions);
-        const adjustedTime = originalTime + preDelaySeconds;
-        pathBeat = timeToBeat(adjustedTime, bpm, subdivisions);
-    }
+    const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
 
     const directionNotes = notes.filter(n =>
         n.type === "direction" ||
@@ -2122,16 +1845,18 @@ function focusNoteAtIndex(index) {
     ).sort((a, b) => a.beat - b.beat);
 
     const pathDirectionNotes = directionNotes.map((n, i) => {
-        let pBeat;
+        const pBeat = calculatePathBeat(n, preDelaySeconds, bpm, subdivisions);
+        let finalTime;
         if (n.beat === 0 && n.type === "direction") {
-            pBeat = 0;
+            finalTime = preDelaySeconds;
         } else {
-            const originalTime = beatToTime(n.beat, bpm, subdivisions);
-            const adjustedTime = originalTime + preDelaySeconds;
-            pBeat = timeToBeat(adjustedTime, bpm, subdivisions);
+            const noteBpm = n.bpm || bpm;
+            const noteSubdivisions = n.subdivisions || subdivisions;
+            const originalTime = beatToTime(n.beat, noteBpm, noteSubdivisions);
+            finalTime = originalTime + preDelaySeconds;
         }
-        return { ...n, pathBeat: pBeat };
-    }).sort((a, b) => a.pathBeat - b.pathBeat);
+        return { ...n, pathBeat: pBeat, finalTime: finalTime };
+    }).sort((a, b) => a.finalTime - b.finalTime);
 
     const nodePositions = [];
     let pos = { x: 0, y: 0 };
@@ -2151,8 +1876,11 @@ function focusNoteAtIndex(index) {
         nodePositions.push(pos);
     }
 
-    const noteCanvasPos = getNotePositionFromPathData(pathBeat, pathDirectionNotes, nodePositions);
-
+    const noteBpm = note.bpm || bpm;
+    const noteSubdivisions = note.subdivisions || subdivisions;
+    const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+    const noteCanvasPos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
+    
     if (noteCanvasPos) {
         viewOffset.x = canvas.width / 2 - noteCanvasPos.x * zoom;
         viewOffset.y = canvas.height / 2 - noteCanvasPos.y * zoom;
@@ -2272,14 +2000,14 @@ function setupWaveformControls() {
     zoomInBtn.addEventListener('click', () => {
         waveformZoom = Math.min(waveformZoom * 2, 16);
         updateZoomLevel();
-        drawWaveform();
+        drawWaveformWrapper();
         updateWaveformSlider();
     });
 
     zoomOutBtn.addEventListener('click', () => {
         waveformZoom = Math.max(waveformZoom / 2, 0.25);
         updateZoomLevel();
-        drawWaveform();
+        drawWaveformWrapper();
         updateWaveformSlider();
     });
 
@@ -2287,7 +2015,7 @@ function setupWaveformControls() {
         waveformZoom = 1;
         waveformOffset = 0;
         updateZoomLevel();
-        drawWaveform();
+        drawWaveformWrapper();
         updateWaveformSlider();
     });
 
@@ -2361,7 +2089,7 @@ function setupWaveformWheel() {
             waveformZoom = newZoom;
             document.getElementById('waveform-zoom-level').textContent = Math.round(waveformZoom * 100) + '%';
 
-            drawWaveform();
+            drawWaveformWrapper();
             updateWaveformSlider();
         }
     }, {
@@ -2411,7 +2139,7 @@ function setupToggleFeatures() {
             resizeCanvas();
             if (waveformData) {
                 resizeWaveformCanvas();
-                drawWaveform();
+                drawWaveformWrapper();
             }
             drawPath();
         }, 300);
@@ -2783,7 +2511,7 @@ function addNote(noteProps) {
     saveToStorage();
     drawPath();
     renderNoteList();
-    if (waveformData) drawWaveform();
+    if (waveformData) drawWaveformWrapper();
     
     focusNoteAtIndex(insertionIndex);
 }
@@ -2805,7 +2533,7 @@ function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdi
         console.log(`Note: ${timeInSeconds.toFixed(3)}s -> beat ${note.beat}`);
     });
 
-    ensureInitialDirectionNote();
+    ensureInitialDirectionNote(notes);
 }
 
 // BPM 필드 변경 핸들러
@@ -2831,7 +2559,7 @@ function handleBpmChange(newBpm) {
     drawPath();
     renderNoteList();
     if (waveformData)
-        drawWaveform();
+        drawWaveformWrapper();
 }
 
 // Subdivisions 필드 변경 핸들러
@@ -2857,7 +2585,7 @@ function handleSubdivisionsChange(newSubdivisions) {
     drawPath();
     renderNoteList();
     if (waveformData)
-        drawWaveform();
+        drawWaveformWrapper();
 }
 
 // Pre-delay 변경 핸들러
@@ -2867,7 +2595,7 @@ function handlePreDelayChange() {
     saveToStorage();
     renderNoteList();
     if (waveformData)
-        drawWaveform();
+        drawWaveformWrapper();
 }
 
 // 초기화
@@ -2929,7 +2657,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (confirm("모든 데이터를 삭제하시겠습니까?")) {
             localStorage.removeItem("autosave_notes");
             notes.length = 0;
-            ensureInitialDirectionNote();
+            ensureInitialDirectionNote(notes);
             drawPath();
             renderNoteList();
         }
@@ -2978,25 +2706,10 @@ document.addEventListener("DOMContentLoaded", async () => {
                     finalTime = originalTime + preDelaySeconds;
                 }
 
-                let noteType;
-                switch (n.type) {
-                    case "tab": noteType = "Tab"; break;
-                    case "direction": noteType = "Direction"; break;
-                    case "both": noteType = "Both"; break;
-                    case "longtab": noteType = "LongTab"; break;
-                    case "longdirection": noteType = "LongDirection"; break;
-                    case "longboth": noteType = "LongBoth"; break;
-                    case "node": noteType = "Node"; break;
-                    default: noteType = "Tab"; break;
-                }
+                const noteType = convertNoteTypeToExternal(n.type);
 
                 // LongTime을 각 노트의 BPM/subdivision으로 시간값 변환
-                let longTimeInSeconds = 0;
-                if (n.isLong && n.longTime > 0) {
-                    const noteBpm = n.bpm || bpm;
-                    const noteSubdivisions = n.subdivisions || subdivisions;
-                    longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
-                }
+                const longTimeInSeconds = (n.isLong && n.longTime > 0) ? calculateLongNoteTime(n, bpm, subdivisions) : 0;
 
                 const result = {
                     beat: n.beat,
@@ -3035,9 +2748,25 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
         const url = URL.createObjectURL(blob);
 
+        // 파일명 입력받기
+        let filename = prompt("파일명을 입력하세요 (.json 확장자는 자동 추가됩니다):", "chart_3s_music_start");
+        if (filename === null) {
+            URL.revokeObjectURL(url);
+            return; // 사용자가 취소한 경우
+        }
+        
+        // 파일명 정리 및 확장자 확인
+        filename = filename.trim();
+        if (!filename) {
+            filename = "chart_3s_music_start";
+        }
+        if (!filename.endsWith(".json")) {
+            filename += ".json";
+        }
+
         const a = document.createElement("a");
         a.href = url;
-        a.download = "chart_3s_music_start.json";
+        a.download = filename;
         a.click();
 
         URL.revokeObjectURL(url);
@@ -3080,17 +2809,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     json.noteList.forEach(n => {
                         const beat = n.beat !== undefined ? n.beat : timeToBeat(n.time || 0, bpm, subdivisions);
 
-                        let type;
-                        switch (n.noteType) {
-                            case "Tab": type = "tab"; break;
-                            case "Direction": type = "direction"; break;
-                            case "Both": type = "both"; break;
-                            case "LongTab": type = "longtab"; break;
-                            case "LongDirection": type = "longdirection"; break;
-                            case "LongBoth": type = "longboth"; break;
-                            case "Node": type = "node"; break;
-                            default: type = "tab"; break;
-                        }
+                        const type = convertExternalToNoteType(n.noteType);
 
                         let longTimeBeat = 0;
                         if (n.longTimeBeat !== undefined) {
@@ -3128,13 +2847,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
 
                     // 초기 direction 노트 확인 및 추가
-                    ensureInitialDirectionNote();
+                    ensureInitialDirectionNote(notes);
 
                     saveToStorage();
                     drawPath();
                     renderNoteList();
                     if (waveformData)
-                        drawWaveform();
+                        drawWaveformWrapper();
                 } catch (err) {
                     alert("불러오기 중 오류 발생: " + err.message);
                 }
@@ -3155,7 +2874,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 URL.revokeObjectURL(audioFileURL);
             audioFileURL = null;
             demoAudio.src = '';
-            drawWaveform();
+            drawWaveformWrapper();
 
             const container = inputAudio.parentElement;
             const indicator = container.querySelector('.file-indicator');
@@ -3299,7 +3018,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.addEventListener('resize', () => {
         resizeWaveformCanvas();
         if (waveformData) {
-            drawWaveform();
+            drawWaveformWrapper();
         }
     });
 
@@ -3307,7 +3026,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupToggleFeatures();
     setupNoteButtons();
 
-    ensureInitialDirectionNote();
+    ensureInitialDirectionNote(notes);
     loadFromStorage();
     
     // 기존 노트들에 개별 BPM/subdivision이 없으면 현재 설정값으로 초기화
