@@ -1759,7 +1759,7 @@ function renderNoteList() {
         // Subdivisions 컬럼 추가 (editable)
         const tdSubdivisions = document.createElement("td");
         const selectSubdivisions = document.createElement("select");
-        [4, 8, 16, 32].forEach(subValue => {
+        [2, 4, 8, 12, 16, 24, 32, 48].forEach(subValue => {
             const opt = document.createElement("option");
             opt.value = subValue;
             opt.textContent = `${subValue}분박`;
@@ -2268,6 +2268,9 @@ function setupSubdivisionsOptions() {
     }, {
         value: 32,
         label: "32"
+    }, {
+        value: 48,
+        label: "48"
     }
     ];
 
@@ -2697,7 +2700,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             subdivisions: subdivisions,
             preDelay: preDelayValue,
             noteList: validatedNotes.map(n => {
-                const originalTime = beatToTime(n.beat, bpm, subdivisions);
+                // 각 노트의 개별 BPM/subdivision 사용
+                const noteBpm = n.bpm || bpm;
+                const noteSubdivisions = n.subdivisions || subdivisions;
+                const originalTime = beatToTime(n.beat, noteBpm, noteSubdivisions);
 
                 let finalTime;
                 if (n.beat === 0 && n.type === "direction") {
@@ -2709,12 +2715,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const noteType = convertNoteTypeToExternal(n.type);
 
                 // LongTime을 각 노트의 BPM/subdivision으로 시간값 변환
-                const longTimeInSeconds = (n.isLong && n.longTime > 0) ? calculateLongNoteTime(n, bpm, subdivisions) : 0;
+                const longTimeInSeconds = (n.isLong && n.longTime > 0) ? calculateLongNoteTime(n, noteBpm, noteSubdivisions) : 0;
 
                 const result = {
                     beat: n.beat,
-                    bpm: n.bpm || bpm, // 노트별 BPM 추가
-                    subdivisions: n.subdivisions || subdivisions, // 노트별 subdivision 추가
+                    bpm: noteBpm, // 노트별 BPM 사용
+                    subdivisions: noteSubdivisions, // 노트별 subdivision 사용
                     originalTime: originalTime,
                     musicTime: MUSIC_START_TIME + originalTime,
                     finalTime: finalTime,
