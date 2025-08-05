@@ -310,7 +310,11 @@ function drawPath() {
         n.type === "node"
     ).sort((a, b) => a.beat - b.beat);
     
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+
     const pathDirectionNotes = directionNotes.map((note, index) => {
+        const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
             // beat 0 direction 노트는 게임 시작점이므로 preDelaySeconds 시점
@@ -324,7 +328,8 @@ function drawPath() {
         }
         return {
             ...note,
-            finalTime: finalTime
+            finalTime: finalTime,
+            pathBeat: pathBeat
         };
     }).sort((a, b) => a.finalTime - b.finalTime);
 
@@ -1220,7 +1225,11 @@ function updateDemoPlayerPosition(currentTime) {
         n.type === "node"
     ).sort((a, b) => a.beat - b.beat);
 
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+
     const pathDirectionNotes = directionNotes.map((note, index) => {
+        const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
             // beat 0 direction 노트는 게임 시작점이므로 preDelaySeconds 시점
@@ -1234,7 +1243,8 @@ function updateDemoPlayerPosition(currentTime) {
         }
         return {
             ...note,
-            finalTime: finalTime
+            finalTime: finalTime,
+            pathBeat: pathBeat
         };
     }).sort((a, b) => a.finalTime - b.finalTime);
 
