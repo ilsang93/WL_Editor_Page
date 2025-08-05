@@ -1126,6 +1126,11 @@ function updateDemo() {
 
     checkNoteHits(elapsedTime);
 
+    if (!isNaN(demoAudio.duration) && elapsedTime >= demoAudio.duration + MUSIC_START_TIME) {
+        stopDemo();
+        return;
+    }
+
     if (!isNaN(demoAudio.duration)) {
         const totalTime = demoAudio.duration + getPreDelaySeconds();
         spanDemoTime.textContent = `${formatTime(elapsedTime)} / ${formatTime(totalTime)}`;
