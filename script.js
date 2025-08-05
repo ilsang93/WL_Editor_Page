@@ -317,8 +317,8 @@ function drawPath() {
         const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
-            // beat 0 direction 노트는 게임 시작점이므로 preDelaySeconds 시점
-            finalTime = preDelaySeconds;
+            // beat 0 direction 노트는 실제 게임 시작점 (0초)
+            finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
             const noteBpm = note.bpm || 120;
@@ -352,11 +352,8 @@ function drawPath() {
         const b = pathDirectionNotes[i + 1];
         const dTime = b.finalTime - a.finalTime;
         
-        // 출발 노트(beat 0 direction)에서 2번째 노트로 가는 구간에 pre-delay 길이 추가
+        // beat 0이 0초이므로 자연스럽게 올바른 시간 구간이 계산됨
         let adjustedDTime = dTime;
-        if (a.beat === 0 && a.type === "direction" && i === 0) {
-            adjustedDTime = dTime + preDelaySeconds;
-        }
         
         let next;
         
@@ -433,8 +430,8 @@ function drawPath() {
 
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
-            // beat 0 direction 노트는 게임 시작점이므로 preDelaySeconds 시점
-            finalTime = preDelaySeconds;
+            // beat 0 direction 노트는 실제 게임 시작점 (0초)
+            finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
             const noteBpm = note.bpm || 120;
@@ -449,8 +446,8 @@ function drawPath() {
         const screenX = pos.x * zoom + viewOffset.x;
         const screenY = pos.y * zoom + viewOffset.y;
 
-        // pathBeat 계산 (롱노트용)
-        const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
+        // pathBeat 계산 (롱노트용) - 노트 본체 위치와 일치하도록 finalTime 기반으로 계산
+        const pathBeat = timeToBeat(finalTime, bpm, subdivisions);
 
         if (note.type === "tab") {
             ctx.beginPath();
@@ -595,6 +592,7 @@ function drawPath() {
                 drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#FF5722", 8, timing.subdivisions);
 
                 let endPos = null;
+                // Try to find end position within existing path segments
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
                     const a = pathDirectionNotes[i];
                     const b = pathDirectionNotes[i + 1];
@@ -608,6 +606,22 @@ function drawPath() {
                         };
                         break;
                     }
+                }
+                
+                // If end position not found and endPathBeat is beyond the last segment, extend along the last direction
+                if (!endPos && pathDirectionNotes.length >= 2 && endPathBeat > pathDirectionNotes[pathDirectionNotes.length - 1].pathBeat) {
+                    const lastNote = pathDirectionNotes[pathDirectionNotes.length - 1];
+                    const lastPos = nodePositions[nodePositions.length - 1];
+                    const beatDiff = endPathBeat - lastNote.pathBeat;
+                    const dist = (8 * beatDiff) / subdivisions;
+                    
+                    const [dx, dy] = directionToVector(lastNote.direction);
+                    const mag = Math.hypot(dx, dy) || 1;
+                    
+                    endPos = {
+                        x: lastPos.x + (dx / mag) * dist,
+                        y: lastPos.y + (dy / mag) * dist
+                    };
                 }
 
                 if (endPos) {
@@ -657,6 +671,7 @@ function drawPath() {
                 drawLongNoteBar(pathBeat, endPathBeat, pathDirectionNotes, nodePositions, "#E91E63", 8, timing.subdivisions);
 
                 let endPos = null;
+                // Try to find end position within existing path segments
                 for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
                     const a = pathDirectionNotes[i];
                     const b = pathDirectionNotes[i + 1];
@@ -670,6 +685,22 @@ function drawPath() {
                         };
                         break;
                     }
+                }
+                
+                // If end position not found and endPathBeat is beyond the last segment, extend along the last direction
+                if (!endPos && pathDirectionNotes.length >= 2 && endPathBeat > pathDirectionNotes[pathDirectionNotes.length - 1].pathBeat) {
+                    const lastNote = pathDirectionNotes[pathDirectionNotes.length - 1];
+                    const lastPos = nodePositions[nodePositions.length - 1];
+                    const beatDiff = endPathBeat - lastNote.pathBeat;
+                    const dist = (8 * beatDiff) / subdivisions;
+                    
+                    const [dx, dy] = directionToVector(lastNote.direction);
+                    const mag = Math.hypot(dx, dy) || 1;
+                    
+                    endPos = {
+                        x: lastPos.x + (dx / mag) * dist,
+                        y: lastPos.y + (dy / mag) * dist
+                    };
                 }
 
                 if (endPos) {
@@ -716,7 +747,7 @@ function drawPath() {
         const note = notes[highlightedNoteIndex];
         const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
         const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
-        const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        const noteFinalTime = note.beat === 0 && note.type === "direction" ? 0 : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
 
         const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
@@ -739,7 +770,7 @@ function drawPath() {
         const note = notes[selectedNoteIndex];
         const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
         const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
-        const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        const noteFinalTime = note.beat === 0 && note.type === "direction" ? 0 : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
 
         const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
@@ -833,6 +864,8 @@ function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePos
         const currentBeat = startPathBeat + (endPathBeat - startPathBeat) * t;
 
         let pos = null;
+        
+        // Try to find position within existing path segments
         for (let j = 0; j < pathDirectionNotes.length - 1; j++) {
             const a = pathDirectionNotes[j];
             const b = pathDirectionNotes[j + 1];
@@ -847,6 +880,22 @@ function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePos
                 };
                 break;
             }
+        }
+        
+        // If position not found and currentBeat is beyond the last segment, extend along the last direction
+        if (!pos && pathDirectionNotes.length >= 2 && currentBeat > pathDirectionNotes[pathDirectionNotes.length - 1].pathBeat) {
+            const lastNote = pathDirectionNotes[pathDirectionNotes.length - 1];
+            const lastPos = nodePositions[nodePositions.length - 1];
+            const beatDiff = currentBeat - lastNote.pathBeat;
+            const dist = (8 * beatDiff) / subdivisions;
+            
+            const [dx, dy] = directionToVector(lastNote.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            
+            pos = {
+                x: lastPos.x + (dx / mag) * dist,
+                y: lastPos.y + (dy / mag) * dist
+            };
         }
 
         if (pos) {
@@ -1237,8 +1286,8 @@ function updateDemoPlayerPosition(currentTime) {
         const pathBeat = calculatePathBeat(note, preDelaySeconds, bpm, subdivisions);
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
-            // beat 0 direction 노트는 게임 시작점이므로 preDelaySeconds 시점
-            finalTime = preDelaySeconds;
+            // beat 0 direction 노트는 실제 게임 시작점 (0초)
+            finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
             const noteBpm = note.bpm || 120;
@@ -1268,11 +1317,8 @@ function updateDemoPlayerPosition(currentTime) {
         const b = pathDirectionNotes[i + 1];
         const dTime = b.finalTime - a.finalTime;
         
-        // 출발 노트(beat 0 direction)에서 2번째 노트로 가는 구간에 pre-delay 길이 추가
+        // beat 0이 0초이므로 자연스럽게 올바른 시간 구간이 계산됨
         let adjustedDTime = dTime;
-        if (a.beat === 0 && a.type === "direction" && i === 0) {
-            adjustedDTime = dTime + preDelaySeconds;
-        }
         
         let next;
         
@@ -1856,14 +1902,15 @@ function focusNoteAtIndex(index) {
         n.type === "direction" ||
         n.type === "both" ||
         n.type === "longdirection" ||
-        n.type === "longboth"
+        n.type === "longboth" ||
+        n.type === "node"
     ).sort((a, b) => a.beat - b.beat);
 
     const pathDirectionNotes = directionNotes.map((n, i) => {
         const pBeat = calculatePathBeat(n, preDelaySeconds, bpm, subdivisions);
         let finalTime;
         if (n.beat === 0 && n.type === "direction") {
-            finalTime = preDelaySeconds;
+            finalTime = 0;
         } else {
             const noteBpm = n.bpm || bpm;
             const noteSubdivisions = n.subdivisions || subdivisions;
@@ -1876,17 +1923,45 @@ function focusNoteAtIndex(index) {
     const nodePositions = [];
     let pos = { x: 0, y: 0 };
     nodePositions.push(pos);
+    
+    // Use time-based movement calculation like updateDemoPlayerPosition
+    const MOVEMENT_SPEED = 8;
+    
     for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
         const a = pathDirectionNotes[i];
         const b = pathDirectionNotes[i + 1];
-        const dBeat = b.pathBeat - a.pathBeat;
-        const dist = (8 * dBeat) / subdivisions;
-        const [dx, dy] = directionToVector(a.direction);
-        const mag = Math.hypot(dx, dy) || 1;
-        const next = {
-            x: pos.x + (dx / mag) * dist,
-            y: pos.y + (dy / mag) * dist
-        };
+        const dTime = b.finalTime - a.finalTime;
+        
+        // beat 0이 0초이므로 자연스럽게 올바른 시간 구간이 계산됨
+        let adjustedDTime = dTime;
+        
+        let next;
+        
+        // Handle waiting Node notes
+        if (b.type === "node" && b.wait) {
+            next = { x: pos.x, y: pos.y };
+        } else {
+            const dist = MOVEMENT_SPEED * adjustedDTime;
+            
+            // For Node type notes, find the previous direction note's direction
+            let direction = a.direction;
+            if (a.type === "node") {
+                for (let j = i - 1; j >= 0; j--) {
+                    const prevNote = pathDirectionNotes[j];
+                    if (prevNote.type !== "node" && prevNote.direction) {
+                        direction = prevNote.direction;
+                        break;
+                    }
+                }
+            }
+            
+            const [dx, dy] = directionToVector(direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            next = {
+                x: pos.x + (dx / mag) * dist,
+                y: pos.y + (dy / mag) * dist
+            };
+        }
         pos = next;
         nodePositions.push(pos);
     }
