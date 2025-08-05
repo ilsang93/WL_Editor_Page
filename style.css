@@ -11,7 +11,7 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  width: 480px; /* 400px → 480px로 확장 */
+  width: 550px; /* 480px → 550px로 확장 */
   height: 100vh;
   background: #333;
   overflow-y: auto;
@@ -22,7 +22,7 @@ body {
 }
 
 #sidebar.hidden {
-  left: -480px; /* 완전히 숨김 */
+  left: -550px; /* 완전히 숨김 */
 }
 
 #sidebar table {
@@ -111,7 +111,7 @@ body {
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
   top: 50%;
-  left: 480px; /* 사이드바 오른쪽에 위치 */
+  left: 550px; /* 사이드바 오른쪽에 위치 */
   width: 40px;
   height: 60px;
   background: #333;
@@ -131,7 +131,7 @@ body {
 
 .sidebar-toggle:hover {
   background: #444;
-  left: 485px; /* 480px + 5px */
+  left: 555px; /* 550px + 5px */
   top: 50%;
 }
 
@@ -309,7 +309,7 @@ button:disabled {
 
 /* #main의 margin-bottom 제거 */
 #main {
-  margin-left: 480px; /* 400px → 480px로 조정 */
+  margin-left: 550px; /* 480px → 550px로 조정 */
   position: relative;
   height: 100vh;
   overflow: hidden;
