@@ -1654,7 +1654,40 @@ function loadFromStorage() {
 
 
 // UI 관련 함수들
+
+// Tab 노트들의 BPM/Subdivisions 값을 다음 편집 가능 노트에서 상속받도록 업데이트
+function updateTabNotesInheritance() {
+    const globalBpm = parseFloat(document.getElementById("bpm").value || 120);
+    const globalSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    
+    notes.forEach((note, index) => {
+        // Tab 계열 노트만 처리
+        if (note.type === "tab" || note.type === "longtab") {
+            // 다음 BPM/Subdivisions 편집 가능 노트 찾기
+            let inheritedBpm = globalBpm;
+            let inheritedSubdivisions = globalSubdivisions;
+            
+            for (let i = index + 1; i < notes.length; i++) {
+                const nextNote = notes[i];
+                const canEdit = ["direction", "longdirection", "both", "longboth", "node"].includes(nextNote.type);
+                if (canEdit) {
+                    inheritedBpm = nextNote.bpm || globalBpm;
+                    inheritedSubdivisions = nextNote.subdivisions || globalSubdivisions;
+                    break;
+                }
+            }
+            
+            // Tab 노트에 상속받은 값 설정
+            note.bpm = inheritedBpm;
+            note.subdivisions = inheritedSubdivisions;
+        }
+    });
+}
+
 function renderNoteList() {
+    // Tab 노트들의 상속 값을 먼저 업데이트
+    updateTabNotesInheritance();
+    
     const tbody = document.getElementById("note-list");
     tbody.innerHTML = "";
 
@@ -1793,52 +1826,74 @@ function renderNoteList() {
             tdDir.textContent = "-";
         }
 
-        // BPM 컬럼 추가 (editable)
+        // BPM 컬럼 추가 (Direction, Both, Node 계열 노트에서만 editable)
         const tdBpm = document.createElement("td");
-        const inputBpm = document.createElement("input");
-        inputBpm.type = "number";
-        inputBpm.min = "60";
-        inputBpm.max = "300";
-        inputBpm.step = "1";
-        inputBpm.value = note.bpm || bpm;
-        inputBpm.style.width = "60px";
-        inputBpm.style.fontSize = "11px";
-        inputBpm.addEventListener("change", () => {
-            const newBpm = parseInt(inputBpm.value) || bpm;
-            if (newBpm >= 60 && newBpm <= 300) {
-                note.bpm = newBpm;
+        const canEditBpm = ["direction", "longdirection", "both", "longboth", "node"].includes(note.type);
+        
+        if (canEditBpm) {
+            const inputBpm = document.createElement("input");
+            inputBpm.type = "number";
+            inputBpm.min = "60";
+            inputBpm.max = "300";
+            inputBpm.step = "1";
+            inputBpm.value = note.bpm || bpm;
+            inputBpm.style.width = "60px";
+            inputBpm.style.fontSize = "11px";
+            inputBpm.addEventListener("change", () => {
+                const newBpm = parseInt(inputBpm.value) || bpm;
+                if (newBpm >= 60 && newBpm <= 300) {
+                    note.bpm = newBpm;
+                    updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
+                    saveToStorage();
+                    drawPath();
+                    renderNoteList();
+                    if (waveformData) drawWaveformWrapper();
+                } else {
+                    inputBpm.value = note.bpm || bpm; // 복원
+                }
+            });
+            tdBpm.appendChild(inputBpm);
+        } else {
+            // Tab 계열 노트는 이미 상속받은 BPM 값을 표시
+            tdBpm.textContent = note.bpm || bpm;
+            tdBpm.style.color = "#999";
+            tdBpm.style.fontStyle = "italic";
+            tdBpm.title = "Tab 노트는 다음 BPM 편집 가능 노트의 값을 추종합니다";
+        }
+
+        // Subdivisions 컬럼 추가 (Direction, Both, Node 계열 노트에서만 editable)
+        const tdSubdivisions = document.createElement("td");
+        const canEditSubdivisions = ["direction", "longdirection", "both", "longboth", "node"].includes(note.type);
+        
+        if (canEditSubdivisions) {
+            const selectSubdivisions = document.createElement("select");
+            [2, 4, 8, 12, 16, 24, 32, 48].forEach(subValue => {
+                const opt = document.createElement("option");
+                opt.value = subValue;
+                opt.textContent = `${subValue}분박`;
+                if ((note.subdivisions || subdivisions) === subValue) {
+                    opt.selected = true;
+                }
+                selectSubdivisions.appendChild(opt);
+            });
+            selectSubdivisions.style.fontSize = "11px";
+            selectSubdivisions.style.width = "65px";
+            selectSubdivisions.addEventListener("change", () => {
+                note.subdivisions = parseInt(selectSubdivisions.value);
+                updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
                 saveToStorage();
                 drawPath();
                 renderNoteList();
                 if (waveformData) drawWaveformWrapper();
-            } else {
-                inputBpm.value = note.bpm || bpm; // 복원
-            }
-        });
-        tdBpm.appendChild(inputBpm);
-
-        // Subdivisions 컬럼 추가 (editable)
-        const tdSubdivisions = document.createElement("td");
-        const selectSubdivisions = document.createElement("select");
-        [2, 4, 8, 12, 16, 24, 32, 48].forEach(subValue => {
-            const opt = document.createElement("option");
-            opt.value = subValue;
-            opt.textContent = `${subValue}분박`;
-            if ((note.subdivisions || subdivisions) === subValue) {
-                opt.selected = true;
-            }
-            selectSubdivisions.appendChild(opt);
-        });
-        selectSubdivisions.style.fontSize = "11px";
-        selectSubdivisions.style.width = "65px";
-        selectSubdivisions.addEventListener("change", () => {
-            note.subdivisions = parseInt(selectSubdivisions.value);
-            saveToStorage();
-            drawPath();
-            renderNoteList();
-            if (waveformData) drawWaveformWrapper();
-        });
-        tdSubdivisions.appendChild(selectSubdivisions);
+            });
+            tdSubdivisions.appendChild(selectSubdivisions);
+        } else {
+            // Tab 계열 노트는 이미 상속받은 Subdivisions 값을 표시
+            tdSubdivisions.textContent = `${note.subdivisions || subdivisions}분박`;
+            tdSubdivisions.style.color = "#999";
+            tdSubdivisions.style.fontStyle = "italic";
+            tdSubdivisions.title = "Tab 노트는 다음 Subdivisions 편집 가능 노트의 값을 추종합니다";
+        }
 
         // Wait 컬럼 추가 (Node 타입만)
         const tdWait = document.createElement("td");
