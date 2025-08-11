@@ -1798,13 +1798,23 @@ function renderNoteList() {
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
     const preDelaySeconds = getPreDelaySeconds();
 
-    // 중복 beat 값 감지
-    const beatCounts = {};
-    const duplicateBeats = new Set();
-    notes.forEach(note => {
-        beatCounts[note.beat] = (beatCounts[note.beat] || 0) + 1;
-        if (beatCounts[note.beat] > 1) {
-            duplicateBeats.add(note.beat);
+    // 중복 beat 값 감지 (같은 BPM과 subdivision을 가진 노트만 비교)
+    const duplicateNoteIndices = new Set();
+    notes.forEach((note, index) => {
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        
+        // 같은 노트보다 뒤에 있는 노트들과 비교
+        for (let i = index + 1; i < notes.length; i++) {
+            const otherNote = notes[i];
+            const otherBpm = otherNote.bpm || bpm;
+            const otherSubdivisions = otherNote.subdivisions || subdivisions;
+            
+            // 같은 beat, BPM, subdivision을 가진 노트들을 중복으로 표시
+            if (note.beat === otherNote.beat && noteBpm === otherBpm && noteSubdivisions === otherSubdivisions) {
+                duplicateNoteIndices.add(index);
+                duplicateNoteIndices.add(i);
+            }
         }
     });
 
@@ -1825,8 +1835,8 @@ function renderNoteList() {
             tr.classList.add("highlight");
         }
         
-        // 중복 beat 값인 경우 빨간색으로 표시
-        if (duplicateBeats.has(note.beat)) {
+        // 중복 beat 값인 경우 빨간색으로 표시 (같은 BPM, subdivision인 경우에만)
+        if (duplicateNoteIndices.has(index)) {
             tr.classList.add("duplicate-beat");
         }
 
