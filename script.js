@@ -302,6 +302,12 @@ function drawPath() {
 
     drawGrid();
 
+    // 실시간 그리기를 위한 변수들
+    const realtimeDrawingEnabled = document.getElementById("realtime-drawing").checked;
+    const currentTime = isPlaying ? elapsedTime : 0;
+    const drawAheadTime = parseFloat(document.getElementById("draw-ahead-time").value || 2.0); // 플레이어보다 N초 앞서 그리기
+    const drawTime = currentTime + drawAheadTime;
+
     const directionNotes = notes.filter(n =>
         n.type === "direction" ||
         n.type === "both" ||
@@ -321,8 +327,8 @@ function drawPath() {
             finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
-            const noteBpm = note.bpm || 120;
-            const noteSubdivisions = note.subdivisions || 16;
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
             const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             finalTime = originalTime + preDelaySeconds;
         }
@@ -341,12 +347,14 @@ function drawPath() {
     nodePositions.push(pos);
     const segmentTimes = [];
 
-    // 시간 기반으로 거리 계산 (고정된 속도 8 units/second)
-    const MOVEMENT_SPEED = 8;
+    // BPM 기반 동적 속도 계산
 
+    // 그리기 오브젝트가 지나간 경로만 그리기
     ctx.beginPath();
     ctx.moveTo(pos.x * zoom + viewOffset.x, pos.y * zoom + viewOffset.y);
-
+    
+    let drawnToTime = 0; // 실제로 그려진 시간
+    
     for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
         const a = pathDirectionNotes[i];
         const b = pathDirectionNotes[i + 1];
@@ -364,7 +372,9 @@ function drawPath() {
                 y: pos.y
             };
         } else {
-            const dist = MOVEMENT_SPEED * adjustedDTime;
+            // 구간별 BPM에 따른 동적 속도 계산
+            const movementSpeed = calculateMovementSpeed(a, b, bpm, subdivisions);
+            const dist = movementSpeed * adjustedDTime;
             
             // Node 타입 노트의 경우 이전 direction 노트의 방향을 찾아서 사용
             let direction = a.direction;
@@ -387,7 +397,26 @@ function drawPath() {
                 y: pos.y + (dy / mag) * dist
             };
         }
-        ctx.lineTo(next.x * zoom + viewOffset.x, next.y * zoom + viewOffset.y);
+        
+        // 실시간 그리기: 그리기 오브젝트가 지나간 부분만 그리기 (옵션 확인)
+        if (realtimeDrawingEnabled && isPlaying && b.finalTime <= drawTime) {
+            ctx.lineTo(next.x * zoom + viewOffset.x, next.y * zoom + viewOffset.y);
+            drawnToTime = b.finalTime;
+        } else if (realtimeDrawingEnabled && isPlaying && a.finalTime <= drawTime && b.finalTime > drawTime) {
+            // 부분적으로 그리기 (선형 보간)
+            const segmentProgress = (drawTime - a.finalTime) / (b.finalTime - a.finalTime);
+            const partialNext = {
+                x: pos.x + (next.x - pos.x) * segmentProgress,
+                y: pos.y + (next.y - pos.y) * segmentProgress
+            };
+            ctx.lineTo(partialNext.x * zoom + viewOffset.x, partialNext.y * zoom + viewOffset.y);
+            drawnToTime = drawTime;
+        } else if (!realtimeDrawingEnabled || !isPlaying) {
+            // 실시간 그리기가 비활성화되거나 플레이 중이 아니면 전체 경로 그리기
+            ctx.lineTo(next.x * zoom + viewOffset.x, next.y * zoom + viewOffset.y);
+            drawnToTime = b.finalTime;
+        }
+        
         segmentTimes.push({
             start: a.finalTime,
             end: b.finalTime,
@@ -401,32 +430,79 @@ function drawPath() {
         pos = next;
         nodePositions.push(pos);
     }
+    
+    // 그려진 경로만 표시
     ctx.strokeStyle = "#000";
     ctx.lineWidth = 2;
     ctx.stroke();
+    
+    // 그리기 오브젝트 표시 (투명한 원) - 실시간 그리기 활성화 시에만
+    if (realtimeDrawingEnabled && isPlaying && drawTime <= (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0)) {
+        const drawPosition = getPositionAtTime(drawTime, segmentTimes);
+        if (drawPosition) {
+            ctx.beginPath();
+            ctx.arc(drawPosition.x * zoom + viewOffset.x, drawPosition.y * zoom + viewOffset.y, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(100, 200, 255, 0.6)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    }
 
-    // 시간 기준 마커 (1초 간격)
+    // 시간 기준 마커 (1초 간격) - 실시간 그리기 활성화 시 그리기 오브젝트가 지나간 부분만
     const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
-    for (let time = 1; time < totalPathTime; time += 1) {
-        for (let s of segmentTimes) {
-            if (s.start <= time && time <= s.end) {
-                const interp = (time - s.start) / (s.end - s.start);
-                const x = s.from.x + (s.to.x - s.from.x) * interp;
-                const y = s.from.y + (s.to.y - s.from.y) * interp;
+    const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
+    
+    for (let time = 1; time < maxMarkerTime; time += 1) {
+        const position = getPositionAtTime(time, segmentTimes);
+        if (position) {
+            ctx.beginPath();
+            ctx.arc(position.x * zoom + viewOffset.x, position.y * zoom + viewOffset.y, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = "rgba(128,128,128,0.4)";
+            ctx.fill();
+        }
+    }
+    
+    // BPM 기반 비트 마커 - 각 구간의 subdivision에 맞춰 표시
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const a = pathDirectionNotes[i];
+        const b = pathDirectionNotes[i + 1];
+        
+        // 이 구간에서 사용할 BPM/subdivision
+        const segmentBpm = a.bpm || bpm;
+        const segmentSubdivisions = a.subdivisions || subdivisions;
+        
+        // subdivision 간격으로 비트 마커 표시
+        const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
+        
+        for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
+            const position = getPositionAtTime(time, segmentTimes);
+            if (position) {
                 ctx.beginPath();
-                ctx.arc(x * zoom + viewOffset.x, y * zoom + viewOffset.y, 4, 0, 2 * Math.PI);
-                ctx.fillStyle = "rgba(128,128,128,0.4)";
+                ctx.arc(position.x * zoom + viewOffset.x, position.y * zoom + viewOffset.y, 2, 0, 2 * Math.PI);
+                ctx.fillStyle = "rgba(100,150,255,0.6)";
                 ctx.fill();
-                break;
             }
         }
     }
 
+    // 그리기 오브젝트가 지나간 노트들만 렌더링
     notes.forEach((note, index) => {
         if (!note)
             return;
         if (note.beat === 0 && !(index === 0 && note.type === "direction"))
             return;
+
+        // 노트의 실제 시간 계산
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        const noteTime = beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        
+        // 실시간 그리기: 실시간 그리기 활성화 시 그리기 오브젝트가 지나간 노트만 표시
+        if (realtimeDrawingEnabled && isPlaying && noteTime > drawTime) {
+            return; // 아직 그리기 오브젝트가 도달하지 않은 노트는 표시하지 않음
+        }
 
         let finalTime;
         if (note.beat === 0 && note.type === "direction") {
@@ -434,8 +510,8 @@ function drawPath() {
             finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
-            const noteBpm = note.bpm || 120;
-            const noteSubdivisions = note.subdivisions || 16;
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
             const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             finalTime = originalTime + preDelaySeconds;
         }
@@ -555,7 +631,7 @@ function drawPath() {
             ctx.font = "bold 8px Arial";
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
-            const noteBpm = note.bpm || 120;
+            const noteBpm = note.bpm || bpm;
             ctx.fillText(noteBpm.toString(), screenX, nodeDisplayY);
             
             // Node 노트에서 실제 경로 위치로 연결선 그리기
@@ -846,6 +922,32 @@ function initializeNoteBpmSubdivisions() {
         console.log('Initialized missing BPM/subdivision values for existing notes');
         saveToStorage();
     }
+}
+
+function getPositionAtTime(time, segmentTimes) {
+    for (let s of segmentTimes) {
+        if (s.start <= time && time <= s.end) {
+            const interp = (time - s.start) / (s.end - s.start);
+            return {
+                x: s.from.x + (s.to.x - s.from.x) * interp,
+                y: s.from.y + (s.to.y - s.from.y) * interp
+            };
+        }
+    }
+    return null;
+}
+
+function calculateMovementSpeed(fromNote, toNote, globalBpm, globalSubdivisions) {
+    // 구간의 평균 BPM을 사용하여 속도 계산
+    const fromBpm = fromNote.bpm || globalBpm;
+    const toBpm = toNote.bpm || globalBpm;
+    const avgBpm = (fromBpm + toBpm) / 2;
+    
+    // 기준 BPM(120)에서의 기본 속도는 8 units/second
+    // BPM이 높아지면 속도도 비례적으로 증가
+    const baseBpm = 120;
+    const baseSpeed = 8;
+    return baseSpeed * (avgBpm / baseBpm);
 }
 
 function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePositions, color, lineWidth, noteSubdivisions) {
@@ -1235,8 +1337,8 @@ function checkNoteHits(currentTime) {
             return;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용
-            const noteBpm = note.bpm || 120;
-            const noteSubdivisions = note.subdivisions || 16;
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
             const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             finalTime = originalTime + preDelaySeconds;
         }
@@ -1290,8 +1392,8 @@ function updateDemoPlayerPosition(currentTime) {
             finalTime = 0;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용하여 finalTime 계산
-            const noteBpm = note.bpm || 120;
-            const noteSubdivisions = note.subdivisions || 16;
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
             const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
             finalTime = originalTime + preDelaySeconds;
         }
@@ -1309,8 +1411,7 @@ function updateDemoPlayerPosition(currentTime) {
     };
     nodePositions.push(pos);
     
-    // 시간 기반으로 거리 계산 (고정된 속도 8 units/second)
-    const MOVEMENT_SPEED = 8;
+    // BPM 기반 동적 속도 계산 사용
     
     for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
         const a = pathDirectionNotes[i];
@@ -1329,7 +1430,9 @@ function updateDemoPlayerPosition(currentTime) {
                 y: pos.y
             };
         } else {
-            const dist = MOVEMENT_SPEED * adjustedDTime;
+            // 구간별 BPM에 따른 동적 속도 계산
+            const movementSpeed = calculateMovementSpeed(a, b, bpm, subdivisions);
+            const dist = movementSpeed * adjustedDTime;
             
             // Node 타입 노트의 경우 이전 direction 노트의 방향을 찾아서 사용
             let direction = a.direction;
@@ -1996,7 +2099,9 @@ function focusNoteAtIndex(index) {
         if (b.type === "node" && b.wait) {
             next = { x: pos.x, y: pos.y };
         } else {
-            const dist = MOVEMENT_SPEED * adjustedDTime;
+            // 구간별 BPM에 따른 동적 속도 계산
+            const movementSpeed = calculateMovementSpeed(a, b, bpm, subdivisions);
+            const dist = movementSpeed * adjustedDTime;
             
             // For Node type notes, find the previous direction note's direction
             let direction = a.direction;
