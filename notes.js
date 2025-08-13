@@ -67,13 +67,16 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
         return aTime - bTime;
     });
     
-    // Long Note와 다음 노트들의 겹침 검사
+    // Long Note 겹침 및 범위 내 노트 검증
     for (let i = 0; i < sortedNotes.length - 1; i++) {
         const currentNote = sortedNotes[i];
         if (currentNote.isLong && currentNote.longTime > 0) {
             const currentTiming = getNoteTimingParams(currentNote, globalBpm, globalSubdivisions);
             const currentStartTime = beatToTime(currentNote.beat, currentTiming.bpm, currentTiming.subdivisions);
             const currentEndTime = currentStartTime + calculateLongNoteTime(currentNote, globalBpm, globalSubdivisions);
+            
+            // 현재 Long Note의 타입 확인
+            const currentLongType = currentNote.type;
             
             // 다음 노트들이 현재 Long Note 범위 안에 있는지 검사
             for (let j = i + 1; j < sortedNotes.length; j++) {
@@ -82,9 +85,37 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
                 const nextTime = beatToTime(nextNote.beat, nextTiming.bpm, nextTiming.subdivisions);
                 
                 if (nextTime < currentEndTime) {
-                    const originalCurrentIndex = notes.findIndex(n => n === currentNote);
-                    const originalNextIndex = notes.findIndex(n => n === nextNote);
-                    warnings.push(`Warning: Note ${originalNextIndex} (beat ${nextNote.beat}) overlaps with Long Note ${originalCurrentIndex} (beat ${currentNote.beat}, ends at ${currentEndTime.toFixed(3)}s)`);
+                    // 다른 Long Note와의 겹침 검사 (에러)
+                    if (nextNote.isLong && nextNote.longTime > 0) {
+                        const originalCurrentIndex = notes.findIndex(n => n === currentNote);
+                        const originalNextIndex = notes.findIndex(n => n === nextNote);
+                        errors.push(`Error: Long Note ${originalNextIndex} (beat ${nextNote.beat}) overlaps with Long Note ${originalCurrentIndex} (beat ${currentNote.beat})`);
+                    }
+                    // 롱노트 범위 내 허용 노트 검증
+                    else {
+                        const nextNoteType = nextNote.type;
+                        let isValidInRange = false;
+                        
+                        if (currentLongType === 'longtab') {
+                            // 탭 롱노트 범위: 탭 노트와 디렉션 노트만 허용
+                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'direction');
+                        } else if (currentLongType === 'longdirection') {
+                            // 디렉션 롱노트 범위: 탭 노트만 허용
+                            isValidInRange = (nextNoteType === 'tab');
+                        } else if (currentLongType === 'longboth') {
+                            // Both 롱노트 범위: 탭 노트만 허용
+                            isValidInRange = (nextNoteType === 'tab');
+                        }
+                        
+                        if (!isValidInRange) {
+                            const originalCurrentIndex = notes.findIndex(n => n === currentNote);
+                            const originalNextIndex = notes.findIndex(n => n === nextNote);
+                            errors.push(`Error: Note ${originalNextIndex} (${nextNoteType}, beat ${nextNote.beat}) is not allowed within ${currentLongType} range (${originalCurrentIndex}, beat ${currentNote.beat})`);
+                        }
+                    }
+                } else if (nextTime === currentEndTime) {
+                    // 끝남과 동시에 다른 롱노트 시작은 허용 (겹침 아님)
+                    continue;
                 } else {
                     break; // 더 이상 겹치는 노트가 없음
                 }
