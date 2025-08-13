@@ -97,8 +97,8 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
                         let isValidInRange = false;
                         
                         if (currentLongType === 'longtab') {
-                            // 탭 롱노트 범위: 탭 노트와 디렉션 노트만 허용
-                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'direction');
+                            // 탭 롱노트 범위: 탭 노트, 디렉션 노트, Both 노트 허용
+                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'direction' || nextNoteType === 'both');
                         } else if (currentLongType === 'longdirection') {
                             // 디렉션 롱노트 범위: 탭 노트만 허용
                             isValidInRange = (nextNoteType === 'tab');
