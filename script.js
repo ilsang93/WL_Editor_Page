@@ -33,6 +33,7 @@ import {
     jsonToNoteFormat,
     sortNotesByTime,
     ensureInitialDirectionNote,
+    ensureFinalDirectionNote,
     getNoteColor
 } from './notes.js';
 
@@ -2945,10 +2946,21 @@ document.addEventListener("DOMContentLoaded", async () => {
         const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
         const preDelaySeconds = preDelayValue / 1000;
 
+        // 마지막 Direction Type None 노트 확인 및 추가
+        ensureFinalDirectionNote(notes, bpm, subdivisions);
+
         const validationResult = validateChart(notes, bpm, subdivisions, preDelaySeconds);
         if (!validationResult.isValid) {
             alert(`차트 검증 실패:\n\n${validationResult.errors.join('\n')}\n\n수정 후 다시 시도해주세요.`);
             return;
+        }
+
+        // 경고 메시지가 있으면 사용자에게 알림
+        if (validationResult.warnings && validationResult.warnings.length > 0) {
+            const proceedExport = confirm(`다음과 같은 경고가 있습니다:\n\n${validationResult.warnings.join('\n')}\n\n계속 내보내시겠습니까?`);
+            if (!proceedExport) {
+                return;
+            }
         }
 
         const validatedNotes = validationResult.notes;
@@ -3114,6 +3126,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     // 초기 direction 노트 확인 및 추가
                     ensureInitialDirectionNote(notes);
+                    // 마지막 direction 노트 확인 및 추가
+                    ensureFinalDirectionNote(notes, bpm, subdivisions);
 
                     saveToStorage();
                     drawPath();

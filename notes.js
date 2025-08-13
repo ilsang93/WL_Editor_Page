@@ -41,6 +41,7 @@ export function validateNote(note, globalBpm, globalSubdivisions) {
 // 차트 전체 검증
 export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeconds) {
     const errors = [];
+    const warnings = [];
     const validatedNotes = [];
     
     // 시작점 확인
@@ -59,16 +60,42 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
         }
     });
     
-    // 시간 순서 검증
+    // 시간 순서 검증 및 Long Note 겹침 검사
     const sortedNotes = [...validatedNotes].sort((a, b) => {
         const aTime = beatToTime(a.beat, a.bpm || globalBpm, a.subdivisions || globalSubdivisions);
         const bTime = beatToTime(b.beat, b.bpm || globalBpm, b.subdivisions || globalSubdivisions);
         return aTime - bTime;
     });
     
+    // Long Note와 다음 노트들의 겹침 검사
+    for (let i = 0; i < sortedNotes.length - 1; i++) {
+        const currentNote = sortedNotes[i];
+        if (currentNote.isLong && currentNote.longTime > 0) {
+            const currentTiming = getNoteTimingParams(currentNote, globalBpm, globalSubdivisions);
+            const currentStartTime = beatToTime(currentNote.beat, currentTiming.bpm, currentTiming.subdivisions);
+            const currentEndTime = currentStartTime + calculateLongNoteTime(currentNote, globalBpm, globalSubdivisions);
+            
+            // 다음 노트들이 현재 Long Note 범위 안에 있는지 검사
+            for (let j = i + 1; j < sortedNotes.length; j++) {
+                const nextNote = sortedNotes[j];
+                const nextTiming = getNoteTimingParams(nextNote, globalBpm, globalSubdivisions);
+                const nextTime = beatToTime(nextNote.beat, nextTiming.bpm, nextTiming.subdivisions);
+                
+                if (nextTime < currentEndTime) {
+                    const originalCurrentIndex = notes.findIndex(n => n === currentNote);
+                    const originalNextIndex = notes.findIndex(n => n === nextNote);
+                    warnings.push(`Warning: Note ${originalNextIndex} (beat ${nextNote.beat}) overlaps with Long Note ${originalCurrentIndex} (beat ${currentNote.beat}, ends at ${currentEndTime.toFixed(3)}s)`);
+                } else {
+                    break; // 더 이상 겹치는 노트가 없음
+                }
+            }
+        }
+    }
+    
     return {
         isValid: errors.length === 0,
         errors,
+        warnings,
         notes: validatedNotes
     };
 }
@@ -158,8 +185,10 @@ export function sortNotesByTime(notes, globalBpm, globalSubdivisions) {
 
 // 초기 direction 노트 확인 및 추가
 export function ensureInitialDirectionNote(notes) {
-    const hasInitialDirection = notes.some(n => n.beat === 0 && n.type === "direction");
-    if (!hasInitialDirection) {
+    const initialDirectionNote = notes.find(n => n.beat === 0 && n.type === "direction");
+    
+    if (!initialDirectionNote) {
+        // beat 0에 direction 노트가 없으면 새로 추가
         notes.unshift({
             type: "direction",
             beat: 0,
@@ -169,7 +198,49 @@ export function ensureInitialDirectionNote(notes) {
             bpm: 120,
             subdivisions: 16
         });
+    } else if (initialDirectionNote.direction === "none") {
+        // beat 0에 direction 노트가 있지만 none이면 right로 변경
+        initialDirectionNote.direction = "right";
     }
+}
+
+// 마지막 direction 노트 확인 및 추가 (마지막 노트로부터 3초 간격)
+export function ensureFinalDirectionNote(notes, globalBpm, globalSubdivisions) {
+    if (notes.length === 0) return;
+    
+    // 시간순으로 정렬하여 마지막 노트 찾기
+    const sortedNotes = sortNotesByTime(notes, globalBpm, globalSubdivisions);
+    const lastNote = sortedNotes[sortedNotes.length - 1];
+    
+    if (!lastNote || (lastNote.type === "direction" && lastNote.direction === "none")) {
+        return; // 이미 Direction Type None이 마지막에 있음
+    }
+    
+    // 마지막 노트의 시간 계산 (Long Note인 경우 끝나는 시간 고려)
+    const lastNoteTiming = getNoteTimingParams(lastNote, globalBpm, globalSubdivisions);
+    const lastNoteTime = beatToTime(lastNote.beat, lastNoteTiming.bpm, lastNoteTiming.subdivisions);
+    let lastNoteEndTime = lastNoteTime;
+    
+    if (lastNote.isLong && lastNote.longTime > 0) {
+        const longTimeInSeconds = calculateLongNoteTime(lastNote, globalBpm, globalSubdivisions);
+        lastNoteEndTime = lastNoteTime + longTimeInSeconds;
+    }
+    
+    // Long Note인 경우 1초, 일반 노트인 경우 3초 후의 beat 값 계산
+    const delayTime = (lastNote.isLong && lastNote.longTime > 0) ? 1.0 : 3.0;
+    const finalTime = lastNoteEndTime + delayTime;
+    const finalBeat = timeToBeat(finalTime, globalBpm, globalSubdivisions);
+    
+    // 마지막에 Direction Type None 노트 추가
+    notes.push({
+        type: "direction",
+        beat: Math.round(finalBeat), // 정수로 반올림
+        direction: "none",
+        isLong: false,
+        longTime: 0,
+        bpm: globalBpm,
+        subdivisions: globalSubdivisions
+    });
 }
 
 // 노트 복제
