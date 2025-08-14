@@ -84,7 +84,10 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
                 const nextTiming = getNoteTimingParams(nextNote, globalBpm, globalSubdivisions);
                 const nextTime = beatToTime(nextNote.beat, nextTiming.bpm, nextTiming.subdivisions);
                 
-                if (nextTime < currentEndTime) {
+                // 부동소수점 정밀도 문제를 해결하기 위해 작은 오차 허용
+                const EPSILON = 1e-10;
+                
+                if (nextTime < currentEndTime - EPSILON) {
                     // 다른 Long Note와의 겹침 검사 (에러)
                     if (nextNote.isLong && nextNote.longTime > 0) {
                         const originalCurrentIndex = notes.findIndex(n => n === currentNote);
@@ -113,8 +116,8 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
                             errors.push(`Error: Note ${originalNextIndex} (${nextNoteType}, beat ${nextNote.beat}) is not allowed within ${currentLongType} range (${originalCurrentIndex}, beat ${currentNote.beat})`);
                         }
                     }
-                } else if (nextTime === currentEndTime) {
-                    // 끝남과 동시에 다른 롱노트 시작은 허용 (겹침 아님)
+                } else if (Math.abs(nextTime - currentEndTime) <= EPSILON) {
+                    // 끝남과 동시에 다른 롱노트 시작은 허용 (겹침 아님, 부동소수점 오차 고려)
                     continue;
                 } else {
                     break; // 더 이상 겹치는 노트가 없음
