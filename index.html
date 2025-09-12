@@ -15,6 +15,9 @@
       <br><br>
       <label>Pre-delay (ms): <input id="pre-delay" type="number" value="3000" min="-10000" max="10000" step="100" /></label>
       <br><br>
+      <label>Level: <input id="level" type="range" value="10" min="1" max="20" step="1" oninput="document.getElementById('level-display').textContent = this.value" /></label>
+      <span id="level-display" style="margin-left: 5px;">10</span>
+      <br><br>
       <label>Subdivisions:
         <select id="subdivisions">
           <option value="2">2분박</option>

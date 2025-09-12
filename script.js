@@ -2965,9 +2965,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const validatedNotes = validationResult.notes;
 
+        const levelValue = parseInt(document.getElementById("level").value || 10);
+        
         const exportData = {
             diffIndex: 5,
-            level: 10,
+            level: levelValue,
             bpm: bpm,
             subdivisions: subdivisions,
             preDelay: preDelayValue,
@@ -3021,33 +3023,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         };
 
+        // XX_MUSICNAME 형태의 기본 파일명 생성
+        let defaultFilename = "XX";
+        if (savedAudioFile && savedAudioFile.name) {
+            // 음원 파일명에서 확장자 제거
+            const musicName = savedAudioFile.name.replace(/\.[^/.]+$/, "");
+            defaultFilename = `XX_${musicName}`;
+        }
+        
         const blob = new Blob([JSON.stringify(exportData, null, 2)], {
             type: "application/json"
         });
-        const url = URL.createObjectURL(blob);
 
-        // 파일명 입력받기
-        let filename = prompt("파일명을 입력하세요 (.json 확장자는 자동 추가됩니다):", "chart_3s_music_start");
-        if (filename === null) {
-            URL.revokeObjectURL(url);
-            return; // 사용자가 취소한 경우
-        }
-        
-        // 파일명 정리 및 확장자 확인
-        filename = filename.trim();
-        if (!filename) {
-            filename = "chart_3s_music_start";
-        }
-        if (!filename.endsWith(".json")) {
-            filename += ".json";
-        }
-
+        // 파일 다이얼로그를 통한 저장
         const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
+        a.href = URL.createObjectURL(blob);
+        a.download = `${defaultFilename}.json`;
+        a.style.display = 'none';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
 
-        URL.revokeObjectURL(url);
+        URL.revokeObjectURL(a.href);
     });
 
     document.getElementById("load-json").addEventListener("click", () => {
@@ -3120,6 +3117,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("bpm").value = bpm;
                     document.getElementById("subdivisions").value = subdivisions;
                     document.getElementById("pre-delay").value = preDelayMs;
+                    
+                    // Level 값 설정 (없으면 기본값 10)
+                    const levelValue = json.level || 10;
+                    document.getElementById("level").value = levelValue;
+                    document.getElementById("level-display").textContent = levelValue;
 
                     document.getElementById("bpm").dataset.previousValue = bpm;
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
