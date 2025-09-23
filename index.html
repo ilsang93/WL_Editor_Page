@@ -33,25 +33,47 @@
       <br><br>
       <label><input type="checkbox" id="batch-edit-toggle"> 노트 일괄 수정</label>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>NO.</th>
-          <th>Type</th>
-          <th>Beat</th>
-          <th>Time</th>
-          <th>Length</th>
-          <th>Direction</th>
-          <th>BPM</th>
-          <th>Sub</th>
-          <th>Wait</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody id="note-list">
-        <!-- script.js가 여기 <tr>을 동적으로 추가함 -->
-      </tbody>
-    </table>
+
+    <!-- 탭 헤더 -->
+    <div class="tab-header">
+      <button class="tab-button active" data-tab="notes">NoteList</button>
+      <button class="tab-button" data-tab="events">EventList</button>
+    </div>
+
+    <!-- 노트 리스트 탭 -->
+    <div id="notes-tab" class="tab-content active">
+      <table>
+        <thead>
+          <tr>
+            <th>NO.</th>
+            <th>Type</th>
+            <th>Beat</th>
+            <th>Time</th>
+            <th>Length</th>
+            <th>Direction</th>
+            <th>BPM</th>
+            <th>Sub</th>
+            <th>Wait</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="note-list">
+          <!-- script.js가 여기 <tr>을 동적으로 추가함 -->
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 이벤트 리스트 탭 -->
+    <div id="events-tab" class="tab-content">
+      <div class="event-controls">
+        <button id="add-event">+ Add Event</button>
+        <button id="collapse-all">모두 접기</button>
+        <button id="expand-all">모두 펼치기</button>
+      </div>
+      <div id="event-list" class="event-list-container">
+        <!-- script.js가 여기에 이벤트들을 동적으로 추가함 -->
+      </div>
+    </div>
   </div>
 
   <!-- 사이드바 토글 버튼 (사이드바 밖에 위치) -->
@@ -63,6 +85,8 @@
       <button id="load-json">Load Json</button>
       <button id="sort-notes">Sort by Time</button>
       <button id="clear-notes">Clear All</button>
+      <button id="undo-btn" title="실행 취소 (Ctrl+Z)" disabled>↶ 실행 취소</button>
+      <button id="redo-btn" title="다시 실행 (Ctrl+Y)" disabled>↷ 다시 실행</button>
       <div id="volume-controls">
         <div style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
           <div style="display: flex; align-items: center; gap: 8px;">

@@ -24,6 +24,26 @@ export function drawText(ctx, text, x, y, font = "bold 8px Arial", fillStyle = "
     ctx.fillText(text, x, y);
 }
 
+// Canvas에 삼각형을 그리는 유틸리티 함수 (이벤트 마커용)
+export function drawTriangle(ctx, x, y, size = 8, fillStyle = "#FF9800", strokeStyle = null, lineWidth = 0) {
+    const height = size * 0.866; // 정삼각형 높이
+
+    ctx.beginPath();
+    ctx.moveTo(x, y - height * 0.6); // 상단 꼭짓점
+    ctx.lineTo(x - size * 0.5, y + height * 0.4); // 좌하단
+    ctx.lineTo(x + size * 0.5, y + height * 0.4); // 우하단
+    ctx.closePath();
+
+    ctx.fillStyle = fillStyle;
+    ctx.fill();
+
+    if (strokeStyle && lineWidth > 0) {
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineWidth = lineWidth;
+        ctx.stroke();
+    }
+}
+
 // 노트의 방향 벡터와 화살표를 그리는 함수
 export function drawDirectionArrow(ctx, screenX, screenY, direction, color, size = 18) {
     const [dx, dy] = directionToVector(direction);

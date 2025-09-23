@@ -12,10 +12,11 @@ import {
     getPreDelaySeconds
 } from './utils.js';
 
-import { 
-    drawCircle, 
-    drawText, 
-    drawDirectionArrow, 
+import {
+    drawCircle,
+    drawText,
+    drawDirectionArrow,
+    drawTriangle,
     processLongNote,
     drawWaveform,
     drawRuler
@@ -26,16 +27,35 @@ import {
     formatTime
 } from './audio.js';
 
-import { 
-    validateNote, 
-    validateChart, 
-    noteToJsonFormat, 
+import {
+    validateNote,
+    validateChart,
+    noteToJsonFormat,
     jsonToNoteFormat,
     sortNotesByTime,
     ensureInitialDirectionNote,
     ensureFinalDirectionNote,
     getNoteColor
 } from './notes.js';
+
+import {
+    addEvent,
+    removeEvent,
+    addEventParam,
+    removeEventParam,
+    getAllEvents,
+    clearAllEvents,
+    eventsToJson,
+    loadEventsFromJson,
+    getEventTypes,
+    getParamTypes,
+    getEventTypeDescription,
+    getParamTypeDescription,
+    getEventIdsByType,
+    isCustomEventType,
+    createEvent,
+    createEventParam
+} from './events.js';
 
 // 전역 변수들
 let zoom = 30;
@@ -79,6 +99,122 @@ const demoPlayer = {
 };
 
 const notes = [];
+
+// 히스토리 시스템 (Undo/Redo)
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY_SIZE = 50;
+let isPerformingUndoRedo = false;
+
+// 현재 상태를 히스토리에 저장
+function saveState() {
+    if (isPerformingUndoRedo) return; // Undo/Redo 중에는 히스토리 저장 안함
+
+    // 현재 notes 배열의 깊은 복사본을 생성
+    const currentState = notes.map(note => ({
+        type: note.type,
+        beat: note.beat,
+        direction: note.direction || "none",
+        isLong: note.isLong || false,
+        longTime: note.longTime || 0,
+        bpm: note.bpm,
+        subdivisions: note.subdivisions,
+        wait: note.wait || false
+    }));
+
+    undoStack.push(currentState);
+
+    // 스택 크기 제한
+    if (undoStack.length > MAX_HISTORY_SIZE) {
+        undoStack.shift();
+    }
+
+    // 새로운 상태가 저장되면 redo 스택 초기화
+    redoStack = [];
+
+    // 버튼 상태 업데이트
+    updateUndoRedoButtons();
+}
+
+// 실행 취소 (Ctrl+Z)
+function undo() {
+    if (undoStack.length === 0) return false;
+
+    isPerformingUndoRedo = true;
+
+    // 현재 상태를 redo 스택에 저장
+    const currentState = notes.map(note => ({
+        type: note.type,
+        beat: note.beat,
+        direction: note.direction || "none",
+        isLong: note.isLong || false,
+        longTime: note.longTime || 0,
+        bpm: note.bpm,
+        subdivisions: note.subdivisions,
+        wait: note.wait || false
+    }));
+    redoStack.push(currentState);
+
+    // 이전 상태 복원
+    const previousState = undoStack.pop();
+    notes.length = 0;
+    notes.push(...previousState);
+
+    // UI 업데이트
+    renderNoteList();
+    updateVisualization();
+    updateUndoRedoButtons();
+
+    isPerformingUndoRedo = false;
+    return true;
+}
+
+// 다시 실행 (Ctrl+Y)
+function redo() {
+    if (redoStack.length === 0) return false;
+
+    isPerformingUndoRedo = true;
+
+    // 현재 상태를 undo 스택에 저장
+    const currentState = notes.map(note => ({
+        type: note.type,
+        beat: note.beat,
+        direction: note.direction || "none",
+        isLong: note.isLong || false,
+        longTime: note.longTime || 0,
+        bpm: note.bpm,
+        subdivisions: note.subdivisions,
+        wait: note.wait || false
+    }));
+    undoStack.push(currentState);
+
+    // 다음 상태 복원
+    const nextState = redoStack.pop();
+    notes.length = 0;
+    notes.push(...nextState);
+
+    // UI 업데이트
+    renderNoteList();
+    updateVisualization();
+    updateUndoRedoButtons();
+
+    isPerformingUndoRedo = false;
+    return true;
+}
+
+// Undo/Redo 버튼 상태 업데이트
+function updateUndoRedoButtons() {
+    const undoBtn = document.getElementById("undo-btn");
+    const redoBtn = document.getElementById("redo-btn");
+
+    if (undoBtn) {
+        undoBtn.disabled = undoStack.length === 0;
+    }
+
+    if (redoBtn) {
+        redoBtn.disabled = redoStack.length === 0;
+    }
+}
 
 let audioBuffer = null;
 let waveformData = null;
@@ -869,6 +1005,27 @@ function drawPath() {
         }
     }
 
+    // EventList 마커 표시
+    const events = getAllEvents();
+    events.forEach((event) => {
+        if (!event || typeof event.eventTime !== 'number') return;
+
+        // 이벤트 시간에 해당하는 위치 계산
+        const pos = getNotePositionFromPathData(event.eventTime, pathDirectionNotes, nodePositions);
+        if (!pos) return;
+
+        const screenX = pos.x * zoom + viewOffset.x;
+        const screenY = pos.y * zoom + viewOffset.y;
+
+        // 삼각형 마커 그리기
+        drawTriangle(ctx, screenX, screenY, 10, "#FF9800", "#FF6F00", 2);
+
+        // 이벤트 ID를 삼각형 아래에 표시
+        if (event.eventId) {
+            drawText(ctx, event.eventId, screenX, screenY + 15, "bold 8px Arial", "#FFB74D");
+        }
+    });
+
     if (pathHighlightTimer > 0) {
         ctx.save();
         ctx.strokeStyle = `rgba(255, 100, 100, ${pathHighlightTimer})`;
@@ -1656,6 +1813,7 @@ function saveToStorage() {
 
     const saveData = {
         notes: notes,
+        events: getAllEvents(),
         bpm: bpmValue,
         subdivisions: subdivisionsValue,
         audioFileName: savedAudioFile ? savedAudioFile.name : null,
@@ -1676,7 +1834,7 @@ function loadFromStorage() {
                 // 구 형식: 배열만 있는 경우 - 현재 UI 설정값 사용
                 const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
                 const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-                
+
                 notes.splice(0, notes.length, ...parsed);
                 notes.forEach(note => {
                     if (note.isLong === undefined) note.isLong = false;
@@ -1687,6 +1845,9 @@ function loadFromStorage() {
                     // Node 타입 노트의 wait 필드 초기화
                     if (note.type === "node" && note.wait === undefined) note.wait = false;
                 });
+
+                // 구 형식에서는 EventList 데이터가 없으므로 클리어
+                clearAllEvents();
             } else if (parsed.notes && Array.isArray(parsed.notes)) {
                 // 신 형식: 전역 BPM/subdivision이 포함된 경우
                 const globalBpm = parsed.bpm || 120;
@@ -1715,6 +1876,13 @@ function loadFromStorage() {
                 if (parsed.preDelay !== undefined) {
                     const adjustedPreDelay = parsed.preDelay;
                     document.getElementById("pre-delay").value = adjustedPreDelay;
+                }
+
+                // EventList 데이터 로드
+                if (parsed.events && Array.isArray(parsed.events)) {
+                    loadEventsFromJson(parsed.events);
+                } else {
+                    clearAllEvents();
                 }
 
                 loadAudioFileFromDB().then(audioFile => {
@@ -1860,6 +2028,9 @@ function renderNoteList() {
         inputBeat.step = "1";
         inputBeat.value = note.beat;
         inputBeat.addEventListener("change", () => {
+            // 변경 전 상태를 히스토리에 저장
+            saveState();
+
             const oldBeat = note.beat;
             const newBeat = parseInt(inputBeat.value);
             const diff = newBeat - oldBeat;
@@ -1906,6 +2077,9 @@ function renderNoteList() {
             inputLongTime.value = note.longTime || subdivisions;
             inputLongTime.title = "비트 단위 길이";
             inputLongTime.addEventListener("change", () => {
+                // 변경 전 상태를 히스토리에 저장
+                saveState();
+
                 note.longTime = parseInt(inputLongTime.value) || subdivisions;
                 saveToStorage();
                 drawPath();
@@ -1929,6 +2103,9 @@ function renderNoteList() {
                 select.appendChild(opt);
             });
             select.addEventListener("change", () => {
+                // 변경 전 상태를 히스토리에 저장
+                saveState();
+
                 note.direction = select.value;
                 saveToStorage();
                 drawPath();
@@ -1956,6 +2133,9 @@ function renderNoteList() {
             inputBpm.addEventListener("change", () => {
                 const newBpm = parseInt(inputBpm.value) || bpm;
                 if (newBpm >= 60 && newBpm <= 300) {
+                    // 변경 전 상태를 히스토리에 저장
+                    saveState();
+
                     note.bpm = newBpm;
                     updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
                     saveToStorage();
@@ -1993,6 +2173,9 @@ function renderNoteList() {
             selectSubdivisions.style.fontSize = "11px";
             selectSubdivisions.style.width = "65px";
             selectSubdivisions.addEventListener("change", () => {
+                // 변경 전 상태를 히스토리에 저장
+                saveState();
+
                 note.subdivisions = parseInt(selectSubdivisions.value);
                 updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
                 saveToStorage();
@@ -2016,6 +2199,9 @@ function renderNoteList() {
             waitCheckbox.type = "checkbox";
             waitCheckbox.checked = note.wait || false;
             waitCheckbox.addEventListener("change", () => {
+                // 변경 전 상태를 히스토리에 저장
+                saveState();
+
                 note.wait = waitCheckbox.checked;
                 saveToStorage();
                 drawPath();
@@ -2030,6 +2216,9 @@ function renderNoteList() {
         btn.textContent = "삭제";
         btn.disabled = (note.beat === 0 && note.type === "direction" && index === 0);
         btn.addEventListener("click", () => {
+            // 변경 전 상태를 히스토리에 저장
+            saveState();
+
             notes.splice(index, 1);
             saveToStorage();
             drawPath();
@@ -2770,13 +2959,16 @@ function addNote(noteProps) {
         newNote.longTime = newNote.longTime || subdivisions;
     }
 
+    // 변경 전 상태를 히스토리에 저장
+    saveState();
+
     notes.splice(insertionIndex, 0, newNote);
 
     saveToStorage();
     drawPath();
     renderNoteList();
     if (waveformData) drawWaveformWrapper();
-    
+
     focusNoteAtIndex(insertionIndex);
 }
 
@@ -2862,6 +3054,323 @@ function handlePreDelayChange() {
         drawWaveformWrapper();
 }
 
+// EventList UI 렌더링
+function renderEventList() {
+    const container = document.getElementById("event-list");
+    container.innerHTML = "";
+
+    const events = getAllEvents();
+    const eventTypes = getEventTypes();
+    const paramTypes = getParamTypes();
+
+    events.forEach((event, eventIndex) => {
+        const eventDiv = document.createElement("div");
+        eventDiv.className = "event-item";
+
+        const eventHeader = document.createElement("div");
+        eventHeader.className = "event-header";
+
+        // Event Type 드롭다운
+        const typeLabel = document.createElement("label");
+        typeLabel.textContent = "Type: ";
+        const typeSelect = document.createElement("select");
+        typeSelect.className = "event-type-select";
+        eventTypes.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type;
+            option.selected = type === event.eventType;
+
+            // 설명이 있으면 title 속성에 추가
+            const description = getEventTypeDescription(type);
+            if (description) {
+                option.title = description;
+            }
+
+            typeSelect.appendChild(option);
+        });
+        // 현재 선택된 값의 설명을 select에 표시
+        const currentDescription = getEventTypeDescription(event.eventType);
+        if (currentDescription) {
+            typeSelect.title = currentDescription;
+        }
+
+        typeSelect.addEventListener("change", (e) => {
+            event.eventType = e.target.value;
+            // 선택된 값의 설명으로 툴팁 업데이트
+            const newDescription = getEventTypeDescription(e.target.value);
+            typeSelect.title = newDescription || '';
+
+            // EventType이 변경되면 EventId 입력 요소를 재생성
+            const oldIdInput = idLabel.querySelector('.event-id-input, .event-id-select');
+            if (oldIdInput) {
+                oldIdInput.remove();
+            }
+
+            // 타입이 변경되었으므로 eventId 초기화
+            event.eventId = '';
+
+            const newIdInput = createEventIdInput();
+            idLabel.appendChild(newIdInput);
+
+            saveToStorage();
+        });
+        typeLabel.appendChild(typeSelect);
+
+        // Event ID 입력 (타입에 따라 드롭다운 또는 텍스트 입력)
+        const idLabel = document.createElement("label");
+        idLabel.textContent = "ID: ";
+
+        function createEventIdInput() {
+            const isCustom = isCustomEventType(event.eventType);
+            let idInput;
+
+            if (isCustom) {
+                // custom 타입이면 텍스트 입력
+                idInput = document.createElement("input");
+                idInput.type = "text";
+                idInput.className = "event-id-input";
+                idInput.value = event.eventId;
+                idInput.addEventListener("change", (e) => {
+                    event.eventId = e.target.value;
+                    saveToStorage();
+                });
+            } else {
+                // 사전 정의된 타입이면 드롭다운
+                idInput = document.createElement("select");
+                idInput.className = "event-id-select";
+
+                const eventIds = getEventIdsByType(event.eventType);
+
+                // 빈 옵션 추가 (선택 안함)
+                const emptyOption = document.createElement("option");
+                emptyOption.value = "";
+                emptyOption.textContent = "-- 선택 --";
+                idInput.appendChild(emptyOption);
+
+                // 사전 정의된 EventId 옵션들 추가
+                eventIds.forEach(id => {
+                    const option = document.createElement("option");
+                    option.value = id;
+                    option.textContent = id;
+                    option.selected = id === event.eventId;
+                    idInput.appendChild(option);
+                });
+
+                // 현재 값이 목록에 없으면 "기타" 옵션으로 추가
+                if (event.eventId && !eventIds.includes(event.eventId)) {
+                    const customOption = document.createElement("option");
+                    customOption.value = event.eventId;
+                    customOption.textContent = `${event.eventId} (사용자 정의)`;
+                    customOption.selected = true;
+                    idInput.appendChild(customOption);
+                }
+
+                idInput.addEventListener("change", (e) => {
+                    event.eventId = e.target.value;
+                    saveToStorage();
+                });
+            }
+
+            return idInput;
+        }
+
+        const idInput = createEventIdInput();
+        idLabel.appendChild(idInput);
+
+        // Event Time 입력
+        const timeLabel = document.createElement("label");
+        timeLabel.textContent = "Time: ";
+        const timeInput = document.createElement("input");
+        timeInput.type = "number";
+        timeInput.className = "event-time-input";
+        timeInput.step = "0.1";
+        timeInput.value = event.eventTime;
+        timeInput.addEventListener("change", (e) => {
+            event.eventTime = parseFloat(e.target.value) || 0;
+            saveToStorage();
+        });
+        timeLabel.appendChild(timeInput);
+
+        // 삭제 버튼
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "Delete";
+        deleteBtn.className = "delete-event-btn";
+        deleteBtn.addEventListener("click", () => {
+            if (confirm("이벤트를 삭제하시겠습니까?")) {
+                removeEvent(eventIndex);
+                renderEventList();
+                saveToStorage();
+            }
+        });
+
+        eventHeader.appendChild(typeLabel);
+        eventHeader.appendChild(idLabel);
+        eventHeader.appendChild(timeLabel);
+        eventHeader.appendChild(deleteBtn);
+
+        // Parameters 컨테이너
+        const paramsContainer = document.createElement("div");
+        paramsContainer.className = "event-params-container";
+
+        const paramsLabel = document.createElement("div");
+        paramsLabel.className = "params-label";
+
+        const toggleIcon = document.createElement("span");
+        toggleIcon.className = "params-toggle";
+        toggleIcon.textContent = "▼";
+
+        const labelText = document.createElement("span");
+        labelText.textContent = "Parameters:";
+
+        paramsLabel.appendChild(toggleIcon);
+        paramsLabel.appendChild(labelText);
+
+        const paramsContent = document.createElement("div");
+        paramsContent.className = "params-content";
+
+        paramsContainer.appendChild(paramsLabel);
+
+        const paramsList = document.createElement("div");
+        paramsList.className = "params-list";
+
+        event.eventParams.forEach((param, paramIndex) => {
+            const paramDiv = document.createElement("div");
+            paramDiv.className = "param-item";
+
+            // Param Type 드롭다운
+            const paramTypeLabel = document.createElement("label");
+            paramTypeLabel.textContent = "Type: ";
+            const paramTypeSelect = document.createElement("select");
+            paramTypeSelect.className = "param-type-select";
+            paramTypes.forEach(type => {
+                const option = document.createElement("option");
+                option.value = type;
+                option.textContent = type;
+                option.selected = type === param.paramType;
+
+                // 설명이 있으면 title 속성에 추가
+                const description = getParamTypeDescription(type);
+                if (description) {
+                    option.title = description;
+                }
+
+                paramTypeSelect.appendChild(option);
+            });
+            // 현재 선택된 값의 설명을 select에 표시
+            const currentParamDescription = getParamTypeDescription(param.paramType);
+            if (currentParamDescription) {
+                paramTypeSelect.title = currentParamDescription;
+            }
+
+            paramTypeSelect.addEventListener("change", (e) => {
+                param.paramType = e.target.value;
+                // 선택된 값의 설명으로 툴팁 업데이트
+                const newParamDescription = getParamTypeDescription(e.target.value);
+                paramTypeSelect.title = newParamDescription || '';
+                saveToStorage();
+            });
+            paramTypeLabel.appendChild(paramTypeSelect);
+
+            // Param Name 입력
+            const paramNameLabel = document.createElement("label");
+            paramNameLabel.textContent = "Name: ";
+            const paramNameInput = document.createElement("input");
+            paramNameInput.type = "text";
+            paramNameInput.className = "param-name-input";
+            paramNameInput.value = param.paramName;
+            paramNameInput.addEventListener("change", (e) => {
+                param.paramName = e.target.value;
+                saveToStorage();
+            });
+            paramNameLabel.appendChild(paramNameInput);
+
+            // Param Value 입력
+            const paramValueLabel = document.createElement("label");
+            paramValueLabel.textContent = "Value: ";
+            const paramValueInput = document.createElement("input");
+            paramValueInput.type = "text";
+            paramValueInput.className = "param-value-input";
+            paramValueInput.value = param.paramValue;
+            paramValueInput.addEventListener("change", (e) => {
+                param.paramValue = e.target.value;
+                saveToStorage();
+            });
+            paramValueLabel.appendChild(paramValueInput);
+
+            // Param 삭제 버튼
+            const deleteParamBtn = document.createElement("button");
+            deleteParamBtn.textContent = "−";
+            deleteParamBtn.className = "delete-param-btn";
+            deleteParamBtn.addEventListener("click", () => {
+                removeEventParam(eventIndex, paramIndex);
+                renderEventList();
+                saveToStorage();
+            });
+
+            paramDiv.appendChild(paramTypeLabel);
+            paramDiv.appendChild(paramNameLabel);
+            paramDiv.appendChild(paramValueLabel);
+            paramDiv.appendChild(deleteParamBtn);
+
+            paramsList.appendChild(paramDiv);
+        });
+
+        // Add Param 버튼
+        const addParamBtn = document.createElement("button");
+        addParamBtn.textContent = "+ Add Param";
+        addParamBtn.className = "add-param-btn";
+        addParamBtn.addEventListener("click", () => {
+            addEventParam(eventIndex);
+            renderEventList();
+            saveToStorage();
+        });
+
+        paramsContent.appendChild(paramsList);
+        paramsContent.appendChild(addParamBtn);
+        paramsContainer.appendChild(paramsContent);
+
+        // 접기/펼치기 이벤트 리스너
+        paramsLabel.addEventListener("click", () => {
+            const isCollapsed = paramsContent.classList.contains("collapsed");
+            if (isCollapsed) {
+                paramsContent.classList.remove("collapsed");
+                paramsList.classList.remove("collapsed");
+                toggleIcon.classList.remove("collapsed");
+                toggleIcon.textContent = "▼";
+            } else {
+                paramsContent.classList.add("collapsed");
+                paramsList.classList.add("collapsed");
+                toggleIcon.classList.add("collapsed");
+                toggleIcon.textContent = "▶";
+            }
+        });
+
+        eventDiv.appendChild(eventHeader);
+        eventDiv.appendChild(paramsContainer);
+
+        container.appendChild(eventDiv);
+    });
+}
+
+// 탭 전환 함수
+function switchTab(tabName) {
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+
+    tabButtons.forEach(btn => btn.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
+
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
+
+    if (tabName === 'events') {
+        renderEventList();
+    } else if (tabName === 'notes') {
+        renderNoteList();
+    }
+}
+
 // 초기화
 document.addEventListener("DOMContentLoaded", async () => {
     console.log('DOM loaded, initializing...');
@@ -2919,16 +3428,79 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     document.getElementById("clear-notes").addEventListener("click", () => {
         if (confirm("모든 데이터를 삭제하시겠습니까?")) {
+            // 변경 전 상태를 히스토리에 저장
+            saveState();
+
             localStorage.removeItem("autosave_notes");
             notes.length = 0;
+            clearAllEvents();
             ensureInitialDirectionNote(notes);
             drawPath();
             renderNoteList();
+            renderEventList();
         }
     });
 
+    // 탭 버튼 이벤트 리스너
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.addEventListener('click', (e) => {
+            const tabName = e.target.getAttribute('data-tab');
+            switchTab(tabName);
+        });
+    });
+
+    // Add Event 버튼 이벤트 리스너
+    document.getElementById("add-event").addEventListener("click", () => {
+        addEvent();
+        renderEventList();
+        saveToStorage();
+    });
+
+    // 모두 접기 버튼 이벤트 리스너
+    document.getElementById("collapse-all").addEventListener("click", () => {
+        const paramsContents = document.querySelectorAll(".params-content");
+        const paramsLists = document.querySelectorAll(".params-list");
+        const toggleIcons = document.querySelectorAll(".params-toggle");
+
+        paramsContents.forEach(content => content.classList.add("collapsed"));
+        paramsLists.forEach(list => list.classList.add("collapsed"));
+        toggleIcons.forEach(icon => {
+            icon.classList.add("collapsed");
+            icon.textContent = "▶";
+        });
+    });
+
+    // 모두 펼치기 버튼 이벤트 리스너
+    document.getElementById("expand-all").addEventListener("click", () => {
+        const paramsContents = document.querySelectorAll(".params-content");
+        const paramsLists = document.querySelectorAll(".params-list");
+        const toggleIcons = document.querySelectorAll(".params-toggle");
+
+        paramsContents.forEach(content => content.classList.remove("collapsed"));
+        paramsLists.forEach(list => list.classList.remove("collapsed"));
+        toggleIcons.forEach(icon => {
+            icon.classList.remove("collapsed");
+            icon.textContent = "▼";
+        });
+    });
+
+    // Undo/Redo 버튼 이벤트 리스너
+    document.getElementById("undo-btn").addEventListener("click", () => {
+        if (undo()) {
+            console.log('Undo performed via button');
+        }
+    });
+
+    document.getElementById("redo-btn").addEventListener("click", () => {
+        if (redo()) {
+            console.log('Redo performed via button');
+        }
+    });
 
     document.getElementById("sort-notes").addEventListener("click", () => {
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
         // 시간 기준으로 정렬 (각 노트의 BPM과 subdivision을 고려)
         notes.sort((a, b) => {
             const timeA = beatToTime(a.beat, a.bpm || 120, a.subdivisions || 16);
@@ -3012,6 +3584,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                 return result;
             }),
+            eventList: eventsToJson(),
             metadata: {
                 description: "Music starts at 3 seconds, with pre-delay correction",
                 timingExplanation: "finalTime = 3.0 + originalTime + preDelay (except for beat 0 direction note)",
@@ -3019,6 +3592,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 longTimeUnit: "longTime values are in seconds (calculated using each note's individual BPM/subdivisions)",
                 bpmExplanation: "Top-level bpm/subdivisions are global defaults. Each note has individual bpm/subdivisions for variable tempo support",
                 validationApplied: "Chart validated and auto-corrected",
+                eventListDescription: "Events are separate from notes and contain custom game logic triggers",
                 exportedAt: new Date().toISOString()
             }
         };
@@ -3064,6 +3638,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                         alert("올바른 JSON 파일이 아닙니다.");
                         return;
                     }
+
+                    // 변경 전 상태를 히스토리에 저장
+                    saveState();
 
                     notes.length = 0;
                     const bpm = json.bpm || 120;
@@ -3126,6 +3703,13 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("bpm").dataset.previousValue = bpm;
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
 
+                    // EventList 로드
+                    if (json.eventList && Array.isArray(json.eventList)) {
+                        loadEventsFromJson(json.eventList);
+                    } else {
+                        clearAllEvents();
+                    }
+
                     // 초기 direction 노트 확인 및 추가
                     ensureInitialDirectionNote(notes);
                     // 마지막 direction 노트 확인 및 추가
@@ -3134,6 +3718,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     saveToStorage();
                     drawPath();
                     renderNoteList();
+                    renderEventList();
                     if (waveformData)
                         drawWaveformWrapper();
                 } catch (err) {
@@ -3318,11 +3903,30 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     drawPath();
     renderNoteList();
+    renderEventList();
 
     // 키보드 단축키
     document.addEventListener('keydown', (e) => {
         // 입력 필드나 버튼에 포커스가 있을 때는 단축키 작동 안 함
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
+            return;
+        }
+
+        // Ctrl+Z (실행 취소)
+        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            if (undo()) {
+                console.log('Undo performed');
+            }
+            return;
+        }
+
+        // Ctrl+Y 또는 Ctrl+Shift+Z (다시 실행)
+        if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+            e.preventDefault();
+            if (redo()) {
+                console.log('Redo performed');
+            }
             return;
         }
 
@@ -3347,6 +3951,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
         }
     });
+
+    // 초기 버튼 상태 설정
+    updateUndoRedoButtons();
 
     console.log('Initialization complete');
 });
