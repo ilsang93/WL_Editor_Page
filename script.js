@@ -107,12 +107,19 @@ let redoStack = [];
 const MAX_HISTORY_SIZE = 50;
 let isPerformingUndoRedo = false;
 
+// 기존 구조와의 호환성을 위한 스택 초기화
+function initializeUndoRedo() {
+    undoStack = [];
+    redoStack = [];
+    updateUndoRedoButtons();
+}
+
 // 현재 상태를 히스토리에 저장
 function saveState() {
     if (isPerformingUndoRedo) return; // Undo/Redo 중에는 히스토리 저장 안함
 
     // 현재 notes 배열의 깊은 복사본을 생성
-    const currentState = notes.map(note => ({
+    const currentNotesState = notes.map(note => ({
         type: note.type,
         beat: note.beat,
         direction: note.direction || "none",
@@ -122,6 +129,24 @@ function saveState() {
         subdivisions: note.subdivisions,
         wait: note.wait || false
     }));
+
+    // 현재 events 배열의 깊은 복사본을 생성
+    const currentEventsState = getAllEvents().map(event => ({
+        eventType: event.eventType,
+        eventId: event.eventId,
+        eventTime: event.eventTime,
+        eventParams: event.eventParams.map(param => ({
+            paramType: param.paramType,
+            paramName: param.paramName,
+            paramValue: param.paramValue
+        }))
+    }));
+
+    // 노트와 이벤트를 함께 저장
+    const currentState = {
+        notes: currentNotesState,
+        events: currentEventsState
+    };
 
     undoStack.push(currentState);
 
@@ -144,7 +169,7 @@ function undo() {
     isPerformingUndoRedo = true;
 
     // 현재 상태를 redo 스택에 저장
-    const currentState = notes.map(note => ({
+    const currentNotesState = notes.map(note => ({
         type: note.type,
         beat: note.beat,
         direction: note.direction || "none",
@@ -154,16 +179,38 @@ function undo() {
         subdivisions: note.subdivisions,
         wait: note.wait || false
     }));
-    redoStack.push(currentState);
+
+    const currentEventsState = getAllEvents().map(event => ({
+        eventType: event.eventType,
+        eventId: event.eventId,
+        eventTime: event.eventTime,
+        eventParams: event.eventParams.map(param => ({
+            paramType: param.paramType,
+            paramName: param.paramName,
+            paramValue: param.paramValue
+        }))
+    }));
+
+    redoStack.push({
+        notes: currentNotesState,
+        events: currentEventsState
+    });
 
     // 이전 상태 복원
     const previousState = undoStack.pop();
+
+    // 노트 복원
     notes.length = 0;
-    notes.push(...previousState);
+    notes.push(...previousState.notes);
+
+    // 이벤트 복원
+    clearAllEvents();
+    loadEventsFromJson(previousState.events);
 
     // UI 업데이트
     renderNoteList();
-    updateVisualization();
+    renderEventList();
+    drawPath();
     updateUndoRedoButtons();
 
     isPerformingUndoRedo = false;
@@ -177,7 +224,7 @@ function redo() {
     isPerformingUndoRedo = true;
 
     // 현재 상태를 undo 스택에 저장
-    const currentState = notes.map(note => ({
+    const currentNotesState = notes.map(note => ({
         type: note.type,
         beat: note.beat,
         direction: note.direction || "none",
@@ -187,16 +234,38 @@ function redo() {
         subdivisions: note.subdivisions,
         wait: note.wait || false
     }));
-    undoStack.push(currentState);
+
+    const currentEventsState = getAllEvents().map(event => ({
+        eventType: event.eventType,
+        eventId: event.eventId,
+        eventTime: event.eventTime,
+        eventParams: event.eventParams.map(param => ({
+            paramType: param.paramType,
+            paramName: param.paramName,
+            paramValue: param.paramValue
+        }))
+    }));
+
+    undoStack.push({
+        notes: currentNotesState,
+        events: currentEventsState
+    });
 
     // 다음 상태 복원
     const nextState = redoStack.pop();
+
+    // 노트 복원
     notes.length = 0;
-    notes.push(...nextState);
+    notes.push(...nextState.notes);
+
+    // 이벤트 복원
+    clearAllEvents();
+    loadEventsFromJson(nextState.events);
 
     // UI 업데이트
     renderNoteList();
-    updateVisualization();
+    renderEventList();
+    drawPath();
     updateUndoRedoButtons();
 
     isPerformingUndoRedo = false;
@@ -3340,6 +3409,9 @@ function switchTab(tabName) {
 // 초기화
 document.addEventListener("DOMContentLoaded", async () => {
     console.log('DOM loaded, initializing...');
+
+    // Undo/Redo 시스템 초기화
+    initializeUndoRedo();
 
     try {
         await initDB();
