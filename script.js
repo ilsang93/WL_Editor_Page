@@ -316,12 +316,12 @@ function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bp
         }
     });
 
-    // 타입별로 배치 렌더링
+    // 타입별로 배치 렌더링 (롱노트를 먼저 렌더링하여 1회성 노트가 위에 표시되도록 함)
+    renderLongNotes(notesByType.longtab, notesByType.longdirection, notesByType.longboth, pathDirectionNotes, nodePositions, bpm, subdivisions);
     renderTabNotes(notesByType.tab);
     renderDirectionNotes(notesByType.direction);
     renderBothNotes(notesByType.both);
     renderNodeNotes(notesByType.node, bpm);
-    renderLongNotes(notesByType.longtab, notesByType.longdirection, notesByType.longboth, pathDirectionNotes, nodePositions, bpm, subdivisions);
 }
 
 // 탭 노트 배치 렌더링
