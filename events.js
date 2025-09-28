@@ -171,7 +171,6 @@ export function eventsToJson() {
         eventId: event.eventId,
         eventTime: event.eventTime,
         eventParams: event.eventParams.map(param => ({
-            paramType: param.paramType,
             paramName: param.paramName,
             paramValue: param.paramValue
         }))

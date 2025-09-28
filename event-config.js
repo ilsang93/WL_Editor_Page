@@ -22,10 +22,10 @@ export const PARAM_TYPES = [
 // 이벤트 타입별 사전 정의된 EventId 목록
 export const EVENT_IDS_BY_TYPE = {
     'camera': [
-        'auto_follow',
-        'zoom_in',
-        'angle',
-        'distance',
+    'auto_focus',
+    'auto_focus_offset',
+    'zoom',
+    'rotate'
     ],
     'background': [
         'change_sprite',
