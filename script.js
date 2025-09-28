@@ -470,7 +470,8 @@ function renderLongNotes(longTabNotes, longDirectionNotes, longBothNotes, pathDi
     [...longTabNotes, ...longDirectionNotes, ...longBothNotes].forEach(({ note, screenX, screenY, pathBeat, finalTime }) => {
         if (note.longTime <= 0) return;
 
-        const color = getNoteColor(note);
+        // 노트 타입별 고정 색상 사용
+        const color = getNoteColor(note.type);
         const endPos = processLongNote(note, pathBeat, pathDirectionNotes, nodePositions, color, bpm, subdivisions, drawLongNoteBar);
 
         // 롱노트 시작점 렌더링
