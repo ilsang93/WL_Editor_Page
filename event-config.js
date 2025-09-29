@@ -23,7 +23,7 @@ export const PARAM_TYPES = [
 export const EVENT_IDS_BY_TYPE = {
     'camera': [
     'auto_focus',
-    'auto_focus_offset',
+    'focus_offset',
     'zoom',
     'rotate'
     ],
