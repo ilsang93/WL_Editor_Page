@@ -85,6 +85,8 @@ let savedAudioFile = null; // 저장된 오디오 파일 정보
 
 let highlightedNoteIndex = null;
 let highlightedNoteTimer = 0;
+let highlightedEventIndex = null;
+let highlightedEventTimer = 0;
 let selectedNoteIndex = null; // 현재 선택된 노트의 인덱스
 
 let globalAnimationFrameId = null;
@@ -1109,7 +1111,7 @@ function drawPath() {
 
     // EventList 마커 표시
     const events = getAllEvents();
-    events.forEach((event) => {
+    events.forEach((event, eventIndex) => {
         if (!event || typeof event.eventTime !== 'number') return;
 
         // 이벤트 시간에 해당하는 위치 계산
@@ -1119,12 +1121,37 @@ function drawPath() {
         const screenX = pos.x * zoom + viewOffset.x;
         const screenY = pos.y * zoom + viewOffset.y;
 
-        // 삼각형 마커 그리기
-        drawTriangle(ctx, screenX, screenY, 10, "#FF9800", "#FF6F00", 2);
+        // 강조된 이벤트인지 확인
+        const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
+
+        if (isHighlighted) {
+            // 강조 효과를 위한 큰 원 그리기
+            const alpha = Math.min(1, highlightedEventTimer * 2);
+            const radius = 15 + (2.0 - highlightedEventTimer) * 20;
+
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
+            ctx.strokeStyle = `rgba(255, 152, 0, ${alpha * 0.8})`;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // 내부 원
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, radius * 0.6, 0, 2 * Math.PI);
+            ctx.fillStyle = `rgba(255, 152, 0, ${alpha * 0.3})`;
+            ctx.fill();
+        }
+
+        // 삼각형 마커 그리기 (강조된 경우 더 크게)
+        const markerSize = isHighlighted ? 15 : 10;
+        const fillColor = isHighlighted ? "#FFB300" : "#FF9800";
+        const strokeColor = isHighlighted ? "#FF8F00" : "#FF6F00";
+        drawTriangle(ctx, screenX, screenY, markerSize, fillColor, strokeColor, 2);
 
         // 이벤트 ID를 삼각형 아래에 표시
         if (event.eventId) {
-            drawText(ctx, event.eventId, screenX, screenY + 15, "bold 8px Arial", "#FFB74D");
+            const textColor = isHighlighted ? "#FFF3E0" : "#FFB74D";
+            drawText(ctx, event.eventId, screenX, screenY + (isHighlighted ? 20 : 15), "bold 8px Arial", textColor);
         }
     });
 
@@ -2472,6 +2499,55 @@ function focusNoteAtIndex(index) {
     drawPath();
 }
 
+function focusEventAtIndex(index) {
+    const events = getAllEvents();
+    if (index < 0 || index >= events.length) {
+        return;
+    }
+
+    const event = events[index];
+    if (!event || typeof event.eventTime !== 'number') {
+        return;
+    }
+
+    // 이벤트 시간에 해당하는 위치 계산
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    const preDelaySeconds = getPreDelaySeconds();
+
+    const directionNotes = notes.filter(n =>
+        n.type === "direction" ||
+        n.type === "both" ||
+        n.type === "longdirection" ||
+        n.type === "longboth" ||
+        n.type === "node"
+    ).sort((a, b) => a.beat - b.beat);
+
+    const pathDirectionNotes = calculatePathDirectionNotes(directionNotes, bpm, subdivisions, preDelaySeconds);
+    const pathData = calculateNodePositions(pathDirectionNotes, bpm, subdivisions);
+    const nodePositions = pathData.nodePositions;
+
+    // 이벤트 위치 계산
+    const pos = getNotePositionFromPathData(event.eventTime, pathDirectionNotes, nodePositions);
+    if (!pos) return;
+
+    // 화면 중앙으로 이동
+    viewOffset.x = canvas.width / 2 - pos.x * zoom;
+    viewOffset.y = canvas.height / 2 - pos.y * zoom;
+
+    // 이벤트 강조 타이머 설정
+    highlightedEventIndex = index;
+    highlightedEventTimer = 2.0; // 2초간 강조
+
+    drawPath();
+
+    // 그리기 루프 시작 (강조 효과를 위해)
+    if (!isDrawLoopRunning) {
+        isDrawLoopRunning = true;
+        drawLoop();
+    }
+}
+
 function updateWaveformSlider() {
     const maxScroll = Math.max(0, waveformZoom - 1);
     if (maxScroll === 0) {
@@ -2985,6 +3061,15 @@ function drawLoop() {
         drawPath();
     }
 
+    if (highlightedEventTimer > 0) {
+        highlightedEventTimer -= 1 / 60;
+        if (highlightedEventTimer <= 0) {
+            highlightedEventIndex = null;
+            highlightedEventTimer = 0;
+        }
+        drawPath();
+    }
+
     if (pathHighlightTimer > 0) {
         pathHighlightTimer -= 1 / 60;
         if (pathHighlightTimer <= 0) {
@@ -2993,7 +3078,7 @@ function drawLoop() {
         drawPath();
     }
 
-    if (highlightedNoteTimer > 0 || pathHighlightTimer > 0) {
+    if (highlightedNoteTimer > 0 || highlightedEventTimer > 0 || pathHighlightTimer > 0) {
         globalAnimationFrameId = requestAnimationFrame(drawLoop);
     } else {
         isDrawLoopRunning = false;
@@ -3190,6 +3275,14 @@ function renderEventList() {
     events.forEach((event, eventIndex) => {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
+
+        // 이벤트 아이템 클릭 시 해당 위치로 이동
+        eventDiv.addEventListener("click", (e) => {
+            // 입력 필드나 버튼을 클릭한 경우가 아닐 때만 포커스
+            if (!["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName)) {
+                focusEventAtIndex(eventIndex);
+            }
+        });
 
         const eventHeader = document.createElement("div");
         eventHeader.className = "event-header";

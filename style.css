@@ -171,6 +171,13 @@ body {
   border-radius: 4px;
   margin-bottom: 8px;
   padding: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.event-item:hover {
+  background: #333;
+  border-color: #666;
 }
 
 .event-header {
