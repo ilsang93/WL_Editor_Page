@@ -4,7 +4,8 @@ import {
     PARAM_TYPES,
     EVENT_TYPE_DESCRIPTIONS,
     PARAM_TYPE_DESCRIPTIONS,
-    EVENT_IDS_BY_TYPE
+    EVENT_IDS_BY_TYPE,
+    PREDEFINED_PARAMS_BY_EVENT_ID
 } from './event-config.js';
 
 // 전역 이벤트 목록
@@ -162,6 +163,62 @@ export function getEventIdsByType(eventType) {
 // 이벤트 타입이 커스텀인지 확인
 export function isCustomEventType(eventType) {
     return eventType === 'custom' || !EVENT_IDS_BY_TYPE[eventType] || EVENT_IDS_BY_TYPE[eventType].length === 0;
+}
+
+// 특정 이벤트 ID에 대한 사전 정의된 파라미터 목록 가져오기
+export function getPredefinedParamsForEventId(eventType, eventId) {
+    if (!eventType || !eventId) return [];
+
+    const fullEventKey = `${eventType}-${eventId}`;
+    return PREDEFINED_PARAMS_BY_EVENT_ID[fullEventKey] || [];
+}
+
+// 이벤트에 사전 정의된 파라미터들을 자동으로 추가하는 함수
+export function applyPredefinedParams(eventIndex) {
+    if (eventIndex < 0 || eventIndex >= events.length) return;
+
+    const event = events[eventIndex];
+    const predefinedParams = getPredefinedParamsForEventId(event.eventType, event.eventId);
+
+    if (predefinedParams.length === 0) return;
+
+    // 기존 파라미터들의 이름 목록을 가져옴
+    const existingParamNames = event.eventParams.map(param => param.paramName);
+
+    // 사전 정의된 파라미터 중 아직 존재하지 않는 것들만 추가
+    predefinedParams.forEach(predefinedParam => {
+        if (!existingParamNames.includes(predefinedParam.paramName)) {
+            event.eventParams.push({
+                paramType: predefinedParam.paramType,
+                paramName: predefinedParam.paramName,
+                paramValue: getDefaultValueForParamType(predefinedParam.paramType)
+            });
+        }
+    });
+}
+
+// 파라미터 타입에 따른 기본값 반환
+function getDefaultValueForParamType(paramType) {
+    switch (paramType) {
+        case 'float':
+            return '0.0';
+        case 'int':
+            return '0';
+        case 'string':
+            return '';
+        case 'bool':
+            return 'false';
+        case 'vector3':
+            return '0.0,0.0,0.0';
+        case 'vector2':
+            return '0.0,0.0';
+        case 'color':
+            return '#FFFFFF';
+        case 'enum':
+            return '';
+        default:
+            return '';
+    }
 }
 
 // 이벤트 리스트를 JSON으로 변환

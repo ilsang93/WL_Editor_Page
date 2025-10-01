@@ -55,7 +55,9 @@ import {
     isCustomEventType,
     createEvent,
     createEventParam,
-    sortEventsByTime
+    sortEventsByTime,
+    getPredefinedParamsForEventId,
+    applyPredefinedParams
 } from './events.js';
 
 // 전역 변수들
@@ -3385,7 +3387,12 @@ function renderEventList() {
 
                 idInput.addEventListener("change", (e) => {
                     event.eventId = e.target.value;
+
+                    // 사전 정의된 파라미터 자동 추가
+                    applyPredefinedParams(eventIndex);
+
                     saveToStorage();
+                    renderEventList(); // UI 새로고침으로 새로 추가된 파라미터들 표시
                 });
             }
 
@@ -3409,6 +3416,28 @@ function renderEventList() {
         });
         timeLabel.appendChild(timeInput);
 
+        // 사전 정의된 파라미터 추가 버튼 (Event ID가 설정되어 있을 때만 표시)
+        const predefinedParamsBtn = document.createElement("button");
+        predefinedParamsBtn.textContent = "기본 파라미터 추가";
+        predefinedParamsBtn.className = "add-predefined-params-btn";
+        predefinedParamsBtn.style.fontSize = "11px";
+        predefinedParamsBtn.style.padding = "2px 6px";
+
+        // 사전 정의된 파라미터가 있는지 확인
+        const predefinedParams = getPredefinedParamsForEventId(event.eventType, event.eventId);
+        if (predefinedParams.length > 0 && event.eventId) {
+            predefinedParamsBtn.style.display = "inline-block";
+            predefinedParamsBtn.title = `${predefinedParams.map(p => p.paramName).join(', ')} 파라미터 추가`;
+        } else {
+            predefinedParamsBtn.style.display = "none";
+        }
+
+        predefinedParamsBtn.addEventListener("click", () => {
+            applyPredefinedParams(eventIndex);
+            saveToStorage();
+            renderEventList(); // UI 새로고침으로 새로 추가된 파라미터들 표시
+        });
+
         // 삭제 버튼
         const deleteBtn = document.createElement("button");
         deleteBtn.textContent = "Delete";
@@ -3424,6 +3453,7 @@ function renderEventList() {
         eventHeader.appendChild(typeLabel);
         eventHeader.appendChild(idLabel);
         eventHeader.appendChild(timeLabel);
+        eventHeader.appendChild(predefinedParamsBtn);
         eventHeader.appendChild(deleteBtn);
 
         // Parameters 컨테이너

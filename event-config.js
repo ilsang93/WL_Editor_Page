@@ -33,6 +33,31 @@ export const EVENT_IDS_BY_TYPE = {
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
 
+// 이벤트 ID별 사전 정의된 파라미터 목록
+export const PREDEFINED_PARAMS_BY_EVENT_ID = {
+    // Camera 타입 이벤트들
+    'camera-zoom': [
+        { paramName: 'distance', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'camera-focus_offset': [
+        { paramName: 'offset', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'camera-rotate': [
+        { paramName: 'angle', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'camera-reset_camera': [
+    ],
+
+    // Background 타입 이벤트들
+    'background-change_sprite': [
+        { paramName: 'sprite_name', paramType: 'string' },
+        { paramName: 'fade_duration', paramType: 'float' }
+    ]
+};
+
 // 이벤트 타입별 설명 (선택사항)
 export const EVENT_TYPE_DESCRIPTIONS = {
     'camera': '카메라 제어 관련 이벤트',
