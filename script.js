@@ -216,6 +216,12 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
 
         if (!segment) continue;
 
+        // Node Note의 wait 플래그가 있는 경우 해당 구간의 경로를 그리지 않음
+        if (i + 1 < pathDirectionNotes.length && pathDirectionNotes[i + 1].type === "node" && pathDirectionNotes[i + 1].wait) {
+            // wait가 설정된 Node Note로 향하는 구간은 경로를 그리지 않음 (정지 상태이므로)
+            continue;
+        }
+
         // 실시간 그리기 로직
         if (realtimeDrawingEnabled && isPlaying && segment.end <= drawTime) {
             ctx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
