@@ -28,7 +28,10 @@ export const EVENT_IDS_BY_TYPE = {
         'rotate'
     ],
     'background': [
-        'change_sprite',
+        'return_default',
+        'reset',
+        'replace_image',
+        'glitch',
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -46,10 +49,21 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'camera-rotate': [
         { paramName: 'angle', paramType: 'float' },
-        { paramName: 'fade', paramType: 'float' }
+        { paramName: 'fade', paramType: 'float' },
+        { paramName: 'isright', paramType: 'bool' },
     ],
     'camera-reset_camera': [
     ],
+
+    // background 타입 이벤트
+    'background-replace_image': [
+        { paramName: 'image_name', paramType: 'string' },
+    ],
+    'background-glitch': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+
 
     // Background 타입 이벤트들
     'background-change_sprite': [
