@@ -25,7 +25,10 @@ export const EVENT_IDS_BY_TYPE = {
         'focus_offset',
         "reset_camera",
         'zoom',
-        'rotate'
+        'rotate',
+        'position_from_character',
+        'position_from_time',
+        'position_off'
     ],
     'background': [
         'return_default',
@@ -60,6 +63,21 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'camera-reset_camera': [
     ],
+    'camera-position_from_character': [
+        { paramName: 'offset_x', paramType: 'float' },
+        { paramName: 'offset_y', paramType: 'float' },
+    ],
+    'camera-position_from_time': [
+        { paramName: 'offset_x', paramType: 'float' },
+        { paramName: 'offset_y', paramType: 'float' },
+        { paramName: 'time1', paramType: 'float' },
+        { paramName: 'time2', paramType: 'float' },
+        { paramName: 'time3', paramType: 'float' },
+        { paramName: 'time4', paramType: 'float' },
+    ],
+    'camera-position_off': [
+        { paramName: 'fade', paramType: 'float' },
+    ],
 
     // background 타입 이벤트
     'background-replace_image': [
@@ -73,7 +91,7 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'intensity', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' }
     ],
-    
+
     // character 타입 이벤트
     'character-clear': [
     ],
