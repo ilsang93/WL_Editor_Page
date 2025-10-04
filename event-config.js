@@ -4,6 +4,8 @@
 export const EVENT_TYPES = [
     'camera',
     'background',
+    'character',
+    'overlay',
     'custom'
 ];
 
@@ -41,6 +43,15 @@ export const EVENT_IDS_BY_TYPE = {
         'clear',
         'glitch',
         'hologram'
+    ],
+    'overlay': [
+        'clear',
+        'color',
+        'glitch',
+        'hologram',
+        'fog',
+        'illusion',
+        'flame'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -103,12 +114,45 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'intensity', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' }
     ],
+
+    // overlay 타입 이벤트
+    'overlay-clear': [
+    ],
+    'overlay-color': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'alpha', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'overlay-glitch': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'overlay-hologram': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'overlay-fog': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'overlay-illusion': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'overlay-flame': [
+        { paramName: 'enable', paramType: 'bool' },
+        { paramName: 'area', paramType: 'float' }
+    ],
 };
 
 // 이벤트 타입별 설명 (선택사항)
 export const EVENT_TYPE_DESCRIPTIONS = {
     'camera': '카메라 제어 관련 이벤트',
     'background': '배경 및 시각적 효과 관련 이벤트',
+    'character': '캐릭터 관련 이벤트',
+    'overlay': '오버레이 패널 시각 효과 관련 이벤트',
     'custom': '사용자 정의 이벤트 (직접 입력)'
 };
 
