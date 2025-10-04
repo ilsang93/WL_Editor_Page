@@ -711,6 +711,7 @@ let hasAudioFile = false; // 오디오 파일 로드 상태 추가
 let tabSoundPool = []; // Tab 사운드 풀
 let directionSoundPool = []; // Direction 사운드 풀
 let playedNotes = new Set(); // 이미 재생된 노트들을 추적
+let executedEvents = new Set(); // 이미 실행된 이벤트들을 추적
 const SOUND_POOL_SIZE = 10; // 동시 재생 가능한 사운드 수
 const MUSIC_START_TIME = 3.0;
 
@@ -1551,6 +1552,7 @@ function startDemo() {
     startTime = performance.now();
 
     resetPlayedNotes();
+    resetExecutedEvents();
 
     updateDemo();
 
@@ -1575,6 +1577,7 @@ function updateDemo() {
     const currentBeat = timeToBeat(elapsedTime, bpm, subdivisions);
 
     checkNoteHits(elapsedTime);
+    checkEventExecution(elapsedTime);
 
     if (!isNaN(demoAudio.duration) && elapsedTime >= demoAudio.duration + MUSIC_START_TIME) {
         stopDemo();
@@ -1667,6 +1670,71 @@ function highlightNoteHit(noteIndex) {
 function resetPlayedNotes() {
     playedNotes.clear();
     console.log('Played notes reset');
+}
+
+function resetExecutedEvents() {
+    executedEvents.clear();
+    console.log('Executed events reset');
+}
+
+function checkEventExecution(currentTime) {
+    const events = getAllEvents();
+    const tolerance = 0.05; // 50ms 허용 오차
+
+    events.forEach((event, index) => {
+        if (!event || typeof event.eventTime !== 'number') return;
+
+        const eventId = `${event.eventType}-${event.eventId}-${event.eventTime}-${index}`;
+
+        // 이미 실행된 이벤트는 건너뛰기
+        if (executedEvents.has(eventId)) return;
+
+        // 현재 시간이 이벤트 시간에 도달했는지 확인
+        if (currentTime >= event.eventTime - tolerance && currentTime <= event.eventTime + tolerance) {
+            executeEvent(event, index);
+            executedEvents.add(eventId);
+        }
+    });
+}
+
+function executeEvent(event, index) {
+    console.log(`Executing event: ${event.eventType}-${event.eventId} at time ${event.eventTime}s`);
+
+    // 이벤트 실행 시각적 피드백
+    highlightEventExecution(index);
+
+    // 실제 이벤트 실행 로직은 여기에 추가
+    // 예: 오버레이 효과, 카메라 움직임 등
+    // TODO: 실제 이벤트 실행 기능 구현
+}
+
+function highlightEventExecution(eventIndex) {
+    highlightedEventIndex = eventIndex;
+    highlightedEventTimer = 0.5; // 이벤트는 노트보다 조금 더 오래 강조
+
+    if (!isDrawLoopRunning) {
+        isDrawLoopRunning = true;
+        drawLoop();
+    }
+}
+
+function resetEventExecutionToTime(targetTime) {
+    // 지정된 시간 이후의 모든 이벤트 실행 상태를 리셋
+    const events = getAllEvents();
+    const eventsToReset = [];
+
+    events.forEach((event, index) => {
+        if (event && typeof event.eventTime === 'number' && event.eventTime > targetTime) {
+            const eventId = `${event.eventType}-${event.eventId}-${event.eventTime}-${index}`;
+            eventsToReset.push(eventId);
+        }
+    });
+
+    eventsToReset.forEach(eventId => {
+        executedEvents.delete(eventId);
+    });
+
+    console.log(`Reset ${eventsToReset.length} events after time ${targetTime}s`);
 }
 
 function updateDemoPlayerPosition(currentTime) {
@@ -1846,6 +1914,8 @@ function stopDemo() {
     demoAudio.pause();
     demoAudio.currentTime = 0;
     elapsedTime = 0;
+    resetPlayedNotes();
+    resetExecutedEvents();
     spanDemoTime.textContent = "00:00:00 / " + formatTime(demoAudio.duration || 0);
     seekbar.value = 0;
     updateWaveformProgress();
@@ -1867,6 +1937,9 @@ function resumeDemo() {
     isPaused = false;
     const pausedDuration = performance.now() - pauseStartTime;
     startTime += pausedDuration;
+
+    // 일시정지 후 재개할 때는 별도의 상태 리셋이 필요하지 않음
+    // 현재 elapsedTime에 맞는 상태가 이미 유지되어 있음
     updateDemo();
 
     if (elapsedTime >= MUSIC_START_TIME) {
@@ -4021,7 +4094,32 @@ document.addEventListener("DOMContentLoaded", async () => {
         elapsedTime = seekbar.value / 1000;
         startTime = performance.now() - elapsedTime * 1000;
 
-        playedNotes.clear();
+        // 현재 시간보다 이후의 노트와 이벤트 실행 상태를 리셋
+        const notesToReset = [];
+        notes.forEach((note, index) => {
+            const noteId = `${note.type}-${note.beat}-${index}`;
+            let finalTime;
+
+            if (note.beat === 0 && note.type === "direction") {
+                finalTime = getPreDelaySeconds();
+            } else {
+                const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
+                const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+                const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
+                finalTime = originalTime + getPreDelaySeconds();
+            }
+
+            if (finalTime > elapsedTime) {
+                notesToReset.push(noteId);
+            }
+        });
+
+        notesToReset.forEach(noteId => {
+            playedNotes.delete(noteId);
+        });
+
+        // 현재 시간보다 이후의 이벤트 실행 상태를 리셋
+        resetEventExecutionToTime(elapsedTime);
 
         const preDelaySeconds = getPreDelaySeconds();
         if (elapsedTime < MUSIC_START_TIME) {
