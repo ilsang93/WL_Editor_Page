@@ -42,6 +42,10 @@
 
     <!-- 노트 리스트 탭 -->
     <div id="notes-tab" class="tab-content active">
+      <div style="padding: 8px; border-bottom: 1px solid #555; background: #2a2a2a; display: flex; gap: 8px;">
+        <button id="duplicate-notes" style="background: #2196F3; color: white; border: none; padding: 4px 10px; cursor: pointer; border-radius: 3px; font-size: 11px;">📋 복제</button>
+        <button id="clear-note-selection" style="background: #607D8B; color: white; border: none; padding: 4px 10px; cursor: pointer; border-radius: 3px; font-size: 11px;">✖ 선택 해제</button>
+      </div>
       <table>
         <thead>
           <tr>
@@ -69,6 +73,7 @@
         <div class="event-controls-left">
           <button id="add-event">+ Add Event</button>
           <button id="duplicate-events">📋 복제</button>
+          <button id="clear-event-selection">✖ 선택 해제</button>
           <button id="collapse-all">모두 접기</button>
           <button id="expand-all">모두 펼치기</button>
         </div>

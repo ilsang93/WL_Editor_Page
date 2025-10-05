@@ -89,8 +89,11 @@ let highlightedNoteIndex = null;
 let highlightedNoteTimer = 0;
 let highlightedEventIndex = null;
 let highlightedEventTimer = 0;
-let selectedNoteIndex = null; // 현재 선택된 노트의 인덱스
+let selectedNoteIndex = null; // 현재 선택된 노트의 인덱스 (포커스용)
+let selectedNoteIndices = new Set(); // 선택된 노트들의 인덱스 세트 (다중 선택용)
+let lastClickedNoteIndex = null; // 마지막으로 클릭된 노트 인덱스 (Shift 선택용)
 let selectedEventIndices = new Set(); // 선택된 이벤트들의 인덱스 세트
+let lastClickedEventIndex = null; // 마지막으로 클릭된 이벤트 인덱스 (Shift 선택용)
 
 let globalAnimationFrameId = null;
 let isDrawLoopRunning = false;
@@ -2225,6 +2228,11 @@ function renderNoteList() {
             tr.classList.add("highlight");
         }
 
+        // 다중 선택된 노트 표시
+        if (selectedNoteIndices.has(index)) {
+            tr.classList.add("selected");
+        }
+
         // 중복 beat 값인 경우 빨간색으로 표시 (같은 BPM, subdivision인 경우에만)
         if (duplicateNoteIndices.has(index)) {
             tr.classList.add("duplicate-beat");
@@ -2265,31 +2273,44 @@ function renderNoteList() {
             const oldType = note.type;
             const newType = typeSelect.value;
 
-            // 타입 변경
-            note.type = newType;
+            const updateNoteType = (n) => {
+                // 타입 변경
+                n.type = newType;
 
-            // isLong 속성 업데이트
-            note.isLong = ["longtab", "longdirection", "longboth"].includes(newType);
+                // isLong 속성 업데이트
+                n.isLong = ["longtab", "longdirection", "longboth"].includes(newType);
 
-            // longTime 초기화 (롱노트로 변경시)
-            if (note.isLong && !note.longTime) {
-                const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-                note.longTime = subdivisions;
-            }
-
-            // direction 속성 처리
-            if (["direction", "longdirection", "both", "longboth"].includes(newType)) {
-                if (!note.direction) {
-                    note.direction = "none";
+                // longTime 초기화 (롱노트로 변경시)
+                if (n.isLong && !n.longTime) {
+                    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+                    n.longTime = subdivisions;
                 }
-            } else {
-                // 방향이 필요없는 타입으로 변경시 direction 제거
-                delete note.direction;
-            }
 
-            // Node 타입 전환 시 wait 속성 처리
-            if (newType === "node" && !note.hasOwnProperty("wait")) {
-                note.wait = false;
+                // direction 속성 처리
+                if (["direction", "longdirection", "both", "longboth"].includes(newType)) {
+                    if (!n.direction) {
+                        n.direction = "none";
+                    }
+                } else {
+                    // 방향이 필요없는 타입으로 변경시 direction 제거
+                    delete n.direction;
+                }
+
+                // Node 타입 전환 시 wait 속성 처리
+                if (newType === "node" && !n.hasOwnProperty("wait")) {
+                    n.wait = false;
+                }
+            };
+
+            // 다중 선택된 노트들의 타입 일괄 변경
+            if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
+                selectedNoteIndices.forEach(idx => {
+                    if (idx < notes.length) {
+                        updateNoteType(notes[idx]);
+                    }
+                });
+            } else {
+                updateNoteType(note);
             }
 
             saveToStorage();
@@ -2319,8 +2340,16 @@ function renderNoteList() {
                         n.beat += diff;
                     }
                 });
+            } else if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
+                // 다중 선택된 노트들의 beat 일괄 조정
+                selectedNoteIndices.forEach(idx => {
+                    if (idx < notes.length) {
+                        notes[idx].beat += diff;
+                    }
+                });
+            } else {
+                note.beat = newBeat;
             }
-            note.beat = newBeat;
 
             saveToStorage();
             drawPath();
@@ -2384,7 +2413,23 @@ function renderNoteList() {
                 // 변경 전 상태를 히스토리에 저장
                 saveState();
 
-                note.direction = select.value;
+                const newDirection = select.value;
+
+                // 다중 선택된 노트 중 방향 지정이 가능한 노트만 변경
+                if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
+                    selectedNoteIndices.forEach(idx => {
+                        if (idx < notes.length) {
+                            const n = notes[idx];
+                            // 방향을 가질 수 있는 타입인지 확인
+                            if (["direction", "longdirection", "both", "longboth"].includes(n.type)) {
+                                n.direction = newDirection;
+                            }
+                        }
+                    });
+                } else {
+                    note.direction = newDirection;
+                }
+
                 saveToStorage();
                 drawPath();
                 if (waveformData)
@@ -2414,7 +2459,21 @@ function renderNoteList() {
                     // 변경 전 상태를 히스토리에 저장
                     saveState();
 
-                    note.bpm = newBpm;
+                    // 다중 선택된 노트 중 BPM 변경이 가능한 노트만 변경
+                    if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
+                        selectedNoteIndices.forEach(idx => {
+                            if (idx < notes.length) {
+                                const n = notes[idx];
+                                // BPM을 가질 수 있는 타입인지 확인
+                                if (["direction", "longdirection", "both", "longboth", "node"].includes(n.type)) {
+                                    n.bpm = newBpm;
+                                }
+                            }
+                        });
+                    } else {
+                        note.bpm = newBpm;
+                    }
+
                     updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
                     saveToStorage();
                     drawPath();
@@ -2454,7 +2513,23 @@ function renderNoteList() {
                 // 변경 전 상태를 히스토리에 저장
                 saveState();
 
-                note.subdivisions = parseInt(selectSubdivisions.value);
+                const newSubdivisions = parseInt(selectSubdivisions.value);
+
+                // 다중 선택된 노트 중 Subdivisions 변경이 가능한 노트만 변경
+                if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
+                    selectedNoteIndices.forEach(idx => {
+                        if (idx < notes.length) {
+                            const n = notes[idx];
+                            // Subdivisions를 가질 수 있는 타입인지 확인
+                            if (["direction", "longdirection", "both", "longboth", "node"].includes(n.type)) {
+                                n.subdivisions = newSubdivisions;
+                            }
+                        }
+                    });
+                } else {
+                    note.subdivisions = newSubdivisions;
+                }
+
                 updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
                 saveToStorage();
                 drawPath();
@@ -2514,7 +2589,30 @@ function renderNoteList() {
         tr.addEventListener("click", (e) => {
             if (["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName))
                 return;
-            focusNoteAtIndex(index);
+
+            if (e.shiftKey && lastClickedNoteIndex !== null) {
+                // Shift 클릭: 범위 선택
+                const start = Math.min(lastClickedNoteIndex, index);
+                const end = Math.max(lastClickedNoteIndex, index);
+                for (let i = start; i <= end; i++) {
+                    selectedNoteIndices.add(i);
+                }
+                lastClickedNoteIndex = index;
+                renderNoteList();
+            } else if (e.ctrlKey || e.metaKey) {
+                // Ctrl/Cmd 클릭: 다중 선택
+                if (selectedNoteIndices.has(index)) {
+                    selectedNoteIndices.delete(index);
+                } else {
+                    selectedNoteIndices.add(index);
+                }
+                lastClickedNoteIndex = index;
+                renderNoteList();
+            } else {
+                // 일반 클릭: 포커스
+                lastClickedNoteIndex = index;
+                focusNoteAtIndex(index);
+            }
         });
         tbody.appendChild(tr);
     });
@@ -3418,16 +3516,27 @@ function renderEventList() {
         eventDiv.addEventListener("click", (e) => {
             // 입력 필드나 버튼을 클릭한 경우가 아닐 때만 처리
             if (!["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName)) {
-                if (e.ctrlKey || e.metaKey) {
+                if (e.shiftKey && lastClickedEventIndex !== null) {
+                    // Shift 클릭: 범위 선택
+                    const start = Math.min(lastClickedEventIndex, eventIndex);
+                    const end = Math.max(lastClickedEventIndex, eventIndex);
+                    for (let i = start; i <= end; i++) {
+                        selectedEventIndices.add(i);
+                    }
+                    lastClickedEventIndex = eventIndex;
+                    renderEventList();
+                } else if (e.ctrlKey || e.metaKey) {
                     // Ctrl/Cmd 클릭: 다중 선택
                     if (selectedEventIndices.has(eventIndex)) {
                         selectedEventIndices.delete(eventIndex);
                     } else {
                         selectedEventIndices.add(eventIndex);
                     }
+                    lastClickedEventIndex = eventIndex;
                     renderEventList();
                 } else {
                     // 일반 클릭: 해당 위치로 이동
+                    lastClickedEventIndex = eventIndex;
                     focusEventAtIndex(eventIndex);
                 }
             }
@@ -3745,8 +3854,14 @@ function switchTab(tabName) {
     document.getElementById(`${tabName}-tab`).classList.add('active');
 
     if (tabName === 'events') {
+        // 노트 선택 해제
+        selectedNoteIndices.clear();
+        lastClickedNoteIndex = null;
         renderEventList();
     } else if (tabName === 'notes') {
+        // 이벤트 선택 해제
+        selectedEventIndices.clear();
+        lastClickedEventIndex = null;
         renderNoteList();
     }
 }
@@ -3851,7 +3966,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const events = getAllEvents();
         const selectedIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
-        const newIndices = [];
+        const maxIndex = Math.max(...selectedIndices);
+        const clonedEvents = [];
 
         // 선택된 이벤트들을 복제
         selectedIndices.forEach(index => {
@@ -3866,8 +3982,15 @@ document.addEventListener("DOMContentLoaded", async () => {
                     paramValue: param.paramValue
                 }))
             };
-            const newIndex = addEvent(clonedEvent);
-            newIndices.push(newIndex);
+            clonedEvents.push(clonedEvent);
+        });
+
+        // 가장 뒤에 있는 선택된 항목 바로 뒤에 삽입
+        const newIndices = [];
+        clonedEvents.forEach((clonedEvent, i) => {
+            const insertIndex = maxIndex + 1 + i;
+            events.splice(insertIndex, 0, clonedEvent);
+            newIndices.push(insertIndex);
         });
 
         // 복제된 이벤트들을 선택
@@ -3875,6 +3998,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         newIndices.forEach(index => selectedEventIndices.add(index));
 
         saveToStorage();
+        renderEventList();
+    });
+
+    // 이벤트 선택 해제 버튼
+    document.getElementById("clear-event-selection").addEventListener("click", () => {
+        selectedEventIndices.clear();
+        lastClickedEventIndex = null;
         renderEventList();
     });
 
@@ -3925,6 +4055,63 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (redo()) {
             console.log('Redo performed via button');
         }
+    });
+
+    document.getElementById("duplicate-notes").addEventListener("click", () => {
+        if (selectedNoteIndices.size === 0) {
+            alert("복제할 노트를 선택해주세요.");
+            return;
+        }
+
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
+        const selectedIndices = Array.from(selectedNoteIndices).sort((a, b) => a - b);
+        const maxIndex = Math.max(...selectedIndices);
+        const clonedNotes = [];
+
+        // 선택된 노트들을 복제
+        selectedIndices.forEach(index => {
+            const note = notes[index];
+            const clonedNote = {
+                type: note.type,
+                beat: note.beat,
+                isLong: note.isLong,
+                ...(note.longTime && { longTime: note.longTime }),
+                ...(note.direction && { direction: note.direction }),
+                ...(note.bpm && { bpm: note.bpm }),
+                ...(note.subdivisions && { subdivisions: note.subdivisions }),
+                ...(note.wait !== undefined && { wait: note.wait })
+            };
+            clonedNotes.push(clonedNote);
+        });
+
+        // 가장 뒤에 있는 선택된 항목 바로 뒤에 삽입
+        const newIndices = [];
+        clonedNotes.forEach((clonedNote, i) => {
+            const insertIndex = maxIndex + 1 + i;
+            notes.splice(insertIndex, 0, clonedNote);
+            newIndices.push(insertIndex);
+        });
+
+        // 복제된 노트들을 선택
+        selectedNoteIndices.clear();
+        newIndices.forEach(index => selectedNoteIndices.add(index));
+
+        // 캐시 무효화
+        invalidatePathCache();
+
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData) drawWaveformWrapper();
+    });
+
+    // 노트 선택 해제 버튼
+    document.getElementById("clear-note-selection").addEventListener("click", () => {
+        selectedNoteIndices.clear();
+        lastClickedNoteIndex = null;
+        renderNoteList();
     });
 
     document.getElementById("sort-notes").addEventListener("click", () => {
@@ -4367,26 +4554,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 키보드 단축키
     document.addEventListener('keydown', (e) => {
-        // 입력 필드나 버튼에 포커스가 있을 때는 단축키 작동 안 함
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
-            return;
-        }
-
-        // Ctrl+Z (실행 취소)
-        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+        // Ctrl+Z (실행 취소) - 모든 상황에서 작동
+        if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
             e.preventDefault();
             if (undo()) {
-                console.log('Undo performed');
+                console.log('Undo performed via Ctrl+Z');
             }
             return;
         }
 
-        // Ctrl+Y 또는 Ctrl+Shift+Z (다시 실행)
-        if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'Z')) {
+        // Ctrl+Y 또는 Ctrl+Shift+Z (다시 실행) - 모든 상황에서 작동
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
             e.preventDefault();
             if (redo()) {
-                console.log('Redo performed');
+                console.log('Redo performed via Ctrl+Y or Ctrl+Shift+Z');
             }
+            return;
+        }
+
+        // 입력 필드나 버튼에 포커스가 있을 때는 노트 추가 단축키 작동 안 함
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
             return;
         }
 

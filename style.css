@@ -161,6 +161,7 @@ body {
   background: #F57C00;
 }
 
+#clear-event-selection,
 #collapse-all,
 #expand-all {
   background: #607D8B;
@@ -172,6 +173,7 @@ body {
   font-size: 12px;
 }
 
+#clear-event-selection:hover,
 #collapse-all:hover,
 #expand-all:hover {
   background: #546E7A;
@@ -498,6 +500,11 @@ body {
 
 #sidebar tr.highlight {
   background: #666 !important;
+}
+
+#sidebar tr.selected {
+  background: #2a4a5a !important;
+  border: 2px solid #4CAF50 !important;
 }
 
 #sidebar tr.duplicate-beat {
