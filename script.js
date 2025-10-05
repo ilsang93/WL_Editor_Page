@@ -2233,14 +2233,71 @@ function renderNoteList() {
         tdIndex.textContent = index;
 
         const tdType = document.createElement("td");
-        let typeDisplay = note.type;
-        switch (note.type) {
-            case "longtab": typeDisplay = "LTab"; break;
-            case "longdirection": typeDisplay = "LDir"; break;
-            case "longboth": typeDisplay = "LBoth"; break;
-            case "node": typeDisplay = "Node"; break;
-        }
-        tdType.textContent = typeDisplay;
+        const typeSelect = document.createElement("select");
+        typeSelect.style.fontSize = "11px";
+        typeSelect.style.width = "70px";
+
+        const typeOptions = [
+            { value: "tab", label: "Tab" },
+            { value: "longtab", label: "LTab" },
+            { value: "direction", label: "Direction" },
+            { value: "longdirection", label: "LDir" },
+            { value: "both", label: "Both" },
+            { value: "longboth", label: "LBoth" },
+            { value: "node", label: "Node" }
+        ];
+
+        typeOptions.forEach(option => {
+            const opt = document.createElement("option");
+            opt.value = option.value;
+            opt.textContent = option.label;
+            if (note.type === option.value) {
+                opt.selected = true;
+            }
+            typeSelect.appendChild(opt);
+        });
+
+        typeSelect.addEventListener("change", () => {
+            // 변경 전 상태를 히스토리에 저장
+            saveState();
+
+            const oldType = note.type;
+            const newType = typeSelect.value;
+
+            // 타입 변경
+            note.type = newType;
+
+            // isLong 속성 업데이트
+            note.isLong = ["longtab", "longdirection", "longboth"].includes(newType);
+
+            // longTime 초기화 (롱노트로 변경시)
+            if (note.isLong && !note.longTime) {
+                const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+                note.longTime = subdivisions;
+            }
+
+            // direction 속성 처리
+            if (["direction", "longdirection", "both", "longboth"].includes(newType)) {
+                if (!note.direction) {
+                    note.direction = "none";
+                }
+            } else {
+                // 방향이 필요없는 타입으로 변경시 direction 제거
+                delete note.direction;
+            }
+
+            // Node 타입 전환 시 wait 속성 처리
+            if (newType === "node" && !note.hasOwnProperty("wait")) {
+                note.wait = false;
+            }
+
+            saveToStorage();
+            drawPath();
+            renderNoteList();
+            if (waveformData) drawWaveformWrapper();
+        });
+
+        tdType.appendChild(typeSelect);
 
         const tdBeat = document.createElement("td");
         const inputBeat = document.createElement("input");

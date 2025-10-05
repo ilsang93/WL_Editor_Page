@@ -11,7 +11,7 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  width: 550px; /* 480px → 550px로 확장 */
+  width: 650px; /* 480px → 550px로 확장 */
   height: 100vh;
   background: #333;
   overflow: hidden; /* 사이드바 스크롤 숨김 */
@@ -23,7 +23,7 @@ body {
 }
 
 #sidebar.hidden {
-  left: -550px; /* 완전히 숨김 */
+  left: -650px; /* 완전히 숨김 */
 }
 
 /* 사이드바 상단 컨트롤 영역 */
@@ -381,28 +381,44 @@ body {
   font-size: 11px; /* 폰트 크기 줄임 */
 }
 
-/* 열 너비 지정 - 사이드바 확장에 맞춰 조정 */
-#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 30px; }   /* NO. */
-#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 50px; }   /* Type */
-#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 60px; }   /* Beat */
-#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 55px; }   /* Time */
+/* 열 너비 지정 - 사이드바 확장에 맞춰 조정 (총 650px 기준) */
+#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 35px; }   /* NO. */
+#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 75px; }   /* Type (드롭다운) */
+#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 55px; }   /* Beat */
+#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 80px; }   /* Time (2줄 표시) */
 #sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 55px; }   /* Length */
-#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 70px; }   /* Direction */
-#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 40px; }   /* BPM */
-#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 35px; }   /* Sub */
-#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 45px; }   /* Delete */
+#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 85px; }   /* Direction */
+#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 65px; }   /* BPM */
+#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 70px; }   /* Sub */
+#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 45px; }   /* Wait */
+#sidebar th:nth-child(10), #sidebar td:nth-child(10) { width: 45px; }   /* Delete */
+
+/* Type 드롭다운 크기 조정 */
+#sidebar td:nth-child(2) select {
+  width: 70px;
+  padding: 1px 2px;
+  font-size: 10px;
+  border: 1px solid #666;
+}
 
 /* Beat 입력 필드 크기 조정 */
 #sidebar td:nth-child(3) input {
-  width: 53px; /* 컬럼 확장에 맞춰 조정 */
+  width: 50px;
   padding: 1px 3px;
   font-size: 10px;
   border: 1px solid #666;
 }
 
+/* Time 셀 스타일 조정 */
+#sidebar td:nth-child(4) {
+  white-space: normal;
+  line-height: 1.2;
+  padding: 2px 4px;
+}
+
 /* Length 입력 필드 크기 조정 */
 #sidebar td:nth-child(5) input {
-  width: 50px; /* 컬럼 확장에 맞춰 조정 */
+  width: 50px;
   padding: 1px 3px;
   font-size: 10px;
   border: 1px solid #666;
@@ -410,15 +426,38 @@ body {
 
 /* Direction 선택 필드 크기 조정 */
 #sidebar td:nth-child(6) select {
-  width: 65px; /* 컬럼 확장에 맞춰 조정 */
+  width: 80px;
   padding: 1px;
   font-size: 10px;
   border: 1px solid #666;
 }
 
+/* BPM 입력 필드 크기 조정 */
+#sidebar td:nth-child(7) input {
+  width: 60px;
+  padding: 1px 3px;
+  font-size: 10px;
+  border: 1px solid #666;
+}
+
+/* Subdivisions 선택 필드 크기 조정 */
+#sidebar td:nth-child(8) select {
+  width: 65px;
+  padding: 1px;
+  font-size: 10px;
+  border: 1px solid #666;
+}
+
+/* Wait 체크박스 크기 조정 */
+#sidebar td:nth-child(9) input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
 /* 삭제 버튼 크기 조정 */
-#sidebar td:nth-child(9) button {
-  width: 40px; /* 컬럼 확장에 맞춰 조정 */
+#sidebar td:nth-child(10) button {
+  width: 40px;
   padding: 1px 3px;
   font-size: 9px;
   border: 1px solid #666;
@@ -450,7 +489,7 @@ body {
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
   top: 50%;
-  left: 550px; /* 사이드바 오른쪽에 위치 */
+  left: 650px; /* 사이드바 오른쪽에 위치 */
   width: 40px;
   height: 60px;
   background: #333;
@@ -470,7 +509,7 @@ body {
 
 .sidebar-toggle:hover {
   background: #444;
-  left: 555px; /* 550px + 5px */
+  left: 655px; /* 650px + 5px */
   top: 50%;
 }
 
@@ -648,7 +687,7 @@ button:disabled {
 
 /* #main의 margin-bottom 제거 */
 #main {
-  margin-left: 550px; /* 480px → 550px로 조정 */
+  margin-left: 650px; /* 사이드바 너비에 맞춤 */
   position: relative;
   height: 100vh;
   overflow: hidden;
@@ -824,7 +863,7 @@ input[type="range"]::-moz-range-thumb {
 #waveform-container {
   position: fixed;
   bottom: -240px; /* 기본적으로 숨겨진 상태 (260px → 240px) */
-  left: 550px; /* 사이드바 너비와 일치하도록 수정 (480px → 550px) */
+  left: 650px; /* 사이드바 너비와 일치 */
   right: 0;
   height: 280px; /* 310px → 280px로 축소 */
   background: rgba(40, 40, 40, 0.95);
@@ -949,7 +988,7 @@ input[type="range"]::-moz-range-thumb {
 .waveform-trigger-zone {
   position: fixed;
   bottom: 0;
-  left: 550px; /* 사이드바 너비와 일치하도록 수정 (400px → 550px) */
+  left: 650px; /* 사이드바 너비와 일치 */
   right: 0;
   height: 30px; /* 트리거 영역 높이 */
   z-index: 999;
