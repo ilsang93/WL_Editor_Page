@@ -128,6 +128,25 @@ body {
   background: #45a049;
 }
 
+#duplicate-events {
+  background: #2196F3;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+#duplicate-events:hover {
+  background: #1976D2;
+}
+
+#duplicate-events:disabled {
+  background: #666;
+  cursor: not-allowed;
+}
+
 #go-to-url {
   background: #FF9800;
   color: white;
@@ -178,6 +197,12 @@ body {
 .event-item:hover {
   background: #333;
   border-color: #666;
+}
+
+.event-item.selected {
+  background: #2a4a5a;
+  border: 2px solid #4CAF50;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.4);
 }
 
 .event-header {

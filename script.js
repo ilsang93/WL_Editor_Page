@@ -90,6 +90,7 @@ let highlightedNoteTimer = 0;
 let highlightedEventIndex = null;
 let highlightedEventTimer = 0;
 let selectedNoteIndex = null; // 현재 선택된 노트의 인덱스
+let selectedEventIndices = new Set(); // 선택된 이벤트들의 인덱스 세트
 
 let globalAnimationFrameId = null;
 let isDrawLoopRunning = false;
@@ -3408,11 +3409,27 @@ function renderEventList() {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
 
-        // 이벤트 아이템 클릭 시 해당 위치로 이동
+        // 선택된 이벤트 표시
+        if (selectedEventIndices.has(eventIndex)) {
+            eventDiv.classList.add("selected");
+        }
+
+        // 이벤트 아이템 클릭 시 선택/해제
         eventDiv.addEventListener("click", (e) => {
-            // 입력 필드나 버튼을 클릭한 경우가 아닐 때만 포커스
+            // 입력 필드나 버튼을 클릭한 경우가 아닐 때만 처리
             if (!["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName)) {
-                focusEventAtIndex(eventIndex);
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl/Cmd 클릭: 다중 선택
+                    if (selectedEventIndices.has(eventIndex)) {
+                        selectedEventIndices.delete(eventIndex);
+                    } else {
+                        selectedEventIndices.add(eventIndex);
+                    }
+                    renderEventList();
+                } else {
+                    // 일반 클릭: 해당 위치로 이동
+                    focusEventAtIndex(eventIndex);
+                }
             }
         });
 
@@ -3541,8 +3558,28 @@ function renderEventList() {
         timeInput.step = "0.1";
         timeInput.value = event.eventTime;
         timeInput.addEventListener("change", (e) => {
-            event.eventTime = parseFloat(e.target.value) || 0;
+            const newTime = parseFloat(e.target.value) || 0;
+            const oldTime = event.eventTime;
+            const timeDiff = newTime - oldTime;
+
+            // 여러 이벤트가 선택되어 있고, 현재 이벤트가 선택된 이벤트 중 하나일 때
+            if (selectedEventIndices.has(eventIndex) && selectedEventIndices.size > 1) {
+                // 변경 전 상태를 히스토리에 저장
+                saveState();
+
+                const allEvents = getAllEvents();
+                // 선택된 모든 이벤트의 시간을 동일한 증감치만큼 조정
+                selectedEventIndices.forEach(idx => {
+                    if (idx < allEvents.length) {
+                        allEvents[idx].eventTime += timeDiff;
+                    }
+                });
+            } else {
+                event.eventTime = newTime;
+            }
+
             saveToStorage();
+            renderEventList();
         });
         timeLabel.appendChild(timeInput);
 
@@ -3800,6 +3837,45 @@ document.addEventListener("DOMContentLoaded", async () => {
         addEvent();
         renderEventList();
         saveToStorage();
+    });
+
+    // 복제 버튼 이벤트 리스너
+    document.getElementById("duplicate-events").addEventListener("click", () => {
+        if (selectedEventIndices.size === 0) {
+            alert("복제할 이벤트를 선택해주세요.");
+            return;
+        }
+
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
+        const events = getAllEvents();
+        const selectedIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
+        const newIndices = [];
+
+        // 선택된 이벤트들을 복제
+        selectedIndices.forEach(index => {
+            const event = events[index];
+            const clonedEvent = {
+                eventType: event.eventType,
+                eventId: event.eventId,
+                eventTime: event.eventTime,
+                eventParams: event.eventParams.map(param => ({
+                    paramType: param.paramType,
+                    paramName: param.paramName,
+                    paramValue: param.paramValue
+                }))
+            };
+            const newIndex = addEvent(clonedEvent);
+            newIndices.push(newIndex);
+        });
+
+        // 복제된 이벤트들을 선택
+        selectedEventIndices.clear();
+        newIndices.forEach(index => selectedEventIndices.add(index));
+
+        saveToStorage();
+        renderEventList();
     });
 
     // Go to URL 버튼 이벤트 리스너
