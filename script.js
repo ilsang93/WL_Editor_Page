@@ -57,7 +57,12 @@ import {
     createEventParam,
     sortEventsByTime,
     getPredefinedParamsForEventId,
-    applyPredefinedParams
+    applyPredefinedParams,
+    cloneEvent,
+    insertMultipleEvents,
+    getEventAtIndex,
+    updateEvent,
+    updateMultipleEvents
 } from './events.js';
 
 // 전역 변수들
@@ -3676,15 +3681,27 @@ function renderEventList() {
                 // 변경 전 상태를 히스토리에 저장
                 saveState();
 
-                const allEvents = getAllEvents();
                 // 선택된 모든 이벤트의 시간을 동일한 증감치만큼 조정
+                const updates = [];
                 selectedEventIndices.forEach(idx => {
-                    if (idx < allEvents.length) {
-                        allEvents[idx].eventTime += timeDiff;
+                    const eventToUpdate = getEventAtIndex(idx);
+                    if (eventToUpdate) {
+                        updates.push({
+                            index: idx,
+                            event: {
+                                ...eventToUpdate,
+                                eventTime: eventToUpdate.eventTime + timeDiff
+                            }
+                        });
                     }
                 });
+                updateMultipleEvents(updates);
             } else {
-                event.eventTime = newTime;
+                // 단일 이벤트 업데이트
+                updateEvent(eventIndex, {
+                    ...event,
+                    eventTime: newTime
+                });
             }
 
             saveToStorage();
@@ -3964,34 +3981,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 변경 전 상태를 히스토리에 저장
         saveState();
 
-        const events = getAllEvents();
         const selectedIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
         const maxIndex = Math.max(...selectedIndices);
         const clonedEvents = [];
 
         // 선택된 이벤트들을 복제
         selectedIndices.forEach(index => {
-            const event = events[index];
-            const clonedEvent = {
-                eventType: event.eventType,
-                eventId: event.eventId,
-                eventTime: event.eventTime,
-                eventParams: event.eventParams.map(param => ({
-                    paramType: param.paramType,
-                    paramName: param.paramName,
-                    paramValue: param.paramValue
-                }))
-            };
-            clonedEvents.push(clonedEvent);
+            const event = getEventAtIndex(index);
+            if (event) {
+                const clonedEvent = cloneEvent(event);
+                clonedEvents.push(clonedEvent);
+            }
         });
 
         // 가장 뒤에 있는 선택된 항목 바로 뒤에 삽입
-        const newIndices = [];
-        clonedEvents.forEach((clonedEvent, i) => {
-            const insertIndex = maxIndex + 1 + i;
-            events.splice(insertIndex, 0, clonedEvent);
-            newIndices.push(insertIndex);
-        });
+        const insertIndex = maxIndex + 1;
+        const newIndices = insertMultipleEvents(insertIndex, clonedEvents);
 
         // 복제된 이벤트들을 선택
         selectedEventIndices.clear();
@@ -3999,6 +4004,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         saveToStorage();
         renderEventList();
+        drawPath();
     });
 
     // 이벤트 선택 해제 버튼

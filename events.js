@@ -254,3 +254,58 @@ export function loadEventsFromJson(jsonEvents) {
         });
     }
 }
+
+// 특정 인덱스에 이벤트 삽입
+export function insertEvent(index, event) {
+    if (index < 0 || index > events.length) {
+        return false;
+    }
+    events.splice(index, 0, event);
+    return true;
+}
+
+// 다중 이벤트를 특정 인덱스부터 삽입
+export function insertMultipleEvents(startIndex, eventsToInsert) {
+    if (startIndex < 0 || startIndex > events.length || !Array.isArray(eventsToInsert)) {
+        return [];
+    }
+
+    const insertedIndices = [];
+    eventsToInsert.forEach((event, i) => {
+        const insertIndex = startIndex + i;
+        events.splice(insertIndex, 0, event);
+        insertedIndices.push(insertIndex);
+    });
+
+    return insertedIndices;
+}
+
+// 특정 인덱스의 이벤트 가져오기
+export function getEventAtIndex(index) {
+    if (index >= 0 && index < events.length) {
+        return events[index];
+    }
+    return null;
+}
+
+// 이벤트 업데이트
+export function updateEvent(index, updatedEvent) {
+    if (index >= 0 && index < events.length) {
+        events[index] = { ...updatedEvent };
+        return true;
+    }
+    return false;
+}
+
+// 다중 이벤트 업데이트
+export function updateMultipleEvents(updates) {
+    let success = true;
+    updates.forEach(({ index, event }) => {
+        if (index >= 0 && index < events.length) {
+            events[index] = { ...event };
+        } else {
+            success = false;
+        }
+    });
+    return success;
+}
