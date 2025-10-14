@@ -4610,6 +4610,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         switch (e.key) {
+            case ' ': // Space 키로 모든 선택 해제
+                clearAllSelections();
+                break;
             case 'q':
                 addNote({ type: "tab", isLong: false, longTime: 0 });
                 break;
@@ -4636,6 +4639,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     console.log('Initialization complete');
 });
+
+// 선택 관련 함수들
+
+// 모든 선택 해제
+function clearAllSelections() {
+    selectedNoteIndices.clear();
+    selectedEventIndices.clear();
+    selectedNoteIndex = null;
+    lastClickedNoteIndex = null;
+    lastClickedEventIndex = null;
+
+    // UI 업데이트
+    renderNoteList();
+    renderEventList();
+
+    console.log('모든 선택이 해제되었습니다.');
+}
 
 // 복사/붙여넣기 관련 함수들
 

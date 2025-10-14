@@ -517,6 +517,19 @@ body {
   border: 2px solid #ff6666 !important;
 }
 
+/* 에러 상태이면서 선택된 행 - 에러는 배경색으로, 선택은 굵은 테두리로 표시 */
+#sidebar tr.duplicate-beat.selected {
+  background: #cc4444 !important;
+  border: 3px solid #4CAF50 !important; /* 선택 상태를 더 굵은 초록 테두리로 표시 */
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.8) !important; /* 선택 상태 강조용 그림자 */
+}
+
+#sidebar tr.duplicate-beat.selected.highlight {
+  background: #aa3333 !important;
+  border: 3px solid #4CAF50 !important;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.8) !important;
+}
+
 /* 사이드바 토글 버튼 */
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
