@@ -4578,6 +4578,28 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
 
+        // Ctrl+C (복사) - 선택된 이벤트/노트를 JSON 형태로 클립보드에 복사
+        if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+            // 입력 필드에서는 기본 복사 기능 사용
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            e.preventDefault();
+            copySelectedItems();
+            return;
+        }
+
+        // Ctrl+V (붙여넣기) - 클립보드의 JSON 데이터를 리스트에 추가
+        if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+            // 입력 필드에서는 기본 붙여넣기 기능 사용
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                return;
+            }
+            e.preventDefault();
+            pasteItems();
+            return;
+        }
+
         // 입력 필드나 버튼에 포커스가 있을 때는 노트 추가 단축키 작동 안 함
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
             return;
@@ -4610,3 +4632,234 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     console.log('Initialization complete');
 });
+
+// 복사/붙여넣기 관련 함수들
+
+// 선택된 이벤트/노트들을 JSON 형태로 클립보드에 복사
+async function copySelectedItems() {
+    try {
+        const itemsToCopy = {
+            type: 'WL_Editor_Data',
+            events: [],
+            notes: []
+        };
+
+        // 현재 설정값들 가져오기
+        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
+        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        const currentPreDelaySeconds = getPreDelaySeconds();
+
+        // 선택된 이벤트들 복사
+        if (selectedEventIndices.size > 0) {
+            const allEvents = getAllEvents();
+            const eventIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
+            for (const index of eventIndices) {
+                if (index >= 0 && index < allEvents.length) {
+                    const event = allEvents[index];
+                    // 출력 형태의 JSON으로 변환
+                    const jsonEvent = {
+                        eventType: event.eventType,
+                        eventId: event.eventId,
+                        eventTime: event.eventTime,
+                        eventParams: event.eventParams.map(param => ({
+                            paramName: param.paramName,
+                            paramValue: param.paramValue
+                        }))
+                    };
+                    itemsToCopy.events.push(jsonEvent);
+                }
+            }
+        }
+
+        // 선택된 노트들 복사
+        if (selectedNoteIndices.size > 0) {
+            const noteIndices = Array.from(selectedNoteIndices).sort((a, b) => a - b);
+            for (const index of noteIndices) {
+                if (index >= 0 && index < notes.length) {
+                    const note = notes[index];
+                    // 출력 형태의 JSON으로 변환
+                    const jsonNote = noteToJsonFormat(note, currentBpm, currentSubdivisions, currentPreDelaySeconds);
+                    itemsToCopy.notes.push(jsonNote);
+                }
+            }
+        }
+
+        if (itemsToCopy.events.length === 0 && itemsToCopy.notes.length === 0) {
+            console.log('복사할 항목이 선택되지 않았습니다.');
+            return;
+        }
+
+        // 클립보드에 복사
+        const jsonString = JSON.stringify(itemsToCopy, null, 2);
+        await navigator.clipboard.writeText(jsonString);
+
+        console.log(`복사 완료: 이벤트 ${itemsToCopy.events.length}개, 노트 ${itemsToCopy.notes.length}개`);
+
+        // 사용자에게 알림 (선택사항)
+        showNotification(`복사 완료: 이벤트 ${itemsToCopy.events.length}개, 노트 ${itemsToCopy.notes.length}개`);
+
+    } catch (error) {
+        console.error('복사 중 오류:', error);
+        showNotification('복사 중 오류가 발생했습니다.');
+    }
+}
+
+// 클립보드의 JSON 데이터를 현재 선택된 항목과 같은 시간으로 붙여넣기
+async function pasteItems() {
+    try {
+        const clipboardText = await navigator.clipboard.readText();
+        let pasteData;
+
+        try {
+            pasteData = JSON.parse(clipboardText);
+        } catch (parseError) {
+            console.log('클립보드에 유효한 JSON 데이터가 없습니다.');
+            return;
+        }
+
+        // WL_Editor_Data 형태인지 확인
+        if (!pasteData || pasteData.type !== 'WL_Editor_Data') {
+            console.log('WL Editor 데이터가 아닙니다.');
+            return;
+        }
+
+        let pastedEventCount = 0;
+        let pastedNoteCount = 0;
+
+        // 현재 설정값들 가져오기
+        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
+        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+
+        // 현재 선택된 항목의 시간 가져오기
+        let targetTime = null;
+        let targetBeat = null;
+
+        // 이벤트가 선택되어 있으면 이벤트 시간 사용
+        if (selectedEventIndices.size > 0) {
+            const allEvents = getAllEvents();
+            const selectedIndex = Array.from(selectedEventIndices)[0];
+            if (selectedIndex >= 0 && selectedIndex < allEvents.length) {
+                targetTime = allEvents[selectedIndex].eventTime;
+            }
+        }
+
+        // 노트가 선택되어 있으면 노트 비트 사용
+        if (selectedNoteIndices.size > 0) {
+            const selectedIndex = Array.from(selectedNoteIndices)[0];
+            if (selectedIndex >= 0 && selectedIndex < notes.length) {
+                targetBeat = notes[selectedIndex].beat;
+            }
+        }
+
+        // 붙여넣기 전 현재 상태 저장 (Undo 지원)
+        saveState();
+
+        // 이벤트 붙여넣기
+        if (pasteData.events && Array.isArray(pasteData.events)) {
+            for (const eventData of pasteData.events) {
+                const newEvent = {
+                    eventType: eventData.eventType || 'camera',
+                    eventId: eventData.eventId || '',
+                    eventTime: targetTime !== null ? targetTime : (eventData.eventTime || 0),
+                    eventParams: Array.isArray(eventData.eventParams) ?
+                        eventData.eventParams.map(param => ({
+                            paramType: 'string', // 기본값, 실제로는 사전 정의된 파라미터 타입 사용
+                            paramName: param.paramName || '',
+                            paramValue: param.paramValue || ''
+                        })) : []
+                };
+
+                // 파라미터 타입 복원을 위해 사전 정의된 파라미터 확인
+                const predefinedParams = getPredefinedParamsForEventId(newEvent.eventType, newEvent.eventId);
+                newEvent.eventParams.forEach(param => {
+                    const predefined = predefinedParams.find(p => p.paramName === param.paramName);
+                    if (predefined) {
+                        param.paramType = predefined.paramType;
+                    }
+                });
+
+                addEvent(newEvent);
+                pastedEventCount++;
+            }
+        }
+
+        // 노트 붙여넣기
+        if (pasteData.notes && Array.isArray(pasteData.notes)) {
+            for (const noteData of pasteData.notes) {
+                const newNote = {
+                    type: convertExternalToNoteType(noteData.noteType) || 'tab',
+                    beat: targetBeat !== null ? targetBeat : (noteData.beat || 0),
+                    direction: noteData.direction || "none",
+                    isLong: noteData.isLong || false,
+                    longTime: noteData.longTimeBeat || 0,
+                    bpm: noteData.bpm || currentBpm,
+                    subdivisions: noteData.subdivisions || currentSubdivisions
+                };
+
+                // Node 타입의 경우 wait 필드 추가
+                if (newNote.type === "node") {
+                    newNote.wait = noteData.isWait || false;
+                }
+
+                notes.push(newNote);
+                pastedNoteCount++;
+            }
+        }
+
+        if (pastedEventCount > 0 || pastedNoteCount > 0) {
+            if (pastedEventCount > 0) {
+                renderEventList();
+            }
+            if (pastedNoteCount > 0) {
+                renderNoteList();
+            }
+
+            console.log(`붙여넣기 완료: 이벤트 ${pastedEventCount}개, 노트 ${pastedNoteCount}개`);
+            showNotification(`붙여넣기 완료: 이벤트 ${pastedEventCount}개, 노트 ${pastedNoteCount}개`);
+        } else {
+            console.log('붙여넣을 데이터가 없습니다.');
+        }
+
+    } catch (error) {
+        console.error('붙여넣기 중 오류:', error);
+        showNotification('붙여넣기 중 오류가 발생했습니다.');
+    }
+}
+
+// 알림 표시 함수 (간단한 구현)
+function showNotification(message) {
+    // 기존 알림이 있으면 제거
+    const existingNotification = document.getElementById('copy-paste-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+
+    // 새 알림 생성
+    const notification = document.createElement('div');
+    notification.id = 'copy-paste-notification';
+    notification.textContent = message;
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #333;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        z-index: 10000;
+        font-size: 14px;
+        transition: opacity 0.3s;
+    `;
+
+    document.body.appendChild(notification);
+
+    // 3초 후 자동 제거
+    setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 3000);
+}
