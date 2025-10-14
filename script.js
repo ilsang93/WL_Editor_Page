@@ -4584,6 +4584,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
                 return;
             }
+            // 아무것도 선택되지 않았으면 기본 복사 기능 사용 (텍스트 선택 등)
+            if (selectedEventIndices.size === 0 && selectedNoteIndices.size === 0) {
+                return;
+            }
             e.preventDefault();
             copySelectedItems();
             return;
@@ -4638,6 +4642,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 // 선택된 이벤트/노트들을 JSON 형태로 클립보드에 복사
 async function copySelectedItems() {
     try {
+        // 아무것도 선택되지 않았으면 복사하지 않음
+        if (selectedEventIndices.size === 0 && selectedNoteIndices.size === 0) {
+            console.log('복사할 항목이 선택되지 않았습니다.');
+            return;
+        }
+
         const itemsToCopy = {
             type: 'WL_Editor_Data',
             events: [],
