@@ -57,6 +57,10 @@ export const EVENT_IDS_BY_TYPE = {
         'speedup',
         'speeddown'
     ],
+    'startrail' : [
+        defaultstar,
+        startrail
+    ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
 
@@ -149,6 +153,9 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'enable', paramType: 'bool' },
         { paramName: 'area', paramType: 'float' }
     ],
+
+    'startrail-defaultstar' : [],
+    'startrail-startrail' : [],
 };
 
 // 이벤트 타입별 설명 (선택사항)
