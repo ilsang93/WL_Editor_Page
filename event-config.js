@@ -58,8 +58,8 @@ export const EVENT_IDS_BY_TYPE = {
         'speeddown'
     ],
     'startrail' : [
-        defaultstar,
-        startrail
+        'defaultstar',
+        'startrail'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
