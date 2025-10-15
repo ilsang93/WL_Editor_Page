@@ -270,8 +270,12 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
     }
 }
 
-// 뷰포트 기반 컬링 함수
-function isNoteInViewport(screenX, screenY, margin = 50) {
+// 뷰포트 기반 컬링 함수 (줌 레벨에 따라 동적 마진)
+function isNoteInViewport(screenX, screenY, zoomLevel = zoom) {
+    // 줌 레벨이 낮을수록 마진을 줄여서 더 적극적으로 컬링
+    // 줌이 클 때는 여유있게, 작을 때는 엄격하게
+    const margin = Math.max(20, Math.min(100, zoomLevel * 3));
+
     return screenX >= -margin &&
            screenX <= canvas.width + margin &&
            screenY >= -margin &&
@@ -280,6 +284,14 @@ function isNoteInViewport(screenX, screenY, margin = 50) {
 
 // 최적화된 노트 렌더링 함수
 function renderNotesOptimized(notes, pathDirectionNotes, nodePositions, bpm, subdivisions, preDelaySeconds, realtimeDrawingEnabled, isPlaying, drawTime) {
+    // 줌 레벨이 너무 작으면 노트 렌더링 스킵 (성능 최적화)
+    // 줌 레벨이 5 이하일 때는 노트가 너무 작아서 겹쳐 보이므로 렌더링 생략
+    const MIN_ZOOM_FOR_NOTES = 5;
+    if (zoom < MIN_ZOOM_FOR_NOTES) {
+        // 줌아웃 시 노트 렌더링 스킵 (경로만 표시)
+        return;
+    }
+
     // 렌더링할 노트들을 미리 필터링하고 계산된 데이터 캐싱
     const notesToRender = [];
 
@@ -946,7 +958,16 @@ function drawPath() {
     const startTime = performance.now();
 
     resizeCanvas();
+
+    // 캔버스 완전 클리어 (이전 프레임 데이터 제거)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // 컨텍스트 상태 초기화 (변환, 경로 등 리셋)
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.beginPath();
+    ctx.restore();
+
     ensureInitialDirectionNote(notes);
 
     const preDelaySeconds = getPreDelaySeconds();
@@ -1023,39 +1044,60 @@ function drawPath() {
         }
     }
 
-    // 시간 기준 마커 (1초 간격) - 실시간 그리기 활성화 시 그리기 오브젝트가 지나간 부분만
-    const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
-    const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
+    // 시간 기준 마커 (1초 간격) - 줌 레벨이 충분할 때만 표시
+    // 줌 레벨이 10 이하일 때는 마커가 너무 많아서 성능 저하 유발
+    const MIN_ZOOM_FOR_TIME_MARKERS = 10;
+    if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
+        const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
+        const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
 
-    for (let time = 1; time < maxMarkerTime; time += 1) {
-        const position = getPositionAtTime(time, segmentTimes);
-        if (position) {
-            ctx.beginPath();
-            ctx.arc(position.x * zoom + viewOffset.x, position.y * zoom + viewOffset.y, 4, 0, 2 * Math.PI);
-            ctx.fillStyle = "rgba(128,128,128,0.4)";
-            ctx.fill();
+        for (let time = 1; time < maxMarkerTime; time += 1) {
+            const position = getPositionAtTime(time, segmentTimes);
+            if (position) {
+                const screenX = position.x * zoom + viewOffset.x;
+                const screenY = position.y * zoom + viewOffset.y;
+
+                // 뷰포트 컬링 적용
+                if (isNoteInViewport(screenX, screenY)) {
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
+                    ctx.fillStyle = "rgba(128,128,128,0.4)";
+                    ctx.fill();
+                }
+            }
         }
     }
 
-    // BPM 기반 비트 마커 - 각 구간의 subdivision에 맞춰 표시
-    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-        const a = pathDirectionNotes[i];
-        const b = pathDirectionNotes[i + 1];
+    // BPM 기반 비트 마커 - 줌 레벨이 충분할 때만 표시
+    // 줌 레벨이 15 이하일 때는 비트 마커가 너무 조밀해서 성능 저하 및 가독성 저하
+    const MIN_ZOOM_FOR_BEAT_MARKERS = 15;
+    if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
+        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+            const a = pathDirectionNotes[i];
+            const b = pathDirectionNotes[i + 1];
 
-        // 이 구간에서 사용할 BPM/subdivision
-        const segmentBpm = a.bpm || bpm;
-        const segmentSubdivisions = a.subdivisions || subdivisions;
+            // 이 구간에서 사용할 BPM/subdivision
+            const segmentBpm = a.bpm || bpm;
+            const segmentSubdivisions = a.subdivisions || subdivisions;
 
-        // subdivision 간격으로 비트 마커 표시
-        const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
+            // subdivision 간격으로 비트 마커 표시
+            const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
+            const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
 
-        for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
-            const position = getPositionAtTime(time, segmentTimes);
-            if (position) {
-                ctx.beginPath();
-                ctx.arc(position.x * zoom + viewOffset.x, position.y * zoom + viewOffset.y, 2, 0, 2 * Math.PI);
-                ctx.fillStyle = "rgba(100,150,255,0.6)";
-                ctx.fill();
+            for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
+                const position = getPositionAtTime(time, segmentTimes);
+                if (position) {
+                    const screenX = position.x * zoom + viewOffset.x;
+                    const screenY = position.y * zoom + viewOffset.y;
+
+                    // 뷰포트 컬링 적용
+                    if (isNoteInViewport(screenX, screenY)) {
+                        ctx.beginPath();
+                        ctx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
+                        ctx.fillStyle = "rgba(100,150,255,0.6)";
+                        ctx.fill();
+                    }
+                }
             }
         }
     }
