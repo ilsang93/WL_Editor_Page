@@ -107,6 +107,23 @@ let isBatchEditEnabled = false;
 let musicVolume = 0.5; // 0.0 ~ 1.0
 let sfxVolume = 1.0; // 0.0 ~ 1.0
 
+// 렌더링 디바운싱을 위한 변수
+let renderScheduled = false;
+let pendingRenderFlags = {
+    noteList: false,
+    eventList: false,
+    canvas: false,
+    waveform: false
+};
+
+// Virtual Scrolling 상태
+let virtualScrollState = {
+    scrollTop: 0,
+    itemHeight: 35, // 각 행의 높이 (픽셀)
+    visibleCount: 50, // 화면에 보이는 항목 수
+    bufferCount: 10 // 위아래 버퍼 항목 수
+};
+
 const demoPlayer = {
     x: 0,
     y: 0
@@ -2185,7 +2202,76 @@ function updateTabNotesInheritance() {
     });
 }
 
+// 최적화된 렌더링 스케줄러 (디바운싱)
+function scheduleRender(flags = {}) {
+    // 플래그 업데이트
+    if (flags.noteList) pendingRenderFlags.noteList = true;
+    if (flags.eventList) pendingRenderFlags.eventList = true;
+    if (flags.canvas) pendingRenderFlags.canvas = true;
+    if (flags.waveform) pendingRenderFlags.waveform = true;
+
+    if (renderScheduled) return;
+
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+        // 한 프레임에 모든 렌더링 작업을 묶어서 처리
+        if (pendingRenderFlags.canvas) {
+            drawPath();
+        }
+        if (pendingRenderFlags.noteList) {
+            renderNoteListImmediate();
+        }
+        if (pendingRenderFlags.eventList) {
+            renderEventListImmediate();
+        }
+        if (pendingRenderFlags.waveform && waveformData) {
+            drawWaveformWrapper();
+        }
+
+        // 플래그 초기화
+        pendingRenderFlags = {
+            noteList: false,
+            eventList: false,
+            canvas: false,
+            waveform: false
+        };
+        renderScheduled = false;
+    });
+}
+
+// 중복 검사 최적화 함수 (O(n²) → O(n))
+function findDuplicateNoteIndices(notes, bpm, subdivisions) {
+    const duplicateIndices = new Set();
+    const noteMap = new Map(); // key: "beat-bpm-subdivisions", value: [indices]
+
+    notes.forEach((note, index) => {
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        const key = `${note.beat}-${noteBpm}-${noteSubdivisions}`;
+
+        if (!noteMap.has(key)) {
+            noteMap.set(key, []);
+        }
+        noteMap.get(key).push(index);
+    });
+
+    // 2개 이상인 경우만 중복으로 처리
+    for (const indices of noteMap.values()) {
+        if (indices.length > 1) {
+            indices.forEach(idx => duplicateIndices.add(idx));
+        }
+    }
+
+    return duplicateIndices;
+}
+
+// renderNoteList 래퍼 함수 (디바운싱 적용)
 function renderNoteList() {
+    scheduleRender({ noteList: true });
+}
+
+// 실제 렌더링 함수 (즉시 실행)
+function renderNoteListImmediate() {
     // Tab 노트들의 상속 값을 먼저 업데이트
     updateTabNotesInheritance();
 
@@ -2196,27 +2282,27 @@ function renderNoteList() {
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
     const preDelaySeconds = getPreDelaySeconds();
 
-    // 중복 beat 값 감지 (같은 BPM과 subdivision을 가진 노트만 비교)
-    const duplicateNoteIndices = new Set();
-    notes.forEach((note, index) => {
-        const noteBpm = note.bpm || bpm;
-        const noteSubdivisions = note.subdivisions || subdivisions;
+    // 중복 검사 최적화 적용
+    const duplicateNoteIndices = findDuplicateNoteIndices(notes, bpm, subdivisions);
 
-        // 같은 노트보다 뒤에 있는 노트들과 비교
-        for (let i = index + 1; i < notes.length; i++) {
-            const otherNote = notes[i];
-            const otherBpm = otherNote.bpm || bpm;
-            const otherSubdivisions = otherNote.subdivisions || subdivisions;
+    // Virtual Scrolling: 렌더링할 범위 계산
+    const totalNotes = notes.length;
+    const startIndex = Math.max(0, Math.floor(virtualScrollState.scrollTop / virtualScrollState.itemHeight) - virtualScrollState.bufferCount);
+    const endIndex = Math.min(totalNotes, startIndex + virtualScrollState.visibleCount + virtualScrollState.bufferCount * 2);
 
-            // 같은 beat, BPM, subdivision을 가진 노트들을 중복으로 표시
-            if (note.beat === otherNote.beat && noteBpm === otherBpm && noteSubdivisions === otherSubdivisions) {
-                duplicateNoteIndices.add(index);
-                duplicateNoteIndices.add(i);
-            }
-        }
-    });
+    // 상단 스페이서 (스크롤 위치 유지용)
+    if (startIndex > 0) {
+        const offsetY = startIndex * virtualScrollState.itemHeight;
+        const spacerTop = document.createElement("tr");
+        spacerTop.style.height = `${offsetY}px`;
+        spacerTop.style.pointerEvents = "none";
+        tbody.appendChild(spacerTop);
+    }
 
-    notes.forEach((note, index) => {
+    // Virtual Scrolling: 보이는 범위만 렌더링
+    for (let index = startIndex; index < endIndex; index++) {
+        const note = notes[index];
+        if (!note) continue;
         const tr = document.createElement("tr");
         let className = "tab-note";
         if (note.type === "direction" || note.type === "longdirection") {
@@ -2620,7 +2706,16 @@ function renderNoteList() {
             }
         });
         tbody.appendChild(tr);
-    });
+    }
+
+    // 하단 스페이서 (스크롤 위치 유지용)
+    if (endIndex < totalNotes) {
+        const remainingHeight = (totalNotes - endIndex) * virtualScrollState.itemHeight;
+        const spacerBottom = document.createElement("tr");
+        spacerBottom.style.height = `${remainingHeight}px`;
+        spacerBottom.style.pointerEvents = "none";
+        tbody.appendChild(spacerBottom);
+    }
 }
 
 function focusNoteAtIndex(index) {
@@ -3501,7 +3596,13 @@ function handlePreDelayChange() {
 }
 
 // EventList UI 렌더링
+// renderEventList 래퍼 함수 (디바운싱 적용)
 function renderEventList() {
+    scheduleRender({ eventList: true });
+}
+
+// 실제 렌더링 함수 (즉시 실행)
+function renderEventListImmediate() {
     const container = document.getElementById("event-list");
     container.innerHTML = "";
 
@@ -3909,6 +4010,27 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupWaveformWheel();
     setupWaveformSlider();
     setupWaveformClick();
+
+    // Virtual Scrolling 초기화
+    const noteListContainer = document.querySelector("#notes-tab table");
+    if (noteListContainer) {
+        const scrollContainer = noteListContainer.closest(".tab-content");
+        if (scrollContainer) {
+            // 스크롤 이벤트 리스너 추가
+            scrollContainer.addEventListener("scroll", () => {
+                virtualScrollState.scrollTop = scrollContainer.scrollTop;
+                scheduleRender({ noteList: true });
+            });
+
+            // 화면 크기에 따른 visibleCount 계산
+            const updateVisibleCount = () => {
+                const containerHeight = scrollContainer.clientHeight;
+                virtualScrollState.visibleCount = Math.ceil(containerHeight / virtualScrollState.itemHeight) + 10;
+            };
+            updateVisibleCount();
+            window.addEventListener('resize', updateVisibleCount);
+        }
+    }
 
     hasAudioFile = false;
     audioBuffer = null;
