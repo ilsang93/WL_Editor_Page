@@ -4777,6 +4777,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             case ' ': // Space 키로 모든 선택 해제
                 clearAllSelections();
                 break;
+            case 'Delete': // Del 키로 선택된 노트/이벤트 삭제
+                deleteSelectedItems();
+                break;
             case 'q':
                 addNote({ type: "tab", isLong: false, longTime: 0 });
                 break;
@@ -4805,6 +4808,102 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 // 선택 관련 함수들
+
+// 선택된 항목들 삭제 (Del 키)
+function deleteSelectedItems() {
+    // 현재 활성화된 탭 확인
+    const notesTab = document.getElementById('notes-tab');
+    const eventsTab = document.getElementById('events-tab');
+    const isNotesTabActive = notesTab.classList.contains('active');
+    const isEventsTabActive = eventsTab.classList.contains('active');
+
+    if (isNotesTabActive) {
+        // 노트 탭이 활성화된 경우 - 선택된 노트들 삭제
+        deleteSelectedNotes();
+    } else if (isEventsTabActive) {
+        // 이벤트 탭이 활성화된 경우 - 선택된 이벤트들 삭제
+        deleteSelectedEvents();
+    }
+}
+
+// 선택된 노트들 삭제
+function deleteSelectedNotes() {
+    if (selectedNoteIndices.size === 0) {
+        return; // 선택된 노트가 없으면 아무것도 하지 않음
+    }
+
+    // 변경 전 상태를 히스토리에 저장
+    saveState();
+
+    // 인덱스를 내림차순으로 정렬하여 뒤에서부터 삭제 (인덱스 변화 방지)
+    const sortedIndices = Array.from(selectedNoteIndices).sort((a, b) => b - a);
+
+    let deletedCount = 0;
+    for (const index of sortedIndices) {
+        const note = notes[index];
+        // beat 0인 direction 노트이고 첫 번째 노트인 경우 삭제 금지
+        if (note && note.beat === 0 && note.type === "direction" && index === 0) {
+            continue; // 이 노트는 삭제하지 않음
+        }
+
+        if (index >= 0 && index < notes.length) {
+            notes.splice(index, 1);
+            deletedCount++;
+        }
+    }
+
+    if (deletedCount > 0) {
+        // 캐시 무효화
+        invalidatePathCache();
+
+        // 선택 상태 초기화
+        selectedNoteIndices.clear();
+        selectedNoteIndex = null;
+        lastClickedNoteIndex = null;
+
+        // UI 업데이트 및 저장
+        saveToStorage();
+        renderNoteList();
+        drawPath();
+        if (waveformData) {
+            drawWaveformWrapper();
+        }
+
+        console.log(`${deletedCount}개의 노트가 삭제되었습니다.`);
+    }
+}
+
+// 선택된 이벤트들 삭제
+function deleteSelectedEvents() {
+    if (selectedEventIndices.size === 0) {
+        return; // 선택된 이벤트가 없으면 아무것도 하지 않음
+    }
+
+    // 변경 전 상태를 히스토리에 저장
+    saveState();
+
+    // 인덱스를 내림차순으로 정렬하여 뒤에서부터 삭제 (인덱스 변화 방지)
+    const sortedIndices = Array.from(selectedEventIndices).sort((a, b) => b - a);
+
+    let deletedCount = 0;
+    for (const index of sortedIndices) {
+        if (removeEvent(index)) {
+            deletedCount++;
+        }
+    }
+
+    if (deletedCount > 0) {
+        // 선택 상태 초기화
+        selectedEventIndices.clear();
+        lastClickedEventIndex = null;
+
+        // UI 업데이트 및 저장
+        saveToStorage();
+        renderEventList();
+
+        console.log(`${deletedCount}개의 이벤트가 삭제되었습니다.`);
+    }
+}
 
 // 모든 선택 해제
 function clearAllSelections() {
