@@ -6,7 +6,8 @@ export const EVENT_TYPES = [
     'background',
     'character',
     'overlay',
-    'custom'
+    'startrail',
+    'custom',
 ];
 
 // 파라미터 타입 목록
@@ -51,13 +52,15 @@ export const EVENT_IDS_BY_TYPE = {
         'hologram',
         'fog',
         'illusion',
-        'flame'
+        'flame',
+        'replace_image',
+        'setadditive'
     ],
     'speedshift': [
         'speedup',
         'speeddown'
     ],
-    'startrail' : [
+    'startrail': [
         'defaultstar',
         'startrail'
     ],
@@ -153,9 +156,15 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'enable', paramType: 'bool' },
         { paramName: 'area', paramType: 'float' }
     ],
+    'overlay-setadditive': [
+        { paramName: 'istrue', paramType: 'bool' },
+    ],
+    'overlay-replace_image': [
+        { paramName: 'image_name', paramType: 'string' },
+    ],
 
-    'startrail-defaultstar' : [],
-    'startrail-startrail' : [],
+    'startrail-defaultstar': [],
+    'startrail-startrail': [],
 };
 
 // 이벤트 타입별 설명 (선택사항)
