@@ -2582,12 +2582,12 @@ function renderNoteListImmediate() {
             inputBpm.type = "number";
             inputBpm.min = "60";
             inputBpm.max = "300";
-            inputBpm.step = "1";
+            inputBpm.step = "0.1";
             inputBpm.value = note.bpm || bpm;
             inputBpm.style.width = "60px";
             inputBpm.style.fontSize = "11px";
             inputBpm.addEventListener("change", () => {
-                const newBpm = parseInt(inputBpm.value) || bpm;
+                const newBpm = parseFloat(inputBpm.value) || bpm;
                 if (newBpm >= 60 && newBpm <= 300) {
                     // 변경 전 상태를 히스토리에 저장
                     saveState();
@@ -4330,11 +4330,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const validatedNotes = validationResult.notes;
 
         const levelValue = parseInt(document.getElementById("level").value || 10);
+        const minBpm = parseFloat(document.getElementById("min-bpm").value || 60);
+        const maxBpm = parseFloat(document.getElementById("max-bpm").value || 300);
 
         const exportData = {
             diffIndex: 5,
             level: levelValue,
             bpm: bpm,
+            minbpm: minBpm,
+            maxbpm: maxBpm,
             subdivisions: subdivisions,
             preDelay: preDelayValue,
             noteList: validatedNotes.map(n => {
@@ -4491,6 +4495,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     const levelValue = json.level || 10;
                     document.getElementById("level").value = levelValue;
                     document.getElementById("level-display").textContent = levelValue;
+
+                    // Min/Max BPM 값 설정 (없으면 기본값 사용)
+                    const minBpm = json.minbpm || 60;
+                    const maxBpm = json.maxbpm || 300;
+                    document.getElementById("min-bpm").value = minBpm;
+                    document.getElementById("max-bpm").value = maxBpm;
 
                     document.getElementById("bpm").dataset.previousValue = bpm;
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
