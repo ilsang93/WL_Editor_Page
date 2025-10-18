@@ -95,3 +95,71 @@ export function getPreDelaySeconds() {
     const preDelayMs = parseInt(document.getElementById("pre-delay").value || 0);
     return preDelayMs / 1000;
 }
+
+// Unity 게임 좌표계 변환 함수들
+// Unity 공식: distance = deltaTime × multiplierConstant × bpm
+// multiplierConstant = 8 × 배속 × 0.05 = 0.4 × 배속
+
+// Unity에서 1비트 동안의 이동거리 계산 (정확한 공식)
+export function calculateUnityMovementPerBeat(bpm, speedMultiplier = 1.0) {
+    // 1비트 = 60초 / (BPM × subdivisions/4)
+    // 기본 subdivisions = 16이므로 4분음표 기준
+    const beatDuration = 60 / bpm; // 1beat의 시간 (초)
+    const multiplierConstant = 0.4 * speedMultiplier; // 8 × 배속 × 0.05
+
+    // Unity 공식: distance = deltaTime × multiplierConstant × bpm
+    return beatDuration * multiplierConstant * bpm;
+}
+
+// Unity 월드 좌표에서 노드 간 거리 계산
+export function calculateUnityNodeDistance(deltaTime, bpm, speedMultiplier = 1.0) {
+    const multiplierConstant = 0.4 * speedMultiplier;
+    return deltaTime * multiplierConstant * bpm;
+}
+
+// 에디터 좌표를 Unity 월드 좌표로 변환
+export function convertEditorToUnityCoordinate(editorDistance, bpm, speedMultiplier = 1.0) {
+    const unityMovementPerBeat = calculateUnityMovementPerBeat(bpm, speedMultiplier);
+    const editorMovementPerBeat = 24 * speedMultiplier; // 에디터의 현재 공식
+
+    // 변환 비율
+    const ratio = unityMovementPerBeat / editorMovementPerBeat;
+    return editorDistance * ratio;
+}
+
+// Unity 월드 좌표를 에디터 좌표로 변환
+export function convertUnityToEditorCoordinate(unityDistance, bpm, speedMultiplier = 1.0) {
+    const unityMovementPerBeat = calculateUnityMovementPerBeat(bpm, speedMultiplier);
+    const editorMovementPerBeat = 24 * speedMultiplier; // 에디터의 현재 공식
+
+    // 변환 비율
+    const ratio = editorMovementPerBeat / unityMovementPerBeat;
+    return unityDistance * ratio;
+}
+
+// Unity에서 노트의 정확한 위치 계산 (Lerp 방식)
+export function calculateUnityNotePosition(noteTime, previousNodeTime, nextNodeTime,
+    previousNodePosition, nextNodePosition) {
+
+    if (nextNodeTime === previousNodeTime) {
+        return { ...previousNodePosition };
+    }
+
+    const t = (noteTime - previousNodeTime) / (nextNodeTime - previousNodeTime);
+    const clampedT = Math.max(0, Math.min(1, t));
+
+    return {
+        x: previousNodePosition.x + (nextNodePosition.x - previousNodePosition.x) * clampedT,
+        y: previousNodePosition.y + (nextNodePosition.y - previousNodePosition.y) * clampedT
+    };
+}
+
+// Unity 방향 벡터 정규화
+export function normalizeDirection(direction) {
+    const [dx, dy] = directionToVector(direction);
+    const magnitude = Math.hypot(dx, dy);
+
+    if (magnitude === 0) return [0, 0];
+
+    return [dx / magnitude, dy / magnitude];
+}

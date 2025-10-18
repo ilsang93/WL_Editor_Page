@@ -9,7 +9,13 @@ import {
     timeToBeat,
     beatToTime,
     directionToVector,
-    getPreDelaySeconds
+    getPreDelaySeconds,
+    calculateUnityMovementPerBeat,
+    calculateUnityNodeDistance,
+    convertEditorToUnityCoordinate,
+    convertUnityToEditorCoordinate,
+    calculateUnityNotePosition,
+    normalizeDirection
 } from './utils.js';
 
 import {
@@ -106,6 +112,7 @@ let isBatchEditEnabled = false;
 
 let musicVolume = 0.5; // 0.0 ~ 1.0
 let sfxVolume = 1.0; // 0.0 ~ 1.0
+let speedMultiplier = 1.0; // 1.0 ~ 3.0 배속
 
 // 렌더링 디바운싱을 위한 변수
 let renderScheduled = false;
@@ -139,7 +146,8 @@ let pathCache = {
     lastNotesHash: null,
     lastBpm: null,
     lastSubdivisions: null,
-    lastPreDelaySeconds: null
+    lastPreDelaySeconds: null,
+    lastSpeedMultiplier: null
 };
 
 // 캐시 무효화 함수
@@ -988,7 +996,8 @@ function drawPath() {
         pathCache.lastNotesHash !== currentNotesHash ||
         pathCache.lastBpm !== bpm ||
         pathCache.lastSubdivisions !== subdivisions ||
-        pathCache.lastPreDelaySeconds !== preDelaySeconds;
+        pathCache.lastPreDelaySeconds !== preDelaySeconds ||
+        pathCache.lastSpeedMultiplier !== speedMultiplier;
 
     let pathDirectionNotes, nodePositions, segmentTimes;
 
@@ -1015,6 +1024,7 @@ function drawPath() {
         pathCache.lastBpm = bpm;
         pathCache.lastSubdivisions = subdivisions;
         pathCache.lastPreDelaySeconds = preDelaySeconds;
+        pathCache.lastSpeedMultiplier = speedMultiplier;
     } else {
         // 캐시 히트 - 기존 데이터 사용
         pathDirectionNotes = pathCache.pathDirectionNotes;
@@ -1311,11 +1321,10 @@ function calculateMovementSpeed(fromNote, toNote, globalBpm, globalSubdivisions)
     const toBpm = toNote.bpm || globalBpm;
     const avgBpm = (fromBpm + toBpm) / 2;
 
-    // 기준 BPM(120)에서의 기본 속도는 8 units/second
-    // BPM이 높아지면 속도도 비례적으로 증가
-    const baseBpm = 120;
-    const baseSpeed = 8;
-    return baseSpeed * (avgBpm / baseBpm);
+    // Unity 공식 적용: multiplierConstant = 0.4 × 배속
+    // 속도 = multiplierConstant × BPM
+    const multiplierConstant = 0.4 * speedMultiplier;
+    return multiplierConstant * avgBpm;
 }
 
 function drawLongNoteBar(startPathBeat, endPathBeat, pathDirectionNotes, nodePositions, color, lineWidth, noteSubdivisions) {
@@ -2092,6 +2101,7 @@ function saveToStorage() {
     const preDelayValue = parseInt(document.getElementById("pre-delay").value || 0);
     const bpmValue = parseFloat(document.getElementById("bpm").value || 120);
     const subdivisionsValue = parseInt(document.getElementById("subdivisions").value || 16);
+    const speedMultiplierValue = parseFloat(document.getElementById("speed-multiplier").value || 1.0);
 
     const saveData = {
         notes: notes,
@@ -2101,7 +2111,8 @@ function saveToStorage() {
         audioFileName: savedAudioFile ? savedAudioFile.name : null,
         audioFileSize: savedAudioFile ? savedAudioFile.size : null,
         audioFileType: savedAudioFile ? savedAudioFile.type : null,
-        preDelay: preDelayValue
+        preDelay: preDelayValue,
+        speedMultiplier: speedMultiplierValue
     };
     localStorage.setItem("autosave_notes", JSON.stringify(saveData));
 }
@@ -2164,6 +2175,11 @@ function loadFromStorage() {
                 if (parsed.preDelay !== undefined) {
                     const adjustedPreDelay = parsed.preDelay;
                     document.getElementById("pre-delay").value = adjustedPreDelay;
+                }
+
+                if (parsed.speedMultiplier !== undefined) {
+                    document.getElementById("speed-multiplier").value = parsed.speedMultiplier;
+                    speedMultiplier = parsed.speedMultiplier;
                 }
 
                 // EventList 데이터 로드
@@ -2765,6 +2781,7 @@ function focusNoteAtIndex(index) {
         selectedNoteIndex = null;
         drawPath();
         renderNoteList();
+        updateSelectedNoteUnityCoordinates();
         return;
     }
 
@@ -2870,6 +2887,9 @@ function focusNoteAtIndex(index) {
     });
 
     drawPath();
+
+    // Unity 좌표 정보 업데이트
+    updateSelectedNoteUnityCoordinates();
 }
 
 function focusEventAtIndex(index) {
@@ -3599,6 +3619,7 @@ function handleBpmChange(newBpm) {
     renderNoteList();
     if (waveformData)
         drawWaveformWrapper();
+    updateCoordinateInfo();
 }
 
 // Subdivisions 필드 변경 핸들러
@@ -3635,6 +3656,194 @@ function handlePreDelayChange() {
     renderNoteList();
     if (waveformData)
         drawWaveformWrapper();
+}
+
+// 배속 변경 핸들러
+function handleSpeedMultiplierChange(newSpeedMultiplier) {
+    console.log(`Speed multiplier changed to ${newSpeedMultiplier}x`);
+
+    speedMultiplier = Math.max(1.0, Math.min(3.0, newSpeedMultiplier));
+
+    // 캐시 무효화 및 UI 업데이트
+    invalidatePathCache();
+    saveToStorage();
+    renderNoteList();
+    drawPath();
+    updateCoordinateInfo();
+}
+
+// 좌표 정보 업데이트
+function updateCoordinateInfo() {
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+
+    // Unity 공식으로 정확한 계산
+    const unityUnitsPerBeat = calculateUnityMovementPerBeat(bpm, speedMultiplier);
+    const editorUnitsPerBeat = 24.0 * speedMultiplier; // 에디터의 현재 공식
+    const conversionRatio = unityUnitsPerBeat / editorUnitsPerBeat;
+
+    // UI 업데이트
+    const editorUnitsSpan = document.getElementById("editor-units-per-beat");
+    const gameUnitsSpan = document.getElementById("game-units-per-beat");
+    const ratioSpan = document.getElementById("conversion-ratio");
+
+    if (editorUnitsSpan) editorUnitsSpan.textContent = editorUnitsPerBeat.toFixed(1);
+    if (gameUnitsSpan) gameUnitsSpan.textContent = unityUnitsPerBeat.toFixed(2);
+    if (ratioSpan) ratioSpan.textContent = conversionRatio.toFixed(3);
+
+    // 선택된 노트의 Unity 좌표 업데이트
+    updateSelectedNoteUnityCoordinates();
+}
+
+// 선택된 노트의 Unity 좌표 계산 및 표시
+function updateSelectedNoteUnityCoordinates() {
+    const unityXSpan = document.getElementById("selected-note-unity-x");
+    const unityYSpan = document.getElementById("selected-note-unity-y");
+    const totalDistanceSpan = document.getElementById("selected-note-total-distance");
+
+    if (!unityXSpan || !unityYSpan || !totalDistanceSpan) return;
+
+    if (selectedNoteIndex === null || selectedNoteIndex >= notes.length) {
+        unityXSpan.textContent = "-";
+        unityYSpan.textContent = "-";
+        totalDistanceSpan.textContent = "-";
+        return;
+    }
+
+    const selectedNote = notes[selectedNoteIndex];
+    const bpm = parseFloat(document.getElementById("bpm").value || 120);
+    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+    const preDelaySeconds = getPreDelaySeconds();
+
+    try {
+        // Unity 노드 위치들 계산
+        const unityNodePositions = calculateUnityNodePositions(bpm, subdivisions, preDelaySeconds);
+
+        if (unityNodePositions && unityNodePositions.length > 0) {
+            // 선택된 노트의 Unity 위치 계산
+            const noteUnityPosition = calculateNoteUnityPosition(selectedNote, unityNodePositions, bpm, subdivisions, preDelaySeconds);
+
+            if (noteUnityPosition) {
+                unityXSpan.textContent = noteUnityPosition.x.toFixed(2);
+                unityYSpan.textContent = noteUnityPosition.y.toFixed(2);
+
+                // 총 이동 거리 계산
+                const totalDistance = Math.hypot(noteUnityPosition.x, noteUnityPosition.y);
+                totalDistanceSpan.textContent = totalDistance.toFixed(2);
+            } else {
+                unityXSpan.textContent = "계산 불가";
+                unityYSpan.textContent = "계산 불가";
+                totalDistanceSpan.textContent = "-";
+            }
+        } else {
+            unityXSpan.textContent = "-";
+            unityYSpan.textContent = "-";
+            totalDistanceSpan.textContent = "-";
+        }
+    } catch (error) {
+        console.error("Unity 좌표 계산 오류:", error);
+        unityXSpan.textContent = "오류";
+        unityYSpan.textContent = "오류";
+        totalDistanceSpan.textContent = "-";
+    }
+}
+
+// Unity 노드 위치들 계산 (Unity 공식 사용)
+function calculateUnityNodePositions(bpm, subdivisions, preDelaySeconds) {
+    const directionNotes = notes.filter(n =>
+        n.type === "direction" ||
+        n.type === "both" ||
+        n.type === "longdirection" ||
+        n.type === "longboth" ||
+        n.type === "node"
+    ).sort((a, b) => a.beat - b.beat);
+
+    if (directionNotes.length === 0) return [];
+
+    const pathDirectionNotes = calculatePathDirectionNotes(directionNotes, bpm, subdivisions, preDelaySeconds);
+    const unityNodePositions = [];
+    let currentPosition = { x: 0, y: 0 };
+    unityNodePositions.push({ ...currentPosition });
+
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const fromNote = pathDirectionNotes[i];
+        const toNote = pathDirectionNotes[i + 1];
+        const deltaTime = toNote.finalTime - fromNote.finalTime;
+
+        if (toNote.type === "node" && toNote.wait) {
+            // Wait 노드는 이동하지 않음
+            unityNodePositions.push({ ...currentPosition });
+        } else {
+            // Unity 공식으로 거리 계산
+            const distance = calculateUnityNodeDistance(deltaTime, bpm, speedMultiplier);
+
+            // 방향 결정
+            let direction = fromNote.direction;
+            if (fromNote.type === "node") {
+                // 노드의 경우 이전 방향 노트의 방향 사용
+                for (let j = i - 1; j >= 0; j--) {
+                    const prevNote = pathDirectionNotes[j];
+                    if (prevNote.type !== "node" && prevNote.direction) {
+                        direction = prevNote.direction;
+                        break;
+                    }
+                }
+                direction = direction || "right";
+            }
+
+            // Unity 정규화된 방향 벡터
+            const [dx, dy] = normalizeDirection(direction);
+
+            // 다음 위치 계산
+            const nextPosition = {
+                x: currentPosition.x + dx * distance,
+                y: currentPosition.y + dy * distance
+            };
+
+            currentPosition = nextPosition;
+            unityNodePositions.push({ ...currentPosition });
+        }
+    }
+
+    return unityNodePositions;
+}
+
+// 특정 노트의 Unity 위치 계산
+function calculateNoteUnityPosition(note, unityNodePositions, bpm, subdivisions, preDelaySeconds) {
+    const directionNotes = notes.filter(n =>
+        n.type === "direction" ||
+        n.type === "both" ||
+        n.type === "longdirection" ||
+        n.type === "longboth" ||
+        n.type === "node"
+    ).sort((a, b) => a.beat - b.beat);
+
+    if (directionNotes.length === 0) return null;
+
+    const pathDirectionNotes = calculatePathDirectionNotes(directionNotes, bpm, subdivisions, preDelaySeconds);
+    const timing = getNoteTimingParams(note, bpm, subdivisions);
+    const noteTime = beatToTime(note.beat, timing.bpm, timing.subdivisions) + preDelaySeconds;
+
+    // 노트가 속한 구간 찾기
+    for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+        const fromNode = pathDirectionNotes[i];
+        const toNode = pathDirectionNotes[i + 1];
+
+        if (noteTime >= fromNode.finalTime && noteTime <= toNode.finalTime) {
+            // Unity Lerp 방식으로 위치 계산
+            const previousNodePosition = unityNodePositions[i];
+            const nextNodePosition = unityNodePositions[i + 1];
+
+            return calculateUnityNotePosition(
+                noteTime,
+                fromNode.finalTime,
+                toNode.finalTime,
+                previousNodePosition,
+                nextNodePosition
+            );
+        }
+    }
+
+    return null;
 }
 
 // EventList UI 렌더링
@@ -4103,6 +4312,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (preDelayField) {
         preDelayField.addEventListener("change", handlePreDelayChange);
+    }
+
+    const speedMultiplierField = document.getElementById("speed-multiplier");
+    if (speedMultiplierField) {
+        speedMultiplierField.addEventListener("change", (e) => {
+            handleSpeedMultiplierChange(parseFloat(e.target.value || 1.0));
+        });
     }
 
     document.getElementById("clear-notes").addEventListener("click", () => {
@@ -4731,6 +4947,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     drawPath();
     renderNoteList();
     renderEventList();
+    updateCoordinateInfo();
 
     // 키보드 단축키
     document.addEventListener('keydown', (e) => {

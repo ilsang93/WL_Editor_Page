@@ -12,11 +12,10 @@
   <div id="sidebar">
     <div class="sidebar-controls" style="padding: 8px;">
       <label>BPM: <input id="bpm" type="number" value="120" min="60" max="300" step="0.1" /></label>
-      <br><br>
       <label>Min BPM: <input id="min-bpm" type="number" value="60" min="1" max="999" step="0.1" /></label>
-      <br><br>
       <label>Max BPM: <input id="max-bpm" type="number" value="300" min="1" max="999" step="0.1" /></label>
       <br><br>
+      <label>배속: <input id="speed-multiplier" type="number" value="1.0" min="1.0" max="3.0" step="0.1" /></label>
       <label>Pre-delay (ms): <input id="pre-delay" type="number" value="3000" min="-10000" max="10000" step="100" /></label>
       <br><br>
       <label>Level: <input id="level" type="range" value="10" min="1" max="20" step="1" oninput="document.getElementById('level-display').textContent = this.value" /></label>
@@ -160,6 +159,18 @@
         <br>
         <label for="draw-ahead-time">그리기 시간차(초):</label>
         <input type="number" id="draw-ahead-time" value="2" min="0.1" max="10" step="0.1" style="width: 60px;">
+        <br><br>
+        <div id="coordinate-info" style="font-size: 11px; color: #ccc; border-top: 1px solid #555; padding-top: 8px;">
+          <div><strong>좌표 정보:</strong></div>
+          <div>에디터 단위/비트: <span id="editor-units-per-beat">24.0</span></div>
+          <div>Unity 단위/비트: <span id="game-units-per-beat">-</span></div>
+          <div>변환 비율: <span id="conversion-ratio">-</span></div>
+          <br>
+          <div><strong>선택된 노트 Unity 좌표:</strong></div>
+          <div>X: <span id="selected-note-unity-x">-</span></div>
+          <div>Y: <span id="selected-note-unity-y">-</span></div>
+          <div>총 이동 거리: <span id="selected-note-total-distance">-</span></div>
+        </div>
       </div>
     </div>
   </div>
