@@ -31,6 +31,8 @@ export const EVENT_IDS_BY_TYPE = {
         'rotate',
         'position_from_character',
         'position_from_time',
+        'position',
+        'damping',
         'position_off'
     ],
     'background': [
@@ -100,6 +102,13 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'camera-position_off': [
         { paramName: 'fade', paramType: 'float' },
+    ],
+    'camera-position': [
+        { paramName: 'x', paramType: 'float' },
+        { paramName: 'y', paramType: 'float' },
+    ],
+    'camera-damping': [
+        { paramName: 'multiplier', paramType: 'float' },
     ],
 
     // background 타입 이벤트
