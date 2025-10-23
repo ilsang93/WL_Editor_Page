@@ -3312,40 +3312,8 @@ function setupToggleFeatures() {
 }
 
 function setupNoteButtons() {
-    // Tab 노트 추가
-    document.getElementById('add-tab').addEventListener('click', () => {
-        addNote({ type: "tab", isLong: false, longTime: 0 });
-    });
-
-    // Direction 노트 추가
-    document.getElementById('add-dir').addEventListener('click', () => {
-        addNote({ type: "direction", isLong: false, longTime: 0 });
-    });
-
-    // Both 노트 추가
-    document.getElementById('add-both').addEventListener('click', () => {
-        addNote({ type: "both", isLong: false, longTime: 0 });
-    });
-
-    // Node 노트 추가 (BPM 지정만 가능)
-    document.getElementById('add-node').addEventListener('click', () => {
-        addNote({ type: "node", isLong: false, longTime: 0 });
-    });
-
-    // Long Tab 노트 추가
-    document.getElementById('add-long-tab').addEventListener('click', () => {
-        addNote({ type: "longtab", isLong: true });
-    });
-
-    // Long Direction 노트 추가
-    document.getElementById('add-long-dir').addEventListener('click', () => {
-        addNote({ type: "longdirection", isLong: true });
-    });
-
-    // Long Both 노트 추가  
-    document.getElementById('add-long-both').addEventListener('click', () => {
-        addNote({ type: "longboth", isLong: true });
-    });
+    // 노트 버튼들은 이벤트 델리게이션으로 처리됨
+    // 기존 개별 addEventListener 제거하여 중복 실행 방지
 }
 
 function setupVolumeControls() {
@@ -4891,7 +4859,38 @@ function handleSidebarClick(e) {
         return;
     }
     if (target.id === 'duplicate-events') {
-        // 기존 로직 유지
+        if (selectedEventIndices.size === 0) {
+            alert("복제할 이벤트를 선택해주세요.");
+            return;
+        }
+
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
+        const selectedIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
+        const maxIndex = Math.max(...selectedIndices);
+        const clonedEvents = [];
+
+        // 선택된 이벤트들을 복제
+        selectedIndices.forEach(index => {
+            const event = getEventAtIndex(index);
+            if (event) {
+                const clonedEvent = cloneEvent(event);
+                clonedEvents.push(clonedEvent);
+            }
+        });
+
+        // 가장 뒤에 있는 선택된 항목 바로 뒤에 삽입
+        const insertIndex = maxIndex + 1;
+        const newIndices = insertMultipleEvents(insertIndex, clonedEvents);
+
+        // 복제된 이벤트들을 선택
+        selectedEventIndices.clear();
+        newIndices.forEach(index => selectedEventIndices.add(index));
+
+        saveToStorage();
+        renderEventList();
+        drawPath();
         return;
     }
     if (target.id === 'clear-event-selection') {
@@ -5056,55 +5055,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
 
-    // Add Event 버튼 이벤트 리스너
-    document.getElementById("add-event").addEventListener("click", () => {
-        const eventIndex = addEvent();
-        appendSingleEventToList(eventIndex);
-        saveToStorage();
-    });
+    // Add Event 버튼은 이벤트 델리게이션으로 처리됨
 
-    // 복제 버튼 이벤트 리스너
-    document.getElementById("duplicate-events").addEventListener("click", () => {
-        if (selectedEventIndices.size === 0) {
-            alert("복제할 이벤트를 선택해주세요.");
-            return;
-        }
-
-        // 변경 전 상태를 히스토리에 저장
-        saveState();
-
-        const selectedIndices = Array.from(selectedEventIndices).sort((a, b) => a - b);
-        const maxIndex = Math.max(...selectedIndices);
-        const clonedEvents = [];
-
-        // 선택된 이벤트들을 복제
-        selectedIndices.forEach(index => {
-            const event = getEventAtIndex(index);
-            if (event) {
-                const clonedEvent = cloneEvent(event);
-                clonedEvents.push(clonedEvent);
-            }
-        });
-
-        // 가장 뒤에 있는 선택된 항목 바로 뒤에 삽입
-        const insertIndex = maxIndex + 1;
-        const newIndices = insertMultipleEvents(insertIndex, clonedEvents);
-
-        // 복제된 이벤트들을 선택
-        selectedEventIndices.clear();
-        newIndices.forEach(index => selectedEventIndices.add(index));
-
-        saveToStorage();
-        renderEventList();
-        drawPath();
-    });
-
-    // 이벤트 선택 해제 버튼
-    document.getElementById("clear-event-selection").addEventListener("click", () => {
-        selectedEventIndices.clear();
-        lastClickedEventIndex = null;
-        renderEventList();
-    });
+    // 복제 및 선택 해제 버튼들은 이벤트 델리게이션으로 처리됨
 
     // Go to URL 버튼 이벤트 리스너
     document.getElementById("go-to-url").addEventListener("click", () => {
