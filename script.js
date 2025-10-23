@@ -2333,6 +2333,7 @@ function updateTabNotesInheritance() {
 }
 
 // 최적화된 렌더링 스케줄러 (디바운싱)
+// 성능 최적화된 렌더링 스케줄러
 function scheduleRender(flags = {}) {
     // 플래그 업데이트
     if (flags.noteList) pendingRenderFlags.noteList = true;
@@ -2343,30 +2344,67 @@ function scheduleRender(flags = {}) {
     if (renderScheduled) return;
 
     renderScheduled = true;
-    requestAnimationFrame(() => {
-        // 한 프레임에 모든 렌더링 작업을 묶어서 처리
-        if (pendingRenderFlags.canvas) {
-            drawPath();
-        }
-        if (pendingRenderFlags.noteList) {
-            renderNoteListImmediate();
-        }
-        if (pendingRenderFlags.eventList) {
-            renderEventListImmediate();
-        }
-        if (pendingRenderFlags.waveform && waveformData) {
-            drawWaveformWrapper();
-        }
 
-        // 플래그 초기화
-        pendingRenderFlags = {
-            noteList: false,
-            eventList: false,
-            canvas: false,
-            waveform: false
-        };
-        renderScheduled = false;
-    });
+    // Idle 상태에서 렌더링 수행 (성능 향상)
+    const performRender = () => {
+        const startTime = performance.now();
+
+        try {
+            // 우선순위가 높은 렌더링부터 처리
+            if (pendingRenderFlags.canvas) {
+                drawPath();
+            }
+
+            // DOM 업데이트는 배치로 처리
+            const domUpdates = [];
+
+            if (pendingRenderFlags.noteList) {
+                domUpdates.push(() => renderNoteListImmediate());
+            }
+
+            if (pendingRenderFlags.eventList) {
+                domUpdates.push(() => renderEventListImmediate());
+            }
+
+            // DOM 업데이트 배치 실행
+            if (domUpdates.length > 0) {
+                // 레이아웃 스래싱 방지를 위한 읽기/쓰기 분리
+                domUpdates.forEach(update => update());
+            }
+
+            if (pendingRenderFlags.waveform && waveformData) {
+                drawWaveformWrapper();
+            }
+
+            const endTime = performance.now();
+            const renderTime = endTime - startTime;
+
+            // 성능 모니터링 (개발 모드에서만)
+            if (renderTime > 16) { // 16ms 이상이면 경고
+                console.warn(`Render time exceeded 16ms: ${renderTime.toFixed(2)}ms`);
+            }
+
+        } catch (error) {
+            console.error('Render error:', error);
+        } finally {
+            // 플래그 초기화
+            pendingRenderFlags = {
+                noteList: false,
+                eventList: false,
+                canvas: false,
+                waveform: false
+            };
+            renderScheduled = false;
+        }
+    };
+
+    // 브라우저가 한가할 때 렌더링 수행
+    if (window.requestIdleCallback) {
+        window.requestIdleCallback(performRender, { timeout: 16 });
+    } else {
+        // requestIdleCallback을 지원하지 않는 브라우저는 requestAnimationFrame 사용
+        requestAnimationFrame(performRender);
+    }
 }
 
 // 중복 검사 최적화 함수 (O(n²) → O(n))
@@ -3942,11 +3980,348 @@ function renderEventListImmediate() {
 //     // TODO: 가상 스크롤링 구현
 // }
 
+// 새로운 이벤트 하나만 리스트에 추가하는 최적화된 함수
+function appendSingleEventToList(eventIndex) {
+    const container = document.getElementById("event-list");
+    const events = getAllEvents();
+    const event = events[eventIndex];
+
+    if (!event) return;
+
+    const eventDiv = createEventElement(event, eventIndex);
+    container.appendChild(eventDiv);
+
+    // 새로 추가된 이벤트로 스크롤
+    eventDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+// 이벤트 요소 생성 함수 (재사용 가능)
+function createEventElement(event, eventIndex) {
+    const eventTypes = getEventTypes();
+
+    const eventDiv = document.createElement("div");
+    eventDiv.className = "event-item";
+
+    // 선택된 이벤트 표시
+    if (selectedEventIndices.has(eventIndex)) {
+        eventDiv.classList.add("selected");
+    }
+
+    // 이벤트 아이템 클릭 리스너 (한 번만 등록)
+    attachEventClickListener(eventDiv, eventIndex);
+
+    const eventHeader = document.createElement("div");
+    eventHeader.className = "event-header";
+
+    // 배치 DOM 조작을 위한 document fragment 사용
+    const fragment = document.createDocumentFragment();
+
+    // Event Type 드롭다운 생성
+    const typeElements = createEventTypeElements(event, eventTypes);
+    fragment.appendChild(typeElements.typeLabel);
+
+    // Event ID 입력 요소 생성
+    const idElements = createEventIdElements(event, eventIndex);
+    fragment.appendChild(idElements.idLabel);
+
+    // Event Time 입력 요소 생성
+    const timeElements = createEventTimeElements(event, eventIndex);
+    fragment.appendChild(timeElements.timeLabel);
+
+    // 버튼들 생성
+    const buttonElements = createEventButtonElements(event, eventIndex);
+    fragment.appendChild(buttonElements.predefinedParamsBtn);
+    fragment.appendChild(buttonElements.deleteBtn);
+
+    eventHeader.appendChild(fragment);
+    eventDiv.appendChild(eventHeader);
+
+    // 파라미터 섹션 생성
+    const paramsSection = createEventParamsSection(event, eventIndex);
+    eventDiv.appendChild(paramsSection);
+
+    return eventDiv;
+}
+
+// 이벤트 클릭 리스너는 이제 이벤트 델리게이션으로 처리됨 (성능 최적화)
+function attachEventClickListener(eventDiv, eventIndex) {
+    // 이벤트 델리게이션으로 처리되므로 개별 리스너 불필요
+    // eventDiv에 data 속성으로 인덱스 저장
+    eventDiv.setAttribute('data-event-index', eventIndex);
+}
+
+// 이벤트 클릭 처리 로직 분리
+function handleEventClick(e, eventIndex) {
+    if (e.shiftKey && lastClickedEventIndex !== null) {
+        const start = Math.min(lastClickedEventIndex, eventIndex);
+        const end = Math.max(lastClickedEventIndex, eventIndex);
+        for (let i = start; i <= end; i++) {
+            selectedEventIndices.add(i);
+        }
+        lastClickedEventIndex = eventIndex;
+        scheduleRender({ eventList: true });
+    } else if (e.ctrlKey || e.metaKey) {
+        if (selectedEventIndices.has(eventIndex)) {
+            selectedEventIndices.delete(eventIndex);
+        } else {
+            selectedEventIndices.add(eventIndex);
+        }
+        lastClickedEventIndex = eventIndex;
+        scheduleRender({ eventList: true });
+    } else {
+        lastClickedEventIndex = eventIndex;
+        focusEventAtIndex(eventIndex);
+    }
+}
+
+// Event Type 요소들 생성
+function createEventTypeElements(event, eventTypes) {
+    const typeLabel = document.createElement("label");
+    typeLabel.textContent = "Type: ";
+    const typeSelect = document.createElement("select");
+    typeSelect.className = "event-type-select";
+
+    // 옵션들을 배치로 추가
+    const fragment = document.createDocumentFragment();
+    eventTypes.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        option.selected = type === event.eventType;
+
+        const description = getEventTypeDescription(type);
+        if (description) {
+            option.title = description;
+        }
+        fragment.appendChild(option);
+    });
+    typeSelect.appendChild(fragment);
+
+    const currentDescription = getEventTypeDescription(event.eventType);
+    if (currentDescription) {
+        typeSelect.title = currentDescription;
+    }
+
+    // 이벤트 델리게이션으로 처리되므로 개별 리스너 불필요
+    typeLabel.appendChild(typeSelect);
+
+    return { typeLabel, typeSelect };
+}
+
+// Type 변경 처리 함수
+function handleTypeChange(e, event) {
+    event.eventType = e.target.value;
+    const newDescription = getEventTypeDescription(e.target.value);
+    e.target.title = newDescription || '';
+
+    event.eventId = '';
+    saveToStorage();
+
+    // 전체 리렌더링 대신 해당 이벤트만 업데이트
+    requestAnimationFrame(() => renderEventList());
+}
+
+// Event ID 요소들 생성
+function createEventIdElements(event, eventIndex) {
+    const idLabel = document.createElement("label");
+    idLabel.textContent = "ID: ";
+
+    const idInput = createEventIdInputElement(event);
+    idLabel.appendChild(idInput);
+
+    return { idLabel, idInput };
+}
+
+// Event ID 입력 요소 생성 (독립된 함수)
+function createEventIdInputElement(event) {
+    const isCustom = isCustomEventType(event.eventType);
+    let idInput;
+
+    if (isCustom) {
+        // custom 타입이면 텍스트 입력
+        idInput = document.createElement("input");
+        idInput.type = "text";
+        idInput.className = "event-id-input";
+        idInput.value = event.eventId;
+
+        // 이벤트 델리게이션으로 처리됨
+    } else {
+        // 사전 정의된 타입이면 드롭다운
+        idInput = document.createElement("select");
+        idInput.className = "event-id-select";
+
+        const eventIds = getEventIdsByType(event.eventType);
+
+        // Document fragment를 사용한 배치 추가
+        const fragment = document.createDocumentFragment();
+
+        // 빈 옵션 추가 (선택 안함)
+        const emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.textContent = "-- 선택 --";
+        fragment.appendChild(emptyOption);
+
+        // 사전 정의된 EventId 옵션들 추가
+        eventIds.forEach(id => {
+            const option = document.createElement("option");
+            option.value = id;
+            option.textContent = id;
+            option.selected = id === event.eventId;
+            fragment.appendChild(option);
+        });
+
+        // 현재 값이 목록에 없으면 "기타" 옵션으로 추가
+        if (event.eventId && !eventIds.includes(event.eventId)) {
+            const customOption = document.createElement("option");
+            customOption.value = event.eventId;
+            customOption.textContent = `${event.eventId} (사용자 정의)`;
+            customOption.selected = true;
+            fragment.appendChild(customOption);
+        }
+
+        idInput.appendChild(fragment);
+
+        // 이벤트 델리게이션으로 처리됨
+    }
+
+    return idInput;
+}
+
+// Event Time 요소들 생성
+function createEventTimeElements(event, eventIndex) {
+    const timeLabel = document.createElement("label");
+    timeLabel.textContent = "Time: ";
+    const timeInput = document.createElement("input");
+    timeInput.type = "number";
+    timeInput.step = "0.001";
+    timeInput.value = event.eventTime;
+    timeInput.className = "event-time-input";
+
+    // 이벤트 델리게이션으로 처리됨
+
+    timeLabel.appendChild(timeInput);
+    return { timeLabel, timeInput };
+}
+
+// Event 버튼들 생성
+function createEventButtonElements(event, eventIndex) {
+    const predefinedParamsBtn = document.createElement("button");
+    predefinedParamsBtn.textContent = "기본 파라미터";
+    predefinedParamsBtn.className = "predefined-params-btn";
+    // 이벤트 델리게이션으로 처리됨
+
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "삭제";
+    deleteBtn.className = "delete-event-btn";
+    // 이벤트 델리게이션으로 처리됨
+
+    return { predefinedParamsBtn, deleteBtn };
+}
+
+// Event 파라미터 섹션 생성
+function createEventParamsSection(event, eventIndex) {
+    const paramsContainer = document.createElement("div");
+    paramsContainer.className = "params-container";
+
+    const paramsLabel = document.createElement("div");
+    paramsLabel.className = "params-label";
+    paramsLabel.innerHTML = '<span class="params-toggle">▼</span> Parameters';
+
+    // 토글 기능은 이벤트 델리게이션으로 처리됨
+
+    const paramsContent = document.createElement("div");
+    paramsContent.className = "params-content";
+
+    const paramsList = document.createElement("div");
+    paramsList.className = "params-list";
+
+    // 파라미터들 렌더링
+    event.eventParams.forEach((param, paramIndex) => {
+        const paramDiv = createEventParamElement(event, eventIndex, param, paramIndex);
+        paramsList.appendChild(paramDiv);
+    });
+
+    const addParamBtn = document.createElement("button");
+    addParamBtn.textContent = "파라미터 추가";
+    addParamBtn.className = "add-param-btn";
+    // 이벤트 델리게이션으로 처리됨
+
+    paramsContent.appendChild(paramsList);
+    paramsContent.appendChild(addParamBtn);
+    paramsContainer.appendChild(paramsLabel);
+    paramsContainer.appendChild(paramsContent);
+
+    return paramsContainer;
+}
+
+// Event 파라미터 요소 생성
+function createEventParamElement(event, eventIndex, param, paramIndex) {
+    const paramDiv = document.createElement("div");
+    paramDiv.className = "param-item";
+
+    const paramTypeSelect = document.createElement("select");
+    paramTypeSelect.className = "param-type-select";
+
+    const paramTypes = getParamTypes();
+    paramTypes.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        option.selected = type === param.paramType;
+
+        const description = getParamTypeDescription(type);
+        if (description) {
+            option.title = description;
+        }
+        paramTypeSelect.appendChild(option);
+    });
+
+    const paramNameInput = document.createElement("input");
+    paramNameInput.type = "text";
+    paramNameInput.placeholder = "파라미터 이름";
+    paramNameInput.value = param.paramName;
+    paramNameInput.className = "param-name-input";
+
+    const paramValueInput = document.createElement("input");
+    paramValueInput.type = "text";
+    paramValueInput.placeholder = "파라미터 값";
+    paramValueInput.value = param.paramValue;
+    paramValueInput.className = "param-value-input";
+
+    const deleteParamBtn = document.createElement("button");
+    deleteParamBtn.textContent = "삭제";
+    deleteParamBtn.className = "delete-param-btn";
+
+    // 이벤트 델리게이션으로 처리됨
+
+    paramDiv.appendChild(paramTypeSelect);
+    paramDiv.appendChild(paramNameInput);
+    paramDiv.appendChild(paramValueInput);
+    paramDiv.appendChild(deleteParamBtn);
+
+    return paramDiv;
+}
+
+// 메모리 누수 방지를 위한 이벤트 리스너 정리
+function cleanupEventListeners(container) {
+    const elements = container.querySelectorAll('input, select, button');
+    elements.forEach(element => {
+        // Clone하여 모든 이벤트 리스너 제거
+        const clone = element.cloneNode(true);
+        element.parentNode.replaceChild(clone, element);
+    });
+}
+
 // 기존 이벤트 렌더링 로직 (가상 스크롤링 비활성화)
 function renderEventListImmediate_Original() {
     const container = document.getElementById("event-list");
 
-    // 성능 최적화: innerHTML 대신 removeChild로 이벤트 리스너 정리
+    // 성능 최적화: 메모리 누수 방지를 위한 이벤트 리스너 정리
+    if (container.children.length > 0) {
+        cleanupEventListeners(container);
+    }
+
+    // 기존 요소들 제거
     while (container.firstChild) {
         container.removeChild(container.firstChild);
     }
@@ -4330,8 +4705,251 @@ function switchTab(tabName) {
 }
 
 // 초기화
+// 이벤트 델리게이션 시스템 (성능 최적화)
+function setupEventDelegation() {
+    // 이벤트 리스트 컨테이너에 대한 단일 이벤트 리스너
+    const eventListContainer = document.getElementById("event-list");
+    if (eventListContainer) {
+        eventListContainer.addEventListener("click", handleEventListClick);
+        eventListContainer.addEventListener("change", handleEventListChange);
+    }
+
+    // 사이드바 이벤트 델리게이션
+    const sidebar = document.getElementById("sidebar");
+    if (sidebar) {
+        sidebar.addEventListener("click", handleSidebarClick);
+        sidebar.addEventListener("change", handleSidebarChange);
+    }
+
+    // 메인 영역 이벤트 델리게이션
+    const main = document.getElementById("main");
+    if (main) {
+        main.addEventListener("click", handleMainClick);
+    }
+}
+
+// 이벤트 리스트 클릭 처리
+function handleEventListClick(e) {
+    const target = e.target;
+    const eventItem = target.closest('.event-item');
+
+    if (!eventItem) return;
+
+    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) || Array.from(eventItem.parentNode.children).indexOf(eventItem);
+
+    // 삭제 버튼
+    if (target.classList.contains('delete-event-btn')) {
+        if (removeEvent(eventIndex)) {
+            scheduleRender({ eventList: true });
+            saveToStorage();
+        }
+        return;
+    }
+
+    // 기본 파라미터 버튼
+    if (target.classList.contains('predefined-params-btn')) {
+        applyPredefinedParams(eventIndex);
+        scheduleRender({ eventList: true });
+        saveToStorage();
+        return;
+    }
+
+    // 파라미터 추가 버튼
+    if (target.classList.contains('add-param-btn')) {
+        addEventParam(eventIndex);
+        scheduleRender({ eventList: true });
+        saveToStorage();
+        return;
+    }
+
+    // 파라미터 삭제 버튼
+    if (target.classList.contains('delete-param-btn')) {
+        const paramItem = target.closest('.param-item');
+        if (paramItem) {
+            const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+            removeEventParam(eventIndex, paramIndex);
+            scheduleRender({ eventList: true });
+            saveToStorage();
+        }
+        return;
+    }
+
+    // 파라미터 토글
+    if (target.classList.contains('params-toggle') || target.closest('.params-label')) {
+        const paramsContainer = eventItem.querySelector('.params-container');
+        const content = paramsContainer.querySelector('.params-content');
+        const toggle = paramsContainer.querySelector('.params-toggle');
+
+        content.classList.toggle("collapsed");
+        toggle.classList.toggle("collapsed");
+        toggle.textContent = content.classList.contains("collapsed") ? "▶" : "▼";
+        return;
+    }
+
+    // 이벤트 아이템 선택
+    if (!["INPUT", "SELECT", "BUTTON"].includes(target.tagName)) {
+        handleEventClick(e, eventIndex);
+    }
+}
+
+// 이벤트 리스트 변경 처리 (디바운싱 적용)
+const eventChangeTimeouts = new Map();
+
+function handleEventListChange(e) {
+    const target = e.target;
+    const eventItem = target.closest('.event-item');
+
+    if (!eventItem) return;
+
+    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) || Array.from(eventItem.parentNode.children).indexOf(eventItem);
+    const events = getAllEvents();
+    const event = events[eventIndex];
+
+    if (!event) return;
+
+    // 기존 타이머 클리어
+    if (eventChangeTimeouts.has(target)) {
+        clearTimeout(eventChangeTimeouts.get(target));
+    }
+
+    // 디바운싱된 처리
+    const timeoutId = setTimeout(() => {
+        if (target.classList.contains('event-type-select')) {
+            event.eventType = target.value;
+            const newDescription = getEventTypeDescription(target.value);
+            target.title = newDescription || '';
+            event.eventId = '';
+            requestAnimationFrame(() => renderEventList());
+        } else if (target.classList.contains('event-id-input') || target.classList.contains('event-id-select')) {
+            event.eventId = target.value;
+        } else if (target.classList.contains('event-time-input')) {
+            event.eventTime = parseFloat(target.value) || 0;
+        } else if (target.classList.contains('param-name-input')) {
+            const paramItem = target.closest('.param-item');
+            if (paramItem) {
+                const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+                if (event.eventParams[paramIndex]) {
+                    event.eventParams[paramIndex].paramName = target.value;
+                }
+            }
+        } else if (target.classList.contains('param-value-input')) {
+            const paramItem = target.closest('.param-item');
+            if (paramItem) {
+                const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+                if (event.eventParams[paramIndex]) {
+                    event.eventParams[paramIndex].paramValue = target.value;
+                }
+            }
+        }
+
+        saveToStorage();
+        eventChangeTimeouts.delete(target);
+    }, 300);
+
+    eventChangeTimeouts.set(target, timeoutId);
+}
+
+// 사이드바 클릭 처리
+function handleSidebarClick(e) {
+    const target = e.target;
+
+    // Note 버튼들
+    if (target.id === 'add-tab') {
+        addNote({ type: "tab", isLong: false, longTime: 0 });
+        return;
+    }
+    if (target.id === 'add-dir') {
+        addNote({ type: "direction", isLong: false, longTime: 0 });
+        return;
+    }
+    if (target.id === 'add-both') {
+        addNote({ type: "both", isLong: false, longTime: 0 });
+        return;
+    }
+    if (target.id === 'add-node') {
+        addNote({ type: "node", isLong: false, longTime: 0 });
+        return;
+    }
+    if (target.id === 'add-long-tab') {
+        addNote({ type: "longtab", isLong: true });
+        return;
+    }
+    if (target.id === 'add-long-dir') {
+        addNote({ type: "longdirection", isLong: true });
+        return;
+    }
+    if (target.id === 'add-long-both') {
+        addNote({ type: "longboth", isLong: true });
+        return;
+    }
+
+    // Event 버튼들
+    if (target.id === 'add-event') {
+        const eventIndex = addEvent();
+        appendSingleEventToList(eventIndex);
+        saveToStorage();
+        return;
+    }
+    if (target.id === 'duplicate-events') {
+        // 기존 로직 유지
+        return;
+    }
+    if (target.id === 'clear-event-selection') {
+        selectedEventIndices.clear();
+        lastClickedEventIndex = null;
+        renderEventList();
+        return;
+    }
+
+    // 기타 버튼들...
+}
+
+// 사이드바 변경 처리
+function handleSidebarChange(e) {
+    const target = e.target;
+
+    if (target.id === 'bpm') {
+        bpm = parseFloat(target.value) || 120;
+        saveToStorage();
+        drawPath();
+        if (waveformData) drawWaveformWrapper();
+        return;
+    }
+    if (target.id === 'subdivisions') {
+        subdivisions = parseInt(target.value) || 16;
+        saveToStorage();
+        drawPath();
+        if (waveformData) drawWaveformWrapper();
+        return;
+    }
+    if (target.id === 'pre-delay') {
+        handlePreDelayChange();
+        return;
+    }
+    if (target.id === 'speed-multiplier') {
+        speedMultiplier = parseFloat(target.value) || 1.0;
+        saveToStorage();
+        return;
+    }
+}
+
+// 메인 영역 클릭 처리
+function handleMainClick(e) {
+    const target = e.target;
+
+    // Canvas 관련 처리는 기존 방식 유지
+    if (target.tagName === 'CANVAS') {
+        return;
+    }
+
+    // 기타 메인 영역 클릭 처리...
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     console.log('DOM loaded, initializing...');
+
+    // 이벤트 델리게이션 시스템 설정 (성능 최적화)
+    setupEventDelegation();
 
     // Undo/Redo 시스템 초기화
     initializeUndoRedo();
@@ -4440,8 +5058,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Add Event 버튼 이벤트 리스너
     document.getElementById("add-event").addEventListener("click", () => {
-        addEvent();
-        renderEventList();
+        const eventIndex = addEvent();
+        appendSingleEventToList(eventIndex);
         saveToStorage();
     });
 
