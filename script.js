@@ -293,8 +293,8 @@ function isNoteInViewport(screenX, screenY, zoomLevel = zoom) {
 // 최적화된 노트 렌더링 함수
 function renderNotesOptimized(notes, pathDirectionNotes, nodePositions, bpm, subdivisions, preDelaySeconds, realtimeDrawingEnabled, isPlaying, drawTime) {
     // 줌 레벨이 너무 작으면 노트 렌더링 스킵 (성능 최적화)
-    // 줌 레벨이 5 이하일 때는 노트가 너무 작아서 겹쳐 보이므로 렌더링 생략
-    const MIN_ZOOM_FOR_NOTES = 5;
+    // 줌 레벨이 1.25 이하일 때는 노트가 너무 작아서 겹쳐 보이므로 렌더링 생략 (기존 5에서 1.25로 변경하여 4배 더 줌아웃 가능)
+    const MIN_ZOOM_FOR_NOTES = 1.25;
     if (zoom < MIN_ZOOM_FOR_NOTES) {
         // 줌아웃 시 노트 렌더링 스킵 (경로만 표시)
         return;
@@ -929,12 +929,29 @@ function generateWaveformDataLocal(buffer) {
 
 
 // 캔버스 관련 함수들
+let lastCanvasWidth = 0;
+let lastCanvasHeight = 0;
+
 function resizeCanvas() {
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
+    const currentWidth = canvas.clientWidth;
+    const currentHeight = canvas.clientHeight;
+
+    // 크기가 변경되었을 때만 실제로 리사이즈 (성능 최적화)
+    if (canvas.width !== currentWidth || canvas.height !== currentHeight) {
+        canvas.width = currentWidth;
+        canvas.height = currentHeight;
+        lastCanvasWidth = currentWidth;
+        lastCanvasHeight = currentHeight;
+        return true; // 리사이즈 발생
+    }
+    return false; // 리사이즈 없음
 }
 
 function drawGrid() {
+    // 줌이 너무 작으면 그리드 생략 (성능 최적화)
+    const MIN_ZOOM_FOR_GRID = 0.5;
+    if (zoom < MIN_ZOOM_FOR_GRID) return;
+
     const gridSize = 8;
     const startX = Math.floor(-viewOffset.x / zoom / gridSize) - 1;
     const endX = Math.ceil((canvas.width - viewOffset.x) / zoom / gridSize) + 1;
@@ -1055,8 +1072,8 @@ function drawPath() {
     }
 
     // 시간 기준 마커 (1초 간격) - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 10 이하일 때는 마커가 너무 많아서 성능 저하 유발
-    const MIN_ZOOM_FOR_TIME_MARKERS = 10;
+    // 줌 레벨이 2.5 이하일 때는 마커가 너무 많아서 성능 저하 유발 (기존 10에서 2.5로 변경)
+    const MIN_ZOOM_FOR_TIME_MARKERS = 2.5;
     if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
         const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
         const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
@@ -1079,8 +1096,8 @@ function drawPath() {
     }
 
     // BPM 기반 비트 마커 - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 15 이하일 때는 비트 마커가 너무 조밀해서 성능 저하 및 가독성 저하
-    const MIN_ZOOM_FOR_BEAT_MARKERS = 15;
+    // 줌 레벨이 3.75 이하일 때는 비트 마커가 너무 조밀해서 성능 저하 및 가독성 저하 (기존 15에서 3.75로 변경)
+    const MIN_ZOOM_FOR_BEAT_MARKERS = 3.75;
     if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
         for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
             const a = pathDirectionNotes[i];
@@ -1191,16 +1208,23 @@ function drawPath() {
     }
 
     // EventList 마커 표시
+    // 줌 레벨이 너무 작으면 이벤트 렌더링 스킵 (노트와 동일한 기준 적용)
+    const MIN_ZOOM_FOR_EVENTS = 1.0; // 노트보다 조금 더 관대하게 설정 (노트: 1.25, 이벤트: 1.0)
     const events = getAllEvents();
-    events.forEach((event, eventIndex) => {
-        if (!event || typeof event.eventTime !== 'number') return;
 
-        // 이벤트 시간에 해당하는 위치 계산
-        const pos = getNotePositionFromPathData(event.eventTime, pathDirectionNotes, nodePositions);
-        if (!pos) return;
+    if (zoom >= MIN_ZOOM_FOR_EVENTS) {
+        events.forEach((event, eventIndex) => {
+            if (!event || typeof event.eventTime !== 'number') return;
 
-        const screenX = pos.x * zoom + viewOffset.x;
-        const screenY = pos.y * zoom + viewOffset.y;
+            // 이벤트 시간에 해당하는 위치 계산
+            const pos = getNotePositionFromPathData(event.eventTime, pathDirectionNotes, nodePositions);
+            if (!pos) return;
+
+            const screenX = pos.x * zoom + viewOffset.x;
+            const screenY = pos.y * zoom + viewOffset.y;
+
+            // 뷰포트 컬링 - 화면 밖의 이벤트는 그리지 않음
+            if (!isNoteInViewport(screenX, screenY)) return;
 
         // 강조된 이벤트인지 확인
         const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
@@ -1223,18 +1247,19 @@ function drawPath() {
             ctx.fill();
         }
 
-        // 삼각형 마커 그리기 (강조된 경우 더 크게)
-        const markerSize = isHighlighted ? 15 : 10;
-        const fillColor = isHighlighted ? "#FFB300" : "#FF9800";
-        const strokeColor = isHighlighted ? "#FF8F00" : "#FF6F00";
-        drawTriangle(ctx, screenX, screenY, markerSize, fillColor, strokeColor, 2);
+            // 삼각형 마커 그리기 (강조된 경우 더 크게)
+            const markerSize = isHighlighted ? 15 : 10;
+            const fillColor = isHighlighted ? "#FFB300" : "#FF9800";
+            const strokeColor = isHighlighted ? "#FF8F00" : "#FF6F00";
+            drawTriangle(ctx, screenX, screenY, markerSize, fillColor, strokeColor, 2);
 
-        // 이벤트 ID를 삼각형 아래에 표시
-        if (event.eventId) {
-            const textColor = isHighlighted ? "#FFF3E0" : "#FFB74D";
-            drawText(ctx, event.eventId, screenX, screenY + (isHighlighted ? 20 : 15), "bold 8px Arial", textColor);
-        }
-    });
+            // 이벤트 ID를 삼각형 아래에 표시
+            if (event.eventId) {
+                const textColor = isHighlighted ? "#FFF3E0" : "#FFB74D";
+                drawText(ctx, event.eventId, screenX, screenY + (isHighlighted ? 20 : 15), "bold 8px Arial", textColor);
+            }
+        });
+    }
 
     if (pathHighlightTimer > 0) {
         ctx.save();
@@ -3445,13 +3470,15 @@ function getNotePosition(beat) {
 
 
 function drawLoop() {
+    let needsRedraw = false;
+
     if (highlightedNoteTimer > 0) {
         highlightedNoteTimer -= 1 / 60;
         if (highlightedNoteTimer <= 0) {
             highlightedNoteIndex = null;
             highlightedNoteTimer = 0;
         }
-        drawPath();
+        needsRedraw = true;
     }
 
     if (highlightedEventTimer > 0) {
@@ -3460,7 +3487,7 @@ function drawLoop() {
             highlightedEventIndex = null;
             highlightedEventTimer = 0;
         }
-        drawPath();
+        needsRedraw = true;
     }
 
     if (pathHighlightTimer > 0) {
@@ -3468,6 +3495,11 @@ function drawLoop() {
         if (pathHighlightTimer <= 0) {
             pathHighlightTimer = 0;
         }
+        needsRedraw = true;
+    }
+
+    // 단일 drawPath 호출로 모든 하이라이트 효과를 처리 (GPU 성능 최적화)
+    if (needsRedraw) {
         drawPath();
     }
 
