@@ -380,29 +380,55 @@ function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bp
     renderNodeNotes(notesByType.node, bpm);
 }
 
-// 탭 노트 배치 렌더링
+// 탭 노트 배치 렌더링 (배치 최적화)
 function renderTabNotes(tabNotes) {
     if (tabNotes.length === 0) return;
 
-    ctx.fillStyle = "#FF6B6B";
-    ctx.strokeStyle = "#4CAF50";
-    ctx.lineWidth = 2;
+    // 성능 최적화: 노트를 색상별로 그룹화하여 배치 렌더링
+    const redNotes = [];
+    const normalNotes = [];
 
     tabNotes.forEach(({ note, screenX, screenY }) => {
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
-
         if (note.beat === 0 && note.type === "direction") {
-            ctx.fillStyle = "red";
+            redNotes.push({ screenX, screenY });
         } else {
-            ctx.fillStyle = "#FF6B6B";
-        }
-        ctx.fill();
-
-        if (!(note.beat === 0 && note.type === "direction")) {
-            ctx.stroke();
+            normalNotes.push({ screenX, screenY });
         }
     });
+
+    // 빨간 노트들을 한 번에 렌더링
+    if (redNotes.length > 0) {
+        ctx.fillStyle = "red";
+        ctx.beginPath();
+        redNotes.forEach(({ screenX, screenY }) => {
+            ctx.moveTo(screenX + 5, screenY);
+            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+        });
+        ctx.fill();
+    }
+
+    // 일반 노트들을 한 번에 렌더링
+    if (normalNotes.length > 0) {
+        ctx.fillStyle = "#FF6B6B";
+        ctx.strokeStyle = "#4CAF50";
+        ctx.lineWidth = 2;
+
+        // Fill 패스
+        ctx.beginPath();
+        normalNotes.forEach(({ screenX, screenY }) => {
+            ctx.moveTo(screenX + 5, screenY);
+            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+        });
+        ctx.fill();
+
+        // Stroke 패스
+        ctx.beginPath();
+        normalNotes.forEach(({ screenX, screenY }) => {
+            ctx.moveTo(screenX + 5, screenY);
+            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+        });
+        ctx.stroke();
+    }
 }
 
 // 방향 노트 배치 렌더링
@@ -958,25 +984,26 @@ function drawGrid() {
     const startY = Math.floor(-viewOffset.y / zoom / gridSize) - 1;
     const endY = Math.ceil((canvas.height - viewOffset.y) / zoom / gridSize) + 1;
 
+    // 성능 최적화: 모든 그리드 선을 한 번에 그리기
     ctx.strokeStyle = "rgba(150, 150, 150, 0.2)";
     ctx.lineWidth = 1;
+    ctx.beginPath();
 
+    // 수직선들 한 번에 그리기
     for (let i = startX; i <= endX; i++) {
         const x = i * gridSize * zoom + viewOffset.x;
-        ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, canvas.height);
-        ctx.stroke();
     }
 
+    // 수평선들 한 번에 그리기
     for (let j = startY; j <= endY; j++) {
         const y = j * gridSize * zoom + viewOffset.y;
-        ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(0, y);
         ctx.lineTo(canvas.width, y);
-        ctx.stroke();
     }
+
+    ctx.stroke();
 }
 
 function drawPath() {
@@ -1078,6 +1105,8 @@ function drawPath() {
         const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
         const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
 
+        // 성능 최적화: 시간 마커들을 배치로 렌더링
+        const timeMarkers = [];
         for (let time = 1; time < maxMarkerTime; time += 1) {
             const position = getPositionAtTime(time, segmentTimes);
             if (position) {
@@ -1086,12 +1115,20 @@ function drawPath() {
 
                 // 뷰포트 컬링 적용
                 if (isNoteInViewport(screenX, screenY)) {
-                    ctx.beginPath();
-                    ctx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
-                    ctx.fillStyle = "rgba(128,128,128,0.4)";
-                    ctx.fill();
+                    timeMarkers.push({ screenX, screenY });
                 }
             }
+        }
+
+        // 모든 시간 마커를 한 번에 렌더링
+        if (timeMarkers.length > 0) {
+            ctx.fillStyle = "rgba(128,128,128,0.4)";
+            ctx.beginPath();
+            timeMarkers.forEach(({ screenX, screenY }) => {
+                ctx.moveTo(screenX + 4, screenY);
+                ctx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
+            });
+            ctx.fill();
         }
     }
 
@@ -1111,6 +1148,8 @@ function drawPath() {
             const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
             const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
 
+            // 성능 최적화: 비트 마커들을 배치로 수집
+            const beatMarkers = [];
             for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
                 const position = getPositionAtTime(time, segmentTimes);
                 if (position) {
@@ -1119,12 +1158,20 @@ function drawPath() {
 
                     // 뷰포트 컬링 적용
                     if (isNoteInViewport(screenX, screenY)) {
-                        ctx.beginPath();
-                        ctx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
-                        ctx.fillStyle = "rgba(100,150,255,0.6)";
-                        ctx.fill();
+                        beatMarkers.push({ screenX, screenY });
                     }
                 }
+            }
+
+            // 이 구간의 비트 마커들을 한 번에 렌더링
+            if (beatMarkers.length > 0) {
+                ctx.fillStyle = "rgba(100,150,255,0.6)";
+                ctx.beginPath();
+                beatMarkers.forEach(({ screenX, screenY }) => {
+                    ctx.moveTo(screenX + 2, screenY);
+                    ctx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
+                });
+                ctx.fill();
             }
         }
     }
@@ -3886,10 +3933,18 @@ function renderEventList() {
 
 // 실제 렌더링 함수 (즉시 실행)
 function renderEventListImmediate() {
-    const container = document.getElementById("event-list");
+    // 일시적으로 기존 방식 사용 (가상 스크롤링 비활성화)
+    return renderEventListImmediate_Original();
+}
 
-    // 성능 최적화: Fragment 사용으로 DOM 조작 최소화
-    const fragment = document.createDocumentFragment();
+// 가상 스크롤링 함수 (나중에 구현 예정)
+// function renderEventListVirtualized(events, eventTypes) {
+//     // TODO: 가상 스크롤링 구현
+// }
+
+// 기존 이벤트 렌더링 로직 (가상 스크롤링 비활성화)
+function renderEventListImmediate_Original() {
+    const container = document.getElementById("event-list");
 
     // 성능 최적화: innerHTML 대신 removeChild로 이벤트 리스너 정리
     while (container.firstChild) {
@@ -3899,72 +3954,9 @@ function renderEventListImmediate() {
     const events = getAllEvents();
     const eventTypes = getEventTypes();
 
-    // 성능 최적화: 이벤트가 많을 때 가상 스크롤링 적용
-    if (events.length > 100) {
-        return renderEventListVirtualized(events, eventTypes);
-    }
-
     events.forEach((event, eventIndex) => {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
-
-        // Fragment에 추가 (DOM 조작 최소화)
-        renderSingleEventItem(eventDiv, event, eventIndex, eventTypes);
-        fragment.appendChild(eventDiv);
-    });
-
-    // 한 번에 DOM에 추가 (리플로우 최소화)
-    container.appendChild(fragment);
-}
-
-// 가상 스크롤링을 위한 최적화된 렌더링 함수
-function renderEventListVirtualized(events, eventTypes) {
-    const container = document.getElementById("event-list");
-    const virtualScrollState = {
-        scrollTop: container.scrollTop || 0,
-        itemHeight: 120, // 각 이벤트 아이템의 예상 높이
-        visibleCount: Math.ceil(container.clientHeight / 120) + 5, // 버퍼 포함
-        bufferCount: 5
-    };
-
-    const startIndex = Math.max(0, Math.floor(virtualScrollState.scrollTop / virtualScrollState.itemHeight) - virtualScrollState.bufferCount);
-    const endIndex = Math.min(events.length, startIndex + virtualScrollState.visibleCount + virtualScrollState.bufferCount * 2);
-
-    // 성능 최적화: innerHTML 대신 removeChild로 이벤트 리스너 정리
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-
-    // 상단 스페이서
-    if (startIndex > 0) {
-        const topSpacer = document.createElement("div");
-        topSpacer.style.height = `${startIndex * virtualScrollState.itemHeight}px`;
-        container.appendChild(topSpacer);
-    }
-
-    // 보이는 이벤트들만 렌더링
-    const fragment = document.createDocumentFragment();
-    for (let i = startIndex; i < endIndex; i++) {
-        const event = events[i];
-        const eventDiv = document.createElement("div");
-        eventDiv.className = "event-item";
-
-        renderSingleEventItem(eventDiv, event, i, eventTypes);
-        fragment.appendChild(eventDiv);
-    }
-    container.appendChild(fragment);
-
-    // 하단 스페이서
-    if (endIndex < events.length) {
-        const bottomSpacer = document.createElement("div");
-        bottomSpacer.style.height = `${(events.length - endIndex) * virtualScrollState.itemHeight}px`;
-        container.appendChild(bottomSpacer);
-    }
-}
-
-// 단일 이벤트 아이템 렌더링 함수 (코드 중복 제거)
-function renderSingleEventItem(eventDiv, event, eventIndex, eventTypes) {
-    // 기존 이벤트 아이템 렌더링 로직을 여기로 이동
 
         // 선택된 이벤트 표시
         if (selectedEventIndices.has(eventIndex)) {
