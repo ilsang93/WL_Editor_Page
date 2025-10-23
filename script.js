@@ -3887,14 +3887,84 @@ function renderEventList() {
 // 실제 렌더링 함수 (즉시 실행)
 function renderEventListImmediate() {
     const container = document.getElementById("event-list");
-    container.innerHTML = "";
+
+    // 성능 최적화: Fragment 사용으로 DOM 조작 최소화
+    const fragment = document.createDocumentFragment();
+
+    // 성능 최적화: innerHTML 대신 removeChild로 이벤트 리스너 정리
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
 
     const events = getAllEvents();
     const eventTypes = getEventTypes();
 
+    // 성능 최적화: 이벤트가 많을 때 가상 스크롤링 적용
+    if (events.length > 100) {
+        return renderEventListVirtualized(events, eventTypes);
+    }
+
     events.forEach((event, eventIndex) => {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
+
+        // Fragment에 추가 (DOM 조작 최소화)
+        renderSingleEventItem(eventDiv, event, eventIndex, eventTypes);
+        fragment.appendChild(eventDiv);
+    });
+
+    // 한 번에 DOM에 추가 (리플로우 최소화)
+    container.appendChild(fragment);
+}
+
+// 가상 스크롤링을 위한 최적화된 렌더링 함수
+function renderEventListVirtualized(events, eventTypes) {
+    const container = document.getElementById("event-list");
+    const virtualScrollState = {
+        scrollTop: container.scrollTop || 0,
+        itemHeight: 120, // 각 이벤트 아이템의 예상 높이
+        visibleCount: Math.ceil(container.clientHeight / 120) + 5, // 버퍼 포함
+        bufferCount: 5
+    };
+
+    const startIndex = Math.max(0, Math.floor(virtualScrollState.scrollTop / virtualScrollState.itemHeight) - virtualScrollState.bufferCount);
+    const endIndex = Math.min(events.length, startIndex + virtualScrollState.visibleCount + virtualScrollState.bufferCount * 2);
+
+    // 성능 최적화: innerHTML 대신 removeChild로 이벤트 리스너 정리
+    while (container.firstChild) {
+        container.removeChild(container.firstChild);
+    }
+
+    // 상단 스페이서
+    if (startIndex > 0) {
+        const topSpacer = document.createElement("div");
+        topSpacer.style.height = `${startIndex * virtualScrollState.itemHeight}px`;
+        container.appendChild(topSpacer);
+    }
+
+    // 보이는 이벤트들만 렌더링
+    const fragment = document.createDocumentFragment();
+    for (let i = startIndex; i < endIndex; i++) {
+        const event = events[i];
+        const eventDiv = document.createElement("div");
+        eventDiv.className = "event-item";
+
+        renderSingleEventItem(eventDiv, event, i, eventTypes);
+        fragment.appendChild(eventDiv);
+    }
+    container.appendChild(fragment);
+
+    // 하단 스페이서
+    if (endIndex < events.length) {
+        const bottomSpacer = document.createElement("div");
+        bottomSpacer.style.height = `${(events.length - endIndex) * virtualScrollState.itemHeight}px`;
+        container.appendChild(bottomSpacer);
+    }
+}
+
+// 단일 이벤트 아이템 렌더링 함수 (코드 중복 제거)
+function renderSingleEventItem(eventDiv, event, eventIndex, eventTypes) {
+    // 기존 이벤트 아이템 렌더링 로직을 여기로 이동
 
         // 선택된 이벤트 표시
         if (selectedEventIndices.has(eventIndex)) {
