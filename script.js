@@ -1323,7 +1323,7 @@ function initializeNoteBpmSubdivisions() {
 
     if (hasChanges) {
         console.log('Initialized missing BPM/subdivision values for existing notes');
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
     }
 }
 
@@ -1568,7 +1568,7 @@ function processAudioForWaveform(audioFile) {
                     audioBuffer = buffer;
                     generateWaveformDataLocal(buffer);
                     drawWaveformWrapper();
-                    saveToStorage();
+                    // saveToStorage(); // 자동 저장 비활성화
                 })
                 .catch(err => {
                     console.warn('AudioContext decoding failed:', err);
@@ -1599,7 +1599,7 @@ function tryAudioElementMethod(audioFile) {
         audioBuffer = { duration: audio.duration };
         generateDummyWaveform(audio.duration);
         drawWaveformWrapper();
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         URL.revokeObjectURL(url);
     });
 
@@ -2139,7 +2139,7 @@ function saveToStorage() {
         preDelay: preDelayValue,
         speedMultiplier: speedMultiplierValue
     };
-    localStorage.setItem("autosave_notes", JSON.stringify(saveData));
+    // localStorage.setItem("autosave_notes", JSON.stringify(saveData)); // 자동 저장 비활성화
 }
 
 function loadFromStorage() {
@@ -2487,7 +2487,7 @@ function renderNoteListImmediate() {
                 updateNoteType(note);
             }
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             drawPath();
             renderNoteList();
             if (waveformData) drawWaveformWrapper();
@@ -2525,7 +2525,7 @@ function renderNoteListImmediate() {
                 note.beat = newBeat;
             }
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             drawPath();
             renderNoteList();
             if (waveformData)
@@ -2562,7 +2562,7 @@ function renderNoteListImmediate() {
                 saveState();
 
                 note.longTime = parseInt(inputLongTime.value) || subdivisions;
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
                 drawPath();
                 if (waveformData)
                     drawWaveformWrapper();
@@ -2604,7 +2604,7 @@ function renderNoteListImmediate() {
                     note.direction = newDirection;
                 }
 
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
                 drawPath();
                 if (waveformData)
                     drawWaveformWrapper();
@@ -2649,7 +2649,7 @@ function renderNoteListImmediate() {
                     }
 
                     updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
-                    saveToStorage();
+                    // saveToStorage(); // 자동 저장 비활성화
                     drawPath();
                     renderNoteList();
                     if (waveformData) drawWaveformWrapper();
@@ -2705,7 +2705,7 @@ function renderNoteListImmediate() {
                 }
 
                 updateTabNotesInheritance(); // Tab 노트들의 상속 값 업데이트
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
                 drawPath();
                 renderNoteList();
                 if (waveformData) drawWaveformWrapper();
@@ -2730,7 +2730,7 @@ function renderNoteListImmediate() {
                 saveState();
 
                 note.wait = waitCheckbox.checked;
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
                 drawPath();
             });
             tdWait.appendChild(waitCheckbox);
@@ -2751,7 +2751,7 @@ function renderNoteListImmediate() {
             // 캐시 무효화
             invalidatePathCache();
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             drawPath();
             renderNoteList();
             if (waveformData)
@@ -3599,7 +3599,7 @@ function addNote(noteProps) {
     // 캐시 무효화
     invalidatePathCache();
 
-    saveToStorage();
+    // saveToStorage(); // 자동 저장 비활성화
     drawPath();
     renderNoteList();
     if (waveformData) drawWaveformWrapper();
@@ -3646,7 +3646,7 @@ function handleBpmChange(newBpm) {
 
     document.getElementById("bpm").dataset.previousValue = newBpm;
 
-    saveToStorage();
+    // saveToStorage(); // 자동 저장 비활성화
     drawPath();
     renderNoteList();
     if (waveformData)
@@ -3673,7 +3673,7 @@ function handleSubdivisionsChange(newSubdivisions) {
 
     document.getElementById("subdivisions").dataset.previousValue = newSubdivisions;
 
-    saveToStorage();
+    // saveToStorage(); // 자동 저장 비활성화
     drawPath();
     renderNoteList();
     if (waveformData)
@@ -3684,7 +3684,7 @@ function handleSubdivisionsChange(newSubdivisions) {
 function handlePreDelayChange() {
     console.log(`Pre-delay changed to ${getPreDelaySeconds()}s`);
 
-    saveToStorage();
+    // saveToStorage(); // 자동 저장 비활성화
     renderNoteList();
     if (waveformData)
         drawWaveformWrapper();
@@ -3698,7 +3698,7 @@ function handleSpeedMultiplierChange(newSpeedMultiplier) {
 
     // 캐시 무효화 및 UI 업데이트
     invalidatePathCache();
-    saveToStorage();
+    // saveToStorage(); // 자동 저장 비활성화
     renderNoteList();
     drawPath();
     updateCoordinateInfo();
@@ -3977,7 +3977,7 @@ function renderEventListImmediate() {
             const newIdInput = createEventIdInput();
             idLabel.appendChild(newIdInput);
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
         });
         typeLabel.appendChild(typeSelect);
 
@@ -3997,7 +3997,7 @@ function renderEventListImmediate() {
                 idInput.value = event.eventId;
                 idInput.addEventListener("change", (e) => {
                     event.eventId = e.target.value;
-                    saveToStorage();
+                    // saveToStorage(); // 자동 저장 비활성화
                 });
             } else {
                 // 사전 정의된 타입이면 드롭다운
@@ -4036,7 +4036,7 @@ function renderEventListImmediate() {
                     // 사전 정의된 파라미터 자동 추가
                     applyPredefinedParams(eventIndex);
 
-                    saveToStorage();
+                    // saveToStorage(); // 자동 저장 비활성화
                     renderEventList(); // UI 새로고침으로 새로 추가된 파라미터들 표시
                 });
             }
@@ -4088,7 +4088,7 @@ function renderEventListImmediate() {
                 });
             }
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             renderEventList();
         });
         timeLabel.appendChild(timeInput);
@@ -4111,7 +4111,7 @@ function renderEventListImmediate() {
 
         predefinedParamsBtn.addEventListener("click", () => {
             applyPredefinedParams(eventIndex);
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             renderEventList(); // UI 새로고침으로 새로 추가된 파라미터들 표시
         });
 
@@ -4123,7 +4123,7 @@ function renderEventListImmediate() {
             if (confirm("이벤트를 삭제하시겠습니까?")) {
                 removeEvent(eventIndex);
                 renderEventList();
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
             }
         });
 
@@ -4172,7 +4172,7 @@ function renderEventListImmediate() {
             paramNameInput.value = param.paramName;
             paramNameInput.addEventListener("change", (e) => {
                 param.paramName = e.target.value;
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
             });
             paramNameLabel.appendChild(paramNameInput);
 
@@ -4185,7 +4185,7 @@ function renderEventListImmediate() {
             paramValueInput.value = param.paramValue;
             paramValueInput.addEventListener("change", (e) => {
                 param.paramValue = e.target.value;
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
             });
             paramValueLabel.appendChild(paramValueInput);
 
@@ -4196,7 +4196,7 @@ function renderEventListImmediate() {
             deleteParamBtn.addEventListener("click", () => {
                 removeEventParam(eventIndex, paramIndex);
                 renderEventList();
-                saveToStorage();
+                // saveToStorage(); // 자동 저장 비활성화
             });
 
             paramDiv.appendChild(paramNameLabel);
@@ -4213,7 +4213,7 @@ function renderEventListImmediate() {
         addParamBtn.addEventListener("click", () => {
             addEventParam(eventIndex);
             renderEventList();
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
         });
 
         paramsContent.appendChild(paramsList);
@@ -4358,7 +4358,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             // 변경 전 상태를 히스토리에 저장
             saveState();
 
-            localStorage.removeItem("autosave_notes");
+            // localStorage.removeItem("autosave_notes"); // 자동 저장 비활성화
             notes.length = 0;
             clearAllEvents();
             ensureInitialDirectionNote(notes);
@@ -4380,7 +4380,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("add-event").addEventListener("click", () => {
         addEvent();
         renderEventList();
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
     });
 
     // 복제 버튼 이벤트 리스너
@@ -4414,7 +4414,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         selectedEventIndices.clear();
         newIndices.forEach(index => selectedEventIndices.add(index));
 
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         renderEventList();
         drawPath();
     });
@@ -4519,7 +4519,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 캐시 무효화
         invalidatePathCache();
 
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         drawPath();
         renderNoteList();
         if (waveformData) drawWaveformWrapper();
@@ -4546,7 +4546,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // 이벤트도 시간 기준으로 정렬
         sortEventsByTime();
 
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         drawPath();
         renderNoteList();
         renderEventList();
@@ -4765,7 +4765,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                     // 마지막 direction 노트 확인 및 추가
                     ensureFinalDirectionNote(notes, bpm, subdivisions);
 
-                    saveToStorage();
+                    // saveToStorage(); // 자동 저장 비활성화
                     drawPath();
                     renderNoteList();
                     renderEventList();
@@ -4798,7 +4798,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (indicator)
                 indicator.remove();
 
-            saveToStorage();
+            // saveToStorage(); // 자동 저장 비활성화
             return;
         }
 
@@ -4969,7 +4969,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupNoteButtons();
 
     ensureInitialDirectionNote(notes);
-    loadFromStorage();
+    // loadFromStorage(); // 자동 저장 비활성화
 
     // 기존 노트들에 개별 BPM/subdivision이 없으면 현재 설정값으로 초기화
     initializeNoteBpmSubdivisions();
@@ -5121,7 +5121,7 @@ function deleteSelectedNotes() {
         lastClickedNoteIndex = null;
 
         // UI 업데이트 및 저장
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         renderNoteList();
         drawPath();
         if (waveformData) {
@@ -5157,7 +5157,7 @@ function deleteSelectedEvents() {
         lastClickedEventIndex = null;
 
         // UI 업데이트 및 저장
-        saveToStorage();
+        // saveToStorage(); // 자동 저장 비활성화
         renderEventList();
 
         console.log(`${deletedCount}개의 이벤트가 삭제되었습니다.`);
