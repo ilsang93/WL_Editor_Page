@@ -4037,7 +4037,11 @@ function handleEventClick(e, eventIndex) {
         lastClickedEventIndex = eventIndex;
         scheduleRender({ eventList: true });
     } else {
+        // 단순 클릭: 선택 상태 초기화 후 해당 이벤트만 선택
+        selectedEventIndices.clear();
+        selectedEventIndices.add(eventIndex);
         lastClickedEventIndex = eventIndex;
+        scheduleRender({ eventList: true });
         focusEventAtIndex(eventIndex);
     }
 }
@@ -4300,41 +4304,13 @@ function renderEventListImmediate_Original() {
     events.forEach((event, eventIndex) => {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
+        // data-event-index 속성 추가하여 이벤트 위임에서 사용
+        eventDiv.setAttribute('data-event-index', eventIndex);
 
         // 선택된 이벤트 표시
         if (selectedEventIndices.has(eventIndex)) {
             eventDiv.classList.add("selected");
         }
-
-        // 이벤트 아이템 클릭 시 선택/해제
-        eventDiv.addEventListener("click", (e) => {
-            // 입력 필드나 버튼을 클릭한 경우가 아닐 때만 처리
-            if (!["INPUT", "SELECT", "BUTTON"].includes(e.target.tagName)) {
-                if (e.shiftKey && lastClickedEventIndex !== null) {
-                    // Shift 클릭: 범위 선택
-                    const start = Math.min(lastClickedEventIndex, eventIndex);
-                    const end = Math.max(lastClickedEventIndex, eventIndex);
-                    for (let i = start; i <= end; i++) {
-                        selectedEventIndices.add(i);
-                    }
-                    lastClickedEventIndex = eventIndex;
-                    scheduleRender({ eventList: true });
-                } else if (e.ctrlKey || e.metaKey) {
-                    // Ctrl/Cmd 클릭: 다중 선택
-                    if (selectedEventIndices.has(eventIndex)) {
-                        selectedEventIndices.delete(eventIndex);
-                    } else {
-                        selectedEventIndices.add(eventIndex);
-                    }
-                    lastClickedEventIndex = eventIndex;
-                    scheduleRender({ eventList: true });
-                } else {
-                    // 일반 클릭: 해당 위치로 이동
-                    lastClickedEventIndex = eventIndex;
-                    focusEventAtIndex(eventIndex);
-                }
-            }
-        });
 
         const eventHeader = document.createElement("div");
         eventHeader.className = "event-header";

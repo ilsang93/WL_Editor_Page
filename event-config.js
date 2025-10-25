@@ -7,6 +7,7 @@ export const EVENT_TYPES = [
     'character',
     'overlay',
     'startrail',
+    'light',
     'custom',
 ];
 
@@ -66,6 +67,11 @@ export const EVENT_IDS_BY_TYPE = {
         'defaultstar',
         'startrail',
         'none'
+    ],
+    'light': [
+        'setstatic',
+        'setnote',
+        'setchar'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -176,6 +182,23 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     'startrail-defaultstar': [],
     'startrail-startrail': [],
     'startrail-none': [],
+
+    'light-setstatic': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
+    'light-setnote': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+        { paramName: 'inner', paramType: 'float' },
+        { paramName: 'outer', paramType: 'float' },
+    ],
+    'light-setchar': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+        { paramName: 'inner', paramType: 'float' },
+        { paramName: 'outer', paramType: 'float' },
+    ],
 };
 
 // 이벤트 타입별 설명 (선택사항)
