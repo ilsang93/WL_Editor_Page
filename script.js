@@ -2594,6 +2594,9 @@ function renderNoteListImmediate() {
             const diff = newBeat - oldBeat;
 
             if (isBatchEditEnabled) {
+                // 현재 노트는 입력된 값으로 직접 설정
+                note.beat = newBeat;
+                // 이후 노트들은 차이값만큼 조정
                 notes.forEach((n, i) => {
                     if (i > index) {
                         n.beat += diff;
