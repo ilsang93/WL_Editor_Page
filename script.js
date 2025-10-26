@@ -3573,7 +3573,6 @@ function addNote(noteProps) {
         let newBeat;
         let insertionIndex;
 
-        console.log('addNote called - selectedNoteIndex:', selectedNoteIndex, 'notes.length:', notes.length, 'noteProps:', noteProps);
 
     if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
         const selectedNote = notes[selectedNoteIndex];
@@ -3662,7 +3661,6 @@ function addNote(noteProps) {
     if (waveformData) drawWaveformWrapper();
 
     focusNoteAtIndex(insertionIndex);
-    console.log('addNote completed successfully - newBeat:', newBeat, 'insertionIndex:', insertionIndex);
     } catch (error) {
         console.error('Error in addNote:', error);
         console.error('noteProps:', noteProps);
@@ -4642,7 +4640,6 @@ function setupEventDelegation() {
     // 사이드바 이벤트 델리게이션
     const sidebar = document.getElementById("sidebar");
     if (sidebar) {
-        console.log('Setting up sidebar event listeners');
         sidebar.addEventListener("click", handleSidebarClick);
         sidebar.addEventListener("change", handleSidebarChange);
     } else {
@@ -4652,7 +4649,6 @@ function setupEventDelegation() {
     // 컨트롤 바 이벤트 델리게이션 (노트 버튼들이 여기에 있음)
     const controlBar = document.getElementById("control-bar");
     if (controlBar) {
-        console.log('Setting up control-bar event listeners');
         controlBar.addEventListener("click", handleSidebarClick);
     } else {
         console.error('Control-bar element not found!');
@@ -4791,53 +4787,45 @@ function handleEventListChange(e) {
 // 사이드바 클릭 처리
 function handleSidebarClick(e) {
     const target = e.target;
-    console.log('handleSidebarClick triggered - target.id:', target.id, 'target:', target);
 
     // Note 버튼들
     if (target.id === 'add-tab') {
-        console.log('Adding tab note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "tab", isLong: false, longTime: 0 });
         return;
     }
     if (target.id === 'add-dir') {
-        console.log('Adding direction note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "direction", isLong: false, longTime: 0 });
         return;
     }
     if (target.id === 'add-both') {
-        console.log('Adding both note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "both", isLong: false, longTime: 0 });
         return;
     }
     if (target.id === 'add-node') {
-        console.log('Adding node note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "node", isLong: false, longTime: 0 });
         return;
     }
     if (target.id === 'add-long-tab') {
-        console.log('Adding long tab note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "longtab", isLong: true });
         return;
     }
     if (target.id === 'add-long-dir') {
-        console.log('Adding long direction note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "longdirection", isLong: true });
         return;
     }
     if (target.id === 'add-long-both') {
-        console.log('Adding long both note');
         e.preventDefault();
         e.stopPropagation();
         addNote({ type: "longboth", isLong: true });
