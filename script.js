@@ -3568,11 +3568,12 @@ function drawLoop() {
 
 // 노트 추가 로직
 function addNote(noteProps) {
-    const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-    let newBeat;
-    let insertionIndex;
+    try {
+        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        let newBeat;
+        let insertionIndex;
 
-    console.log('addNote called - selectedNoteIndex:', selectedNoteIndex, 'notes.length:', notes.length);
+        console.log('addNote called - selectedNoteIndex:', selectedNoteIndex, 'notes.length:', notes.length, 'noteProps:', noteProps);
 
     if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
         const selectedNote = notes[selectedNoteIndex];
@@ -3604,7 +3605,7 @@ function addNote(noteProps) {
     } else {
         // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
         const bpm = parseFloat(document.getElementById("bpm").value || 120);
-        const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        // subdivisions는 이미 함수 상단에서 선언됨
 
         insertionIndex = notes.length;
         const maxBeat = Math.max(0, ...notes.map(n => {
@@ -3661,6 +3662,13 @@ function addNote(noteProps) {
     if (waveformData) drawWaveformWrapper();
 
     focusNoteAtIndex(insertionIndex);
+    console.log('addNote completed successfully - newBeat:', newBeat, 'insertionIndex:', insertionIndex);
+    } catch (error) {
+        console.error('Error in addNote:', error);
+        console.error('noteProps:', noteProps);
+        console.error('selectedNoteIndex:', selectedNoteIndex);
+        console.error('notes.length:', notes.length);
+    }
 }
 
 // BPM/Subdivisions 변경 시 시간 기반으로 노트 업데이트
@@ -5631,6 +5639,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                 break;
             case 'e':
                 addNote({ type: "both", isLong: false, longTime: 0 });
+                break;
+            case 'r':
+                addNote({ type: "node", isLong: false, longTime: 0 });
                 break;
             case 'a':
                 addNote({ type: "longtab", isLong: true });
