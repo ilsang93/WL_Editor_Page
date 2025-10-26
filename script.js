@@ -4490,23 +4490,13 @@ function renderEventListImmediate_Original() {
             predefinedParamsBtn.style.display = "none";
         }
 
-        predefinedParamsBtn.addEventListener("click", () => {
-            applyPredefinedParams(eventIndex);
-            saveToStorage();
-            scheduleRender({ eventList: true }); // UI 새로고침으로 새로 추가된 파라미터들 표시
-        });
+        // 기본 파라미터 버튼 이벤트는 handleEventListClick에서 위임으로 처리
 
         // 삭제 버튼
         const deleteBtn = document.createElement("button");
         deleteBtn.textContent = "Delete";
         deleteBtn.className = "delete-event-btn";
-        deleteBtn.addEventListener("click", () => {
-            if (confirm("이벤트를 삭제하시겠습니까?")) {
-                removeEvent(eventIndex);
-                scheduleRender({ eventList: true });
-                saveToStorage();
-            }
-        });
+        // 삭제 버튼 이벤트는 handleEventListClick에서 위임으로 처리
 
         eventHeader.appendChild(typeLabel);
         eventHeader.appendChild(idLabel);
@@ -4542,6 +4532,8 @@ function renderEventListImmediate_Original() {
         event.eventParams.forEach((param, paramIndex) => {
             const paramDiv = document.createElement("div");
             paramDiv.className = "param-item";
+            // data-param-index 속성 추가
+            paramDiv.setAttribute('data-param-index', paramIndex);
 
 
             // Param Name 입력
@@ -4574,11 +4566,7 @@ function renderEventListImmediate_Original() {
             const deleteParamBtn = document.createElement("button");
             deleteParamBtn.textContent = "−";
             deleteParamBtn.className = "delete-param-btn";
-            deleteParamBtn.addEventListener("click", () => {
-                removeEventParam(eventIndex, paramIndex);
-                scheduleRender({ eventList: true });
-                saveToStorage();
-            });
+            // 파라미터 삭제 버튼 이벤트는 handleEventListClick에서 위임으로 처리
 
             paramDiv.appendChild(paramNameLabel);
             paramDiv.appendChild(paramValueLabel);
@@ -4591,31 +4579,13 @@ function renderEventListImmediate_Original() {
         const addParamBtn = document.createElement("button");
         addParamBtn.textContent = "+ Add Param";
         addParamBtn.className = "add-param-btn";
-        addParamBtn.addEventListener("click", () => {
-            addEventParam(eventIndex);
-            scheduleRender({ eventList: true });
-            saveToStorage();
-        });
+        // 파라미터 추가 버튼 이벤트는 handleEventListClick에서 위임으로 처리
 
         paramsContent.appendChild(paramsList);
         paramsContent.appendChild(addParamBtn);
         paramsContainer.appendChild(paramsContent);
 
-        // 접기/펼치기 이벤트 리스너
-        paramsLabel.addEventListener("click", () => {
-            const isCollapsed = paramsContent.classList.contains("collapsed");
-            if (isCollapsed) {
-                paramsContent.classList.remove("collapsed");
-                paramsList.classList.remove("collapsed");
-                toggleIcon.classList.remove("collapsed");
-                toggleIcon.textContent = "▼";
-            } else {
-                paramsContent.classList.add("collapsed");
-                paramsList.classList.add("collapsed");
-                toggleIcon.classList.add("collapsed");
-                toggleIcon.textContent = "▶";
-            }
-        });
+        // 접기/펼치기 이벤트는 handleEventListClick에서 위임으로 처리
 
         eventDiv.appendChild(eventHeader);
         eventDiv.appendChild(paramsContainer);
@@ -4683,15 +4653,17 @@ function handleEventListClick(e) {
 
     // 삭제 버튼
     if (target.classList.contains('delete-event-btn')) {
-        if (removeEvent(eventIndex)) {
-            scheduleRender({ eventList: true });
-            saveToStorage();
+        if (confirm("이벤트를 삭제하시겠습니까?")) {
+            if (removeEvent(eventIndex)) {
+                scheduleRender({ eventList: true });
+                saveToStorage();
+            }
         }
         return;
     }
 
     // 기본 파라미터 버튼
-    if (target.classList.contains('predefined-params-btn')) {
+    if (target.classList.contains('predefined-params-btn') || target.classList.contains('add-predefined-params-btn')) {
         applyPredefinedParams(eventIndex);
         scheduleRender({ eventList: true });
         saveToStorage();
@@ -4710,7 +4682,7 @@ function handleEventListClick(e) {
     if (target.classList.contains('delete-param-btn')) {
         const paramItem = target.closest('.param-item');
         if (paramItem) {
-            const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+            const paramIndex = parseInt(paramItem.getAttribute('data-param-index')) || Array.from(paramItem.parentNode.children).indexOf(paramItem);
             removeEventParam(eventIndex, paramIndex);
             scheduleRender({ eventList: true });
             saveToStorage();
