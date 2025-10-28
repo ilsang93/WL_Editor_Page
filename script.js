@@ -4137,28 +4137,52 @@ function attachEventClickListener(eventDiv, eventIndex) {
 
 // 이벤트 클릭 처리 로직 분리
 function handleEventClick(e, eventIndex) {
+    const container = document.getElementById("event-list");
+
     if (e.shiftKey && lastClickedEventIndex !== null) {
         const start = Math.min(lastClickedEventIndex, eventIndex);
         const end = Math.max(lastClickedEventIndex, eventIndex);
+
+        // DOM만 업데이트 (전체 리렌더링 방지)
         for (let i = start; i <= end; i++) {
             selectedEventIndices.add(i);
+            const eventItem = container.querySelector(`[data-event-index="${i}"]`);
+            if (eventItem) {
+                eventItem.classList.add("selected");
+            }
         }
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
     } else if (e.ctrlKey || e.metaKey) {
+        // DOM만 업데이트 (전체 리렌더링 방지)
         if (selectedEventIndices.has(eventIndex)) {
             selectedEventIndices.delete(eventIndex);
+            const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+            if (eventItem) {
+                eventItem.classList.remove("selected");
+            }
         } else {
             selectedEventIndices.add(eventIndex);
+            const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+            if (eventItem) {
+                eventItem.classList.add("selected");
+            }
         }
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
     } else {
         // 단순 클릭: 선택 상태 초기화 후 해당 이벤트만 선택
+        // DOM만 업데이트 (전체 리렌더링 방지)
+        const allItems = container.querySelectorAll('.event-item');
+        allItems.forEach(item => item.classList.remove("selected"));
+
         selectedEventIndices.clear();
         selectedEventIndices.add(eventIndex);
+
+        const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+        if (eventItem) {
+            eventItem.classList.add("selected");
+        }
+
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
         focusEventAtIndex(eventIndex);
     }
 }
@@ -4391,29 +4415,12 @@ function createEventParamElement(event, eventIndex, param, paramIndex) {
     return paramDiv;
 }
 
-// 메모리 누수 방지를 위한 이벤트 리스너 정리
-function cleanupEventListeners(container) {
-    const elements = container.querySelectorAll('input, select, button');
-    elements.forEach(element => {
-        // Clone하여 모든 이벤트 리스너 제거
-        const clone = element.cloneNode(true);
-        element.parentNode.replaceChild(clone, element);
-    });
-}
-
 // 기존 이벤트 렌더링 로직 (가상 스크롤링 비활성화)
 function renderEventListImmediate_Original() {
     const container = document.getElementById("event-list");
 
-    // 성능 최적화: 메모리 누수 방지를 위한 이벤트 리스너 정리
-    if (container.children.length > 0) {
-        cleanupEventListeners(container);
-    }
-
-    // 기존 요소들 제거
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
+    // 기존 요소들 제거 (이벤트 위임을 사용하므로 개별 리스너 정리 불필요)
+    container.innerHTML = "";
 
     const events = getAllEvents();
     const eventTypes = getEventTypes();
@@ -4457,26 +4464,7 @@ function renderEventListImmediate_Original() {
             typeSelect.title = currentDescription;
         }
 
-        typeSelect.addEventListener("change", (e) => {
-            event.eventType = e.target.value;
-            // 선택된 값의 설명으로 툴팁 업데이트
-            const newDescription = getEventTypeDescription(e.target.value);
-            typeSelect.title = newDescription || '';
-
-            // EventType이 변경되면 EventId 입력 요소를 재생성
-            const oldIdInput = idLabel.querySelector('.event-id-input, .event-id-select');
-            if (oldIdInput) {
-                oldIdInput.remove();
-            }
-
-            // 타입이 변경되었으므로 eventId 초기화
-            event.eventId = '';
-
-            const newIdInput = createEventIdInput();
-            idLabel.appendChild(newIdInput);
-
-            saveToStorage();
-        });
+        // 이벤트 위임으로 처리되므로 개별 리스너 불필요
         typeLabel.appendChild(typeSelect);
 
         // Event ID 입력 (타입에 따라 드롭다운 또는 텍스트 입력)
@@ -4493,10 +4481,7 @@ function renderEventListImmediate_Original() {
                 idInput.type = "text";
                 idInput.className = "event-id-input";
                 idInput.value = event.eventId;
-                idInput.addEventListener("change", (e) => {
-                    event.eventId = e.target.value;
-                    saveToStorage();
-                });
+                // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             } else {
                 // 사전 정의된 타입이면 드롭다운
                 idInput = document.createElement("select");
@@ -4528,15 +4513,7 @@ function renderEventListImmediate_Original() {
                     idInput.appendChild(customOption);
                 }
 
-                idInput.addEventListener("change", (e) => {
-                    event.eventId = e.target.value;
-
-                    // 사전 정의된 파라미터 자동 추가
-                    applyPredefinedParams(eventIndex);
-
-                    saveToStorage();
-                    scheduleRender({ eventList: true }); // UI 새로고침으로 새로 추가된 파라미터들 표시
-                });
+                // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             }
 
             return idInput;
@@ -4553,42 +4530,7 @@ function renderEventListImmediate_Original() {
         timeInput.className = "event-time-input";
         timeInput.step = "0.1";
         timeInput.value = event.eventTime;
-        timeInput.addEventListener("change", (e) => {
-            const newTime = parseFloat(e.target.value) || 0;
-            const oldTime = event.eventTime;
-            const timeDiff = newTime - oldTime;
-
-            // 여러 이벤트가 선택되어 있고, 현재 이벤트가 선택된 이벤트 중 하나일 때
-            if (selectedEventIndices.has(eventIndex) && selectedEventIndices.size > 1) {
-                // 변경 전 상태를 히스토리에 저장
-                saveState();
-
-                // 선택된 모든 이벤트의 시간을 동일한 증감치만큼 조정
-                const updates = [];
-                selectedEventIndices.forEach(idx => {
-                    const eventToUpdate = getEventAtIndex(idx);
-                    if (eventToUpdate) {
-                        updates.push({
-                            index: idx,
-                            event: {
-                                ...eventToUpdate,
-                                eventTime: eventToUpdate.eventTime + timeDiff
-                            }
-                        });
-                    }
-                });
-                updateMultipleEvents(updates);
-            } else {
-                // 단일 이벤트 업데이트
-                updateEvent(eventIndex, {
-                    ...event,
-                    eventTime: newTime
-                });
-            }
-
-            saveToStorage();
-            scheduleRender({ eventList: true });
-        });
+        // 이벤트 위임으로 처리되므로 개별 리스너 불필요
         timeLabel.appendChild(timeInput);
 
         // 사전 정의된 파라미터 추가 버튼 (Event ID가 설정되어 있을 때만 표시)
@@ -4660,10 +4602,7 @@ function renderEventListImmediate_Original() {
             paramNameInput.type = "text";
             paramNameInput.className = "param-name-input";
             paramNameInput.value = param.paramName;
-            paramNameInput.addEventListener("change", (e) => {
-                param.paramName = e.target.value;
-                saveToStorage();
-            });
+            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             paramNameLabel.appendChild(paramNameInput);
 
             // Param Value 입력
@@ -4673,10 +4612,7 @@ function renderEventListImmediate_Original() {
             paramValueInput.type = "text";
             paramValueInput.className = "param-value-input";
             paramValueInput.value = param.paramValue;
-            paramValueInput.addEventListener("change", (e) => {
-                param.paramValue = e.target.value;
-                saveToStorage();
-            });
+            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             paramValueLabel.appendChild(paramValueInput);
 
             // Param 삭제 버튼
@@ -4862,11 +4798,44 @@ function handleEventListChange(e) {
             const newDescription = getEventTypeDescription(target.value);
             target.title = newDescription || '';
             event.eventId = '';
+            saveToStorage();
             requestAnimationFrame(() => renderEventList());
-        } else if (target.classList.contains('event-id-input') || target.classList.contains('event-id-select')) {
+        } else if (target.classList.contains('event-id-input')) {
             event.eventId = target.value;
+            saveToStorage();
+        } else if (target.classList.contains('event-id-select')) {
+            event.eventId = target.value;
+            // 사전 정의된 파라미터 자동 추가
+            applyPredefinedParams(eventIndex);
+            saveToStorage();
+            scheduleRender({ eventList: true }); // UI 새로고침으로 새로 추가된 파라미터들 표시
         } else if (target.classList.contains('event-time-input')) {
-            event.eventTime = parseFloat(target.value) || 0;
+            const newTime = parseFloat(target.value) || 0;
+            const oldTime = event.eventTime;
+            const timeDiff = newTime - oldTime;
+
+            // 여러 이벤트가 선택되어 있고, 현재 이벤트가 선택된 이벤트 중 하나일 때
+            if (selectedEventIndices.has(eventIndex) && selectedEventIndices.size > 1) {
+                // 선택된 모든 이벤트의 시간을 동일한 증감치만큼 조정
+                const updates = [];
+                selectedEventIndices.forEach(idx => {
+                    const eventToUpdate = getEventAtIndex(idx);
+                    if (eventToUpdate) {
+                        updates.push({
+                            index: idx,
+                            event: {
+                                ...eventToUpdate,
+                                eventTime: eventToUpdate.eventTime + timeDiff
+                            }
+                        });
+                    }
+                });
+                updateMultipleEvents(updates);
+            } else {
+                // 단일 이벤트 업데이트
+                event.eventTime = newTime;
+            }
+            saveToStorage();
         } else if (target.classList.contains('param-name-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
@@ -4875,6 +4844,7 @@ function handleEventListChange(e) {
                     event.eventParams[paramIndex].paramName = target.value;
                 }
             }
+            saveToStorage();
         } else if (target.classList.contains('param-value-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
@@ -4883,9 +4853,9 @@ function handleEventListChange(e) {
                     event.eventParams[paramIndex].paramValue = target.value;
                 }
             }
+            saveToStorage();
         }
 
-        saveToStorage();
         eventChangeTimeouts.delete(target);
     }, 300);
 
