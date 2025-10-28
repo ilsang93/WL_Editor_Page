@@ -307,9 +307,9 @@ function isNoteInViewport(screenX, screenY, zoomLevel = zoom) {
     const margin = Math.max(20, Math.min(100, zoomLevel * 3));
 
     return screenX >= -margin &&
-           screenX <= canvas.width + margin &&
-           screenY >= -margin &&
-           screenY <= canvas.height + margin;
+        screenX <= canvas.width + margin &&
+        screenY >= -margin &&
+        screenY <= canvas.height + margin;
 }
 
 // 최적화된 노트 렌더링 함수
@@ -1381,26 +1381,26 @@ function drawPath() {
             // 뷰포트 컬링 - 화면 밖의 이벤트는 그리지 않음
             if (!isNoteInViewport(screenX, screenY)) return;
 
-        // 강조된 이벤트인지 확인
-        const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
+            // 강조된 이벤트인지 확인
+            const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
 
-        if (isHighlighted) {
-            // 강조 효과를 위한 큰 원 그리기
-            const alpha = Math.min(1, highlightedEventTimer * 2);
-            const radius = 15 + (2.0 - highlightedEventTimer) * 20;
+            if (isHighlighted) {
+                // 강조 효과를 위한 큰 원 그리기
+                const alpha = Math.min(1, highlightedEventTimer * 2);
+                const radius = 15 + (2.0 - highlightedEventTimer) * 20;
 
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = `rgba(255, 152, 0, ${alpha * 0.8})`;
-            ctx.lineWidth = 3;
-            ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(255, 152, 0, ${alpha * 0.8})`;
+                ctx.lineWidth = 3;
+                ctx.stroke();
 
-            // 내부 원
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, radius * 0.6, 0, 2 * Math.PI);
-            ctx.fillStyle = `rgba(255, 152, 0, ${alpha * 0.3})`;
-            ctx.fill();
-        }
+                // 내부 원
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, radius * 0.6, 0, 2 * Math.PI);
+                ctx.fillStyle = `rgba(255, 152, 0, ${alpha * 0.3})`;
+                ctx.fill();
+            }
 
             // 삼각형 마커 그리기 (강조된 경우 더 크게)
             const markerSize = isHighlighted ? 15 : 10;
@@ -3682,93 +3682,93 @@ function addNote(noteProps) {
         let insertionIndex;
 
 
-    if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
-        const selectedNote = notes[selectedNoteIndex];
+        if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
+            const selectedNote = notes[selectedNoteIndex];
 
-        // 선택된 노트와 직전 노트의 간격을 계산
-        let interval;
-        if (selectedNoteIndex > 0) {
-            const previousNote = notes[selectedNoteIndex - 1];
-            interval = selectedNote.beat - previousNote.beat;
-            console.log(`Interval calculation: ${selectedNote.beat} - ${previousNote.beat} = ${interval}`);
-        } else {
-            // 첫 번째 노트라면 기본 간격 사용
-            interval = subdivisions;
-            console.log(`First note - using default interval: ${interval}`);
-        }
-
-        // 간격이 0 이하라면 기본 간격 사용
-        if (interval <= 0) {
-            interval = subdivisions;
-            console.log(`Invalid interval - using default: ${interval}`);
-        }
-
-        // 선택된 노트 + 간격으로 새 노트 beat 설정
-        newBeat = selectedNote.beat + interval;
-        console.log(`New note beat: ${selectedNote.beat} + ${interval} = ${newBeat}`);
-
-        // 선택된 노트 바로 다음 위치에 삽입
-        insertionIndex = selectedNoteIndex + 1;
-    } else {
-        // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
-        const bpm = parseFloat(document.getElementById("bpm").value || 120);
-        // subdivisions는 이미 함수 상단에서 선언됨
-
-        insertionIndex = notes.length;
-        const maxBeat = Math.max(0, ...notes.map(n => {
-            let endBeat = n.beat;
-            if (n.isLong && n.longTime > 0) {
-                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-                const noteBpm = n.bpm || bpm;
-                const noteSubdivisions = n.subdivisions || subdivisions;
-                const longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
-                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
-                endBeat = n.beat + longTimeInGlobalBeats;
+            // 선택된 노트와 직전 노트의 간격을 계산
+            let interval;
+            if (selectedNoteIndex > 0) {
+                const previousNote = notes[selectedNoteIndex - 1];
+                interval = selectedNote.beat - previousNote.beat;
+                console.log(`Interval calculation: ${selectedNote.beat} - ${previousNote.beat} = ${interval}`);
+            } else {
+                // 첫 번째 노트라면 기본 간격 사용
+                interval = subdivisions;
+                console.log(`First note - using default interval: ${interval}`);
             }
-            return endBeat;
-        }));
-        newBeat = maxBeat + subdivisions;
-    }
 
-    // 현재 BPM/Subdivisions 가져오기
-    const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
-    const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+            // 간격이 0 이하라면 기본 간격 사용
+            if (interval <= 0) {
+                interval = subdivisions;
+                console.log(`Invalid interval - using default: ${interval}`);
+            }
 
-    const newNote = {
-        ...noteProps,
-        beat: newBeat,
-        bpm: currentBpm,          // 노트별 BPM 저장
-        subdivisions: currentSubdivisions  // 노트별 subdivision 저장
-    };
+            // 선택된 노트 + 간격으로 새 노트 beat 설정
+            newBeat = selectedNote.beat + interval;
+            console.log(`New note beat: ${selectedNote.beat} + ${interval} = ${newBeat}`);
 
-    if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
-        const precedingDirectionNotes = notes
-            .slice(0, insertionIndex)
-            .filter(n => n.type === "direction" || n.type === "longdirection" || n.type === "both" || n.type === "longboth")
-            .sort((a, b) => a.beat - b.beat);
+            // 선택된 노트 바로 다음 위치에 삽입
+            insertionIndex = selectedNoteIndex + 1;
+        } else {
+            // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
+            const bpm = parseFloat(document.getElementById("bpm").value || 120);
+            // subdivisions는 이미 함수 상단에서 선언됨
 
-        const lastDirNote = precedingDirectionNotes.length > 0 ? precedingDirectionNotes[precedingDirectionNotes.length - 1] : null;
-        newNote.direction = lastDirNote ? lastDirNote.direction : "none";
-    }
+            insertionIndex = notes.length;
+            const maxBeat = Math.max(0, ...notes.map(n => {
+                let endBeat = n.beat;
+                if (n.isLong && n.longTime > 0) {
+                    // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                    const noteBpm = n.bpm || bpm;
+                    const noteSubdivisions = n.subdivisions || subdivisions;
+                    const longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
+                    const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                    endBeat = n.beat + longTimeInGlobalBeats;
+                }
+                return endBeat;
+            }));
+            newBeat = maxBeat + subdivisions;
+        }
 
-    if (newNote.isLong) {
-        newNote.longTime = newNote.longTime || subdivisions;
-    }
+        // 현재 BPM/Subdivisions 가져오기
+        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
+        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
-    // 변경 전 상태를 히스토리에 저장
-    saveState();
+        const newNote = {
+            ...noteProps,
+            beat: newBeat,
+            bpm: currentBpm,          // 노트별 BPM 저장
+            subdivisions: currentSubdivisions  // 노트별 subdivision 저장
+        };
 
-    notes.splice(insertionIndex, 0, newNote);
+        if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
+            const precedingDirectionNotes = notes
+                .slice(0, insertionIndex)
+                .filter(n => n.type === "direction" || n.type === "longdirection" || n.type === "both" || n.type === "longboth")
+                .sort((a, b) => a.beat - b.beat);
 
-    // 캐시 무효화
-    invalidatePathCache();
+            const lastDirNote = precedingDirectionNotes.length > 0 ? precedingDirectionNotes[precedingDirectionNotes.length - 1] : null;
+            newNote.direction = lastDirNote ? lastDirNote.direction : "none";
+        }
 
-    saveToStorage();
-    drawPath();
-    renderNoteList();
-    if (waveformData) drawWaveformWrapper();
+        if (newNote.isLong) {
+            newNote.longTime = newNote.longTime || subdivisions;
+        }
 
-    focusNoteAtIndex(insertionIndex);
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
+        notes.splice(insertionIndex, 0, newNote);
+
+        // 캐시 무효화
+        invalidatePathCache();
+
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData) drawWaveformWrapper();
+
+        focusNoteAtIndex(insertionIndex);
     } catch (error) {
         console.error('Error in addNote:', error);
         console.error('noteProps:', noteProps);
@@ -3852,10 +3852,33 @@ function handleSubdivisionsChange(newSubdivisions) {
 
 // Pre-delay 변경 핸들러
 function handlePreDelayChange() {
-    console.log(`Pre-delay changed to ${getPreDelaySeconds()}s`);
+    const preDelayField = document.getElementById("pre-delay");
+    const newPreDelayMs = parseInt(preDelayField.value || 0);
+    const oldPreDelayMs = parseInt(preDelayField.dataset.previousValue || 0);
+    const preDelayDiffMs = newPreDelayMs - oldPreDelayMs;
+
+    console.log(`Pre-delay changed from ${oldPreDelayMs}ms to ${newPreDelayMs}ms (diff: ${preDelayDiffMs}ms)`);
+
+    // 모든 이벤트의 시간을 pre-delay 변경량만큼 조정
+    if (preDelayDiffMs !== 0) {
+        const preDelayDiffSeconds = preDelayDiffMs / 1000;
+        const allEvents = getAllEvents();
+
+        allEvents.forEach(event => {
+            if (event && typeof event.eventTime === 'number') {
+                event.eventTime += preDelayDiffSeconds;
+            }
+        });
+
+        console.log(`Updated ${allEvents.length} events by ${preDelayDiffSeconds}s`);
+    }
+
+    // 현재 값을 이전 값으로 업데이트
+    preDelayField.dataset.previousValue = newPreDelayMs;
 
     saveToStorage();
     renderNoteList();
+    renderEventList();
     if (waveformData)
         drawWaveformWrapper();
 }
@@ -5067,6 +5090,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (subdivisionsField) {
         subdivisionsField.dataset.previousValue = subdivisionsField.value || "16";
     }
+    if (preDelayField) {
+        preDelayField.dataset.previousValue = preDelayField.value || "0";
+    }
 
     if (bpmField) {
         bpmField.addEventListener("change", (e) => {
@@ -5384,12 +5410,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     let preDelayMs;
                     if (json.preDelay !== undefined) {
-                        if (json.preDelay <= 10) {
-                            preDelayMs = json.preDelay * 1000;
-                            console.log(`Legacy format detected: ${json.preDelay}s converted to ${preDelayMs}ms`);
-                        } else {
-                            preDelayMs = json.preDelay;
-                        }
+                        preDelayMs = json.preDelay;
                     } else {
                         preDelayMs = 0;
                     }
@@ -5430,6 +5451,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("bpm").value = bpm;
                     document.getElementById("subdivisions").value = subdivisions;
                     document.getElementById("pre-delay").value = preDelayMs;
+
+                    // previousValue도 업데이트하여 로드 후 변경 감지가 올바르게 작동하도록 함
+                    const preDelayField = document.getElementById("pre-delay");
+                    if (preDelayField) {
+                        preDelayField.dataset.previousValue = preDelayMs;
+                    }
 
                     // Level 값 설정 (없으면 기본값 10)
                     const levelValue = json.level || 10;
