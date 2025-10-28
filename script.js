@@ -150,12 +150,34 @@ let pathCache = {
     lastSpeedMultiplier: null
 };
 
+// 배경 레이어 캐시 (그리드, 경로, 마커)
+let backgroundCache = {
+    lastZoom: null,
+    lastViewOffsetX: null,
+    lastViewOffsetY: null,
+    lastNotesHash: null,
+    lastBpm: null,
+    lastSubdivisions: null,
+    lastPreDelaySeconds: null,
+    lastRealtimeDrawingEnabled: null,
+    lastIsPlaying: null,
+    lastDrawTime: null
+};
+
 // 캐시 무효화 함수
 function invalidatePathCache() {
     pathCache.pathDirectionNotes = null;
     pathCache.nodePositions = null;
     pathCache.segmentTimes = null;
     pathCache.lastNotesHash = null;
+}
+
+// 배경 캐시 무효화
+function invalidateBackgroundCache() {
+    backgroundCache.lastZoom = null;
+    backgroundCache.lastViewOffsetX = null;
+    backgroundCache.lastViewOffsetY = null;
+    backgroundCache.lastNotesHash = null;
 }
 
 // 노트 배열 해시 생성 (변경 감지용)
@@ -241,11 +263,11 @@ function calculateNodePositions(pathDirectionNotes, bpm, subdivisions) {
 }
 
 // 경로 세그먼트 그리기 함수
-function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime) {
+function drawPathSegments(targetCtx, pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime) {
     if (nodePositions.length === 0) return;
 
-    ctx.beginPath();
-    ctx.moveTo(nodePositions[0].x * zoom + viewOffset.x, nodePositions[0].y * zoom + viewOffset.y);
+    targetCtx.beginPath();
+    targetCtx.moveTo(nodePositions[0].x * zoom + viewOffset.x, nodePositions[0].y * zoom + viewOffset.y);
 
     for (let i = 0; i < nodePositions.length - 1; i++) {
         const currentPos = nodePositions[i];
@@ -262,7 +284,7 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
 
         // 실시간 그리기 로직
         if (realtimeDrawingEnabled && isPlaying && segment.end <= drawTime) {
-            ctx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
+            targetCtx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
         } else if (realtimeDrawingEnabled && isPlaying && segment.start <= drawTime && segment.end > drawTime) {
             // 부분적으로 그리기 (선형 보간)
             const segmentProgress = (drawTime - segment.start) / (segment.end - segment.start);
@@ -270,10 +292,10 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
                 x: currentPos.x + (nextPos.x - currentPos.x) * segmentProgress,
                 y: currentPos.y + (nextPos.y - currentPos.y) * segmentProgress
             };
-            ctx.lineTo(partialNext.x * zoom + viewOffset.x, partialNext.y * zoom + viewOffset.y);
+            targetCtx.lineTo(partialNext.x * zoom + viewOffset.x, partialNext.y * zoom + viewOffset.y);
         } else if (!realtimeDrawingEnabled || !isPlaying) {
             // 전체 경로 그리기
-            ctx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
+            targetCtx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
         }
     }
 }
@@ -353,6 +375,28 @@ function renderNotesOptimized(notes, pathDirectionNotes, nodePositions, bpm, sub
 
 // 배치된 노트 렌더링 함수 (노트 타입별로 그룹화하여 렌더링)
 function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bpm, subdivisions) {
+    // OffscreenCanvas 사용 시도
+    let targetCtx = ctx;
+    let useOffscreen = false;
+
+    if (offscreenSupported && notesToRender.length > 100) {
+        // 노트가 많을 때만 OffscreenCanvas 사용
+        try {
+            if (!notesOffscreenCanvas || notesOffscreenCanvas.width !== canvas.width || notesOffscreenCanvas.height !== canvas.height) {
+                notesOffscreenCanvas = new OffscreenCanvas(canvas.width, canvas.height);
+                notesOffscreenCtx = notesOffscreenCanvas.getContext('2d');
+            }
+            notesOffscreenCtx.clearRect(0, 0, notesOffscreenCanvas.width, notesOffscreenCanvas.height);
+            targetCtx = notesOffscreenCtx;
+            useOffscreen = true;
+        } catch (e) {
+            // Offscreen 실패 시 폴백
+            console.warn('OffscreenCanvas fallback:', e);
+            targetCtx = ctx;
+            useOffscreen = false;
+        }
+    }
+
     // 노트 타입별로 그룹화
     const notesByType = {
         tab: [],
@@ -373,15 +417,34 @@ function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bp
     });
 
     // 타입별로 배치 렌더링 (롱노트를 먼저 렌더링하여 1회성 노트가 위에 표시되도록 함)
+    // 롱노트는 복잡한 구조로 인해 ctx를 직접 사용 (추후 개선 가능)
+    const originalCtx = ctx;
+    if (useOffscreen && targetCtx !== ctx) {
+        // OffscreenCanvas를 사용 중이면 임시로 전역 ctx를 교체
+        window.tempCtx = ctx;
+        window.ctx = targetCtx;
+    }
+
     renderLongNotes(notesByType.longtab, notesByType.longdirection, notesByType.longboth, pathDirectionNotes, nodePositions, bpm, subdivisions);
-    renderTabNotes(notesByType.tab);
-    renderDirectionNotes(notesByType.direction);
-    renderBothNotes(notesByType.both);
-    renderNodeNotes(notesByType.node, bpm);
+    renderTabNotes(notesByType.tab, targetCtx);
+    renderDirectionNotes(notesByType.direction, targetCtx);
+    renderBothNotes(notesByType.both, targetCtx);
+    renderNodeNotes(notesByType.node, bpm, targetCtx);
+
+    if (useOffscreen && window.tempCtx) {
+        // 전역 ctx 복원
+        window.ctx = window.tempCtx;
+        delete window.tempCtx;
+    }
+
+    // OffscreenCanvas를 사용한 경우 메인 캔버스로 전송
+    if (useOffscreen && notesOffscreenCanvas) {
+        ctx.drawImage(notesOffscreenCanvas, 0, 0);
+    }
 }
 
 // 탭 노트 배치 렌더링 (배치 최적화)
-function renderTabNotes(tabNotes) {
+function renderTabNotes(tabNotes, targetCtx = ctx) {
     if (tabNotes.length === 0) return;
 
     // 성능 최적화: 노트를 색상별로 그룹화하여 배치 렌더링
@@ -398,44 +461,44 @@ function renderTabNotes(tabNotes) {
 
     // 빨간 노트들을 한 번에 렌더링
     if (redNotes.length > 0) {
-        ctx.fillStyle = "red";
-        ctx.beginPath();
+        targetCtx.fillStyle = "red";
+        targetCtx.beginPath();
         redNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.fill();
+        targetCtx.fill();
     }
 
     // 일반 노트들을 한 번에 렌더링
     if (normalNotes.length > 0) {
-        ctx.fillStyle = "#FF6B6B";
-        ctx.strokeStyle = "#4CAF50";
-        ctx.lineWidth = 2;
+        targetCtx.fillStyle = "#FF6B6B";
+        targetCtx.strokeStyle = "#4CAF50";
+        targetCtx.lineWidth = 2;
 
         // Fill 패스
-        ctx.beginPath();
+        targetCtx.beginPath();
         normalNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.fill();
+        targetCtx.fill();
 
         // Stroke 패스
-        ctx.beginPath();
+        targetCtx.beginPath();
         normalNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.stroke();
+        targetCtx.stroke();
     }
 }
 
 // 방향 노트 배치 렌더링
-function renderDirectionNotes(directionNotes) {
+function renderDirectionNotes(directionNotes, targetCtx = ctx) {
     if (directionNotes.length === 0) return;
 
-    ctx.lineWidth = 2;
+    targetCtx.lineWidth = 2;
 
     directionNotes.forEach(({ note, screenX, screenY }) => {
         const [dx, dy] = directionToVector(note.direction);
@@ -446,45 +509,45 @@ function renderDirectionNotes(directionNotes) {
         const endY = screenY + uy;
 
         // 화살표 선 그리기
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(endX, endY);
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, screenY);
+        targetCtx.lineTo(endX, endY);
 
         if (note.beat === 0) {
-            ctx.strokeStyle = "#f00";
-            ctx.fillStyle = "#f00";
+            targetCtx.strokeStyle = "#f00";
+            targetCtx.fillStyle = "#f00";
         } else {
-            ctx.strokeStyle = "#4CAF50";
-            ctx.fillStyle = "#4CAF50";
+            targetCtx.strokeStyle = "#4CAF50";
+            targetCtx.fillStyle = "#4CAF50";
         }
-        ctx.stroke();
+        targetCtx.stroke();
 
         // 화살표 머리 그리기
         const perpX = -uy * 0.5;
         const perpY = ux * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-        ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-        ctx.closePath();
-        ctx.fill();
+        targetCtx.beginPath();
+        targetCtx.moveTo(endX, endY);
+        targetCtx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+        targetCtx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+        targetCtx.closePath();
+        targetCtx.fill();
     });
 }
 
 // both 노트 배치 렌더링
-function renderBothNotes(bothNotes) {
+function renderBothNotes(bothNotes, targetCtx = ctx) {
     if (bothNotes.length === 0) return;
 
-    ctx.fillStyle = "#9C27B0";
-    ctx.strokeStyle = "#4A148C";
-    ctx.lineWidth = 2;
+    targetCtx.fillStyle = "#9C27B0";
+    targetCtx.strokeStyle = "#4A148C";
+    targetCtx.lineWidth = 2;
 
     bothNotes.forEach(({ note, screenX, screenY }) => {
         // 원 그리기
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+        targetCtx.fill();
+        targetCtx.stroke();
 
         // 방향 화살표 그리기
         const [dx, dy] = directionToVector(note.direction);
@@ -494,60 +557,60 @@ function renderBothNotes(bothNotes) {
         const endX = screenX + ux;
         const endY = screenY + uy;
 
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(endX, endY);
-        ctx.strokeStyle = "#9C27B0";
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, screenY);
+        targetCtx.lineTo(endX, endY);
+        targetCtx.strokeStyle = "#9C27B0";
+        targetCtx.stroke();
 
         const perpX = -uy * 0.5;
         const perpY = ux * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-        ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-        ctx.closePath();
-        ctx.fillStyle = "#9C27B0";
-        ctx.fill();
+        targetCtx.beginPath();
+        targetCtx.moveTo(endX, endY);
+        targetCtx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+        targetCtx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+        targetCtx.closePath();
+        targetCtx.fillStyle = "#9C27B0";
+        targetCtx.fill();
     });
 }
 
 // 노드 노트 배치 렌더링
-function renderNodeNotes(nodeNotes, bpm) {
+function renderNodeNotes(nodeNotes, bpm, targetCtx = ctx) {
     if (nodeNotes.length === 0) return;
 
-    ctx.fillStyle = "#607D8B";
-    ctx.strokeStyle = "#263238";
-    ctx.lineWidth = 2;
+    targetCtx.fillStyle = "#607D8B";
+    targetCtx.strokeStyle = "#263238";
+    targetCtx.lineWidth = 2;
 
     nodeNotes.forEach(({ note, screenX, screenY }) => {
         const nodeDisplayY = screenY - 30;
 
-        ctx.beginPath();
-        ctx.arc(screenX, nodeDisplayY, 6, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.arc(screenX, nodeDisplayY, 6, 0, 2 * Math.PI);
+        targetCtx.fill();
+        targetCtx.stroke();
 
         // BPM 텍스트 표시
-        ctx.fillStyle = "white";
-        ctx.font = "bold 8px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        targetCtx.fillStyle = "white";
+        targetCtx.font = "bold 8px Arial";
+        targetCtx.textAlign = "center";
+        targetCtx.textBaseline = "middle";
         const noteBpm = note.bpm || bpm;
-        ctx.fillText(noteBpm.toString(), screenX, nodeDisplayY);
+        targetCtx.fillText(noteBpm.toString(), screenX, nodeDisplayY);
 
         // 연결선 그리기
-        ctx.beginPath();
-        ctx.moveTo(screenX, nodeDisplayY + 6);
-        ctx.lineTo(screenX, screenY - 3);
-        ctx.strokeStyle = "rgba(96, 125, 139, 0.5)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, nodeDisplayY + 6);
+        targetCtx.lineTo(screenX, screenY - 3);
+        targetCtx.strokeStyle = "rgba(96, 125, 139, 0.5)";
+        targetCtx.lineWidth = 1;
+        targetCtx.stroke();
     });
 }
 
 // 롱노트 배치 렌더링
-function renderLongNotes(longTabNotes, longDirectionNotes, longBothNotes, pathDirectionNotes, nodePositions, bpm, subdivisions) {
+function renderLongNotes(longTabNotes, longDirectionNotes, longBothNotes, pathDirectionNotes, nodePositions, bpm, subdivisions, targetCtx = ctx) {
     // 롱노트는 개별적으로 처리해야 함 (각각 다른 길이를 가지므로)
     [...longTabNotes, ...longDirectionNotes, ...longBothNotes].forEach(({ note, screenX, screenY, pathBeat, finalTime }) => {
         if (note.longTime <= 0) return;
@@ -794,8 +857,12 @@ const btnDemoPause = document.getElementById("demo-pause");
 const btnDemoStop = document.getElementById("demo-stop");
 const spanDemoTime = document.getElementById("demo-time");
 const seekbar = document.getElementById("demo-seekbar");
+// Canvas layers
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const backgroundCanvas = document.getElementById("background-canvas");
+const backgroundCtx = backgroundCanvas.getContext("2d");
+
 const waveformCanvas = document.getElementById("waveform-canvas");
 const waveformCtx = waveformCanvas.getContext("2d");
 const waveformContainer = document.getElementById("waveform-container");
@@ -803,6 +870,22 @@ const waveformProgress = document.getElementById("waveform-progress");
 const rulerCanvas = document.getElementById("ruler-canvas");
 const rulerCtx = rulerCanvas.getContext("2d");
 const waveformSlider = document.getElementById("waveform-slider");
+
+// OffscreenCanvas support detection and fallback
+let offscreenSupported = false;
+let notesOffscreenCanvas = null;
+let notesOffscreenCtx = null;
+
+try {
+    if (typeof OffscreenCanvas !== 'undefined') {
+        offscreenSupported = true;
+        console.log('OffscreenCanvas is supported');
+    } else {
+        console.log('OffscreenCanvas not supported, using fallback');
+    }
+} catch (e) {
+    console.log('OffscreenCanvas detection failed, using fallback');
+}
 
 // Wrapper function for drawWaveform to maintain compatibility
 function drawWaveformWrapper() {
@@ -966,44 +1049,134 @@ function resizeCanvas() {
     if (canvas.width !== currentWidth || canvas.height !== currentHeight) {
         canvas.width = currentWidth;
         canvas.height = currentHeight;
+        backgroundCanvas.width = currentWidth;
+        backgroundCanvas.height = currentHeight;
         lastCanvasWidth = currentWidth;
         lastCanvasHeight = currentHeight;
+
+        // OffscreenCanvas 크기도 조정
+        if (offscreenSupported && notesOffscreenCanvas) {
+            notesOffscreenCanvas.width = currentWidth;
+            notesOffscreenCanvas.height = currentHeight;
+        }
+
         return true; // 리사이즈 발생
     }
     return false; // 리사이즈 없음
 }
 
-function drawGrid() {
+function drawGrid(targetCtx, targetCanvas) {
     // 줌이 너무 작으면 그리드 생략 (성능 최적화)
     const MIN_ZOOM_FOR_GRID = 0.5;
     if (zoom < MIN_ZOOM_FOR_GRID) return;
 
     const gridSize = 8;
     const startX = Math.floor(-viewOffset.x / zoom / gridSize) - 1;
-    const endX = Math.ceil((canvas.width - viewOffset.x) / zoom / gridSize) + 1;
+    const endX = Math.ceil((targetCanvas.width - viewOffset.x) / zoom / gridSize) + 1;
     const startY = Math.floor(-viewOffset.y / zoom / gridSize) - 1;
-    const endY = Math.ceil((canvas.height - viewOffset.y) / zoom / gridSize) + 1;
+    const endY = Math.ceil((targetCanvas.height - viewOffset.y) / zoom / gridSize) + 1;
 
     // 성능 최적화: 모든 그리드 선을 한 번에 그리기
-    ctx.strokeStyle = "rgba(150, 150, 150, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    targetCtx.strokeStyle = "rgba(150, 150, 150, 0.2)";
+    targetCtx.lineWidth = 1;
+    targetCtx.beginPath();
 
     // 수직선들 한 번에 그리기
     for (let i = startX; i <= endX; i++) {
         const x = i * gridSize * zoom + viewOffset.x;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
+        targetCtx.moveTo(x, 0);
+        targetCtx.lineTo(x, targetCanvas.height);
     }
 
     // 수평선들 한 번에 그리기
     for (let j = startY; j <= endY; j++) {
         const y = j * gridSize * zoom + viewOffset.y;
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
+        targetCtx.moveTo(0, y);
+        targetCtx.lineTo(targetCanvas.width, y);
     }
 
-    ctx.stroke();
+    targetCtx.stroke();
+}
+
+// 배경 레이어 렌더링 (그리드, 경로, 마커)
+function drawBackground(pathDirectionNotes, nodePositions, segmentTimes, bpm, subdivisions, realtimeDrawingEnabled, isPlaying, drawTime) {
+    // 배경 캔버스 클리어
+    backgroundCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+
+    // 그리드 그리기
+    drawGrid(backgroundCtx, backgroundCanvas);
+
+    // 경로 그리기
+    drawPathSegments(backgroundCtx, pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime);
+
+    // 그려진 경로 표시
+    backgroundCtx.strokeStyle = "#000";
+    backgroundCtx.lineWidth = 2;
+    backgroundCtx.stroke();
+
+    // 시간 기준 마커 (1초 간격)
+    const MIN_ZOOM_FOR_TIME_MARKERS = 2.5;
+    if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
+        const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
+        const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
+
+        const timeMarkers = [];
+        for (let time = 1; time < maxMarkerTime; time += 1) {
+            const position = getPositionAtTime(time, segmentTimes);
+            if (position) {
+                const screenX = position.x * zoom + viewOffset.x;
+                const screenY = position.y * zoom + viewOffset.y;
+                if (isNoteInViewport(screenX, screenY)) {
+                    timeMarkers.push({ screenX, screenY });
+                }
+            }
+        }
+
+        if (timeMarkers.length > 0) {
+            backgroundCtx.fillStyle = "rgba(128,128,128,0.4)";
+            backgroundCtx.beginPath();
+            timeMarkers.forEach(({ screenX, screenY }) => {
+                backgroundCtx.moveTo(screenX + 4, screenY);
+                backgroundCtx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
+            });
+            backgroundCtx.fill();
+        }
+    }
+
+    // BPM 기반 비트 마커
+    const MIN_ZOOM_FOR_BEAT_MARKERS = 3.75;
+    if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
+        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+            const a = pathDirectionNotes[i];
+            const b = pathDirectionNotes[i + 1];
+            const segmentBpm = a.bpm || bpm;
+            const segmentSubdivisions = a.subdivisions || subdivisions;
+            const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
+            const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
+
+            const beatMarkers = [];
+            for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
+                const position = getPositionAtTime(time, segmentTimes);
+                if (position) {
+                    const screenX = position.x * zoom + viewOffset.x;
+                    const screenY = position.y * zoom + viewOffset.y;
+                    if (isNoteInViewport(screenX, screenY)) {
+                        beatMarkers.push({ screenX, screenY });
+                    }
+                }
+            }
+
+            if (beatMarkers.length > 0) {
+                backgroundCtx.fillStyle = "rgba(100,150,255,0.6)";
+                backgroundCtx.beginPath();
+                beatMarkers.forEach(({ screenX, screenY }) => {
+                    backgroundCtx.moveTo(screenX + 2, screenY);
+                    backgroundCtx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
+                });
+                backgroundCtx.fill();
+            }
+        }
+    }
 }
 
 function drawPath() {
@@ -1011,22 +1184,11 @@ function drawPath() {
 
     resizeCanvas();
 
-    // 캔버스 완전 클리어 (이전 프레임 데이터 제거)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 컨텍스트 상태 초기화 (변환, 경로 등 리셋)
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.beginPath();
-    ctx.restore();
-
     ensureInitialDirectionNote(notes);
 
     const preDelaySeconds = getPreDelaySeconds();
     const bpm = parseFloat(document.getElementById("bpm").value || 120);
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-
-    drawGrid();
 
     // 실시간 그리기를 위한 변수들
     const realtimeDrawingEnabled = document.getElementById("realtime-drawing").checked;
@@ -1076,13 +1238,37 @@ function drawPath() {
         segmentTimes = pathCache.segmentTimes;
     }
 
-    // 경로 그리기
-    drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime);
+    // 배경 레이어 업데이트 확인 (변경사항이 있을 때만 다시 그리기)
+    const needsBackgroundRedraw =
+        backgroundCache.lastZoom !== zoom ||
+        backgroundCache.lastViewOffsetX !== viewOffset.x ||
+        backgroundCache.lastViewOffsetY !== viewOffset.y ||
+        backgroundCache.lastNotesHash !== currentNotesHash ||
+        backgroundCache.lastBpm !== bpm ||
+        backgroundCache.lastSubdivisions !== subdivisions ||
+        backgroundCache.lastPreDelaySeconds !== preDelaySeconds ||
+        backgroundCache.lastRealtimeDrawingEnabled !== realtimeDrawingEnabled ||
+        backgroundCache.lastIsPlaying !== isPlaying ||
+        (realtimeDrawingEnabled && isPlaying && Math.abs(backgroundCache.lastDrawTime - drawTime) > 0.1);
 
-    // 그려진 경로만 표시
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (needsBackgroundRedraw) {
+        drawBackground(pathDirectionNotes, nodePositions, segmentTimes, bpm, subdivisions, realtimeDrawingEnabled, isPlaying, drawTime);
+
+        // 배경 캐시 업데이트
+        backgroundCache.lastZoom = zoom;
+        backgroundCache.lastViewOffsetX = viewOffset.x;
+        backgroundCache.lastViewOffsetY = viewOffset.y;
+        backgroundCache.lastNotesHash = currentNotesHash;
+        backgroundCache.lastBpm = bpm;
+        backgroundCache.lastSubdivisions = subdivisions;
+        backgroundCache.lastPreDelaySeconds = preDelaySeconds;
+        backgroundCache.lastRealtimeDrawingEnabled = realtimeDrawingEnabled;
+        backgroundCache.lastIsPlaying = isPlaying;
+        backgroundCache.lastDrawTime = drawTime;
+    }
+
+    // 전경 레이어 클리어 (매 프레임)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // 그리기 오브젝트 표시 (투명한 원) - 실시간 그리기 활성화 시에만
     if (realtimeDrawingEnabled && isPlaying && drawTime <= (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0)) {
@@ -1095,84 +1281,6 @@ function drawPath() {
             ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.stroke();
-        }
-    }
-
-    // 시간 기준 마커 (1초 간격) - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 2.5 이하일 때는 마커가 너무 많아서 성능 저하 유발 (기존 10에서 2.5로 변경)
-    const MIN_ZOOM_FOR_TIME_MARKERS = 2.5;
-    if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
-        const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
-        const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
-
-        // 성능 최적화: 시간 마커들을 배치로 렌더링
-        const timeMarkers = [];
-        for (let time = 1; time < maxMarkerTime; time += 1) {
-            const position = getPositionAtTime(time, segmentTimes);
-            if (position) {
-                const screenX = position.x * zoom + viewOffset.x;
-                const screenY = position.y * zoom + viewOffset.y;
-
-                // 뷰포트 컬링 적용
-                if (isNoteInViewport(screenX, screenY)) {
-                    timeMarkers.push({ screenX, screenY });
-                }
-            }
-        }
-
-        // 모든 시간 마커를 한 번에 렌더링
-        if (timeMarkers.length > 0) {
-            ctx.fillStyle = "rgba(128,128,128,0.4)";
-            ctx.beginPath();
-            timeMarkers.forEach(({ screenX, screenY }) => {
-                ctx.moveTo(screenX + 4, screenY);
-                ctx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
-            });
-            ctx.fill();
-        }
-    }
-
-    // BPM 기반 비트 마커 - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 3.75 이하일 때는 비트 마커가 너무 조밀해서 성능 저하 및 가독성 저하 (기존 15에서 3.75로 변경)
-    const MIN_ZOOM_FOR_BEAT_MARKERS = 3.75;
-    if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
-        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-            const a = pathDirectionNotes[i];
-            const b = pathDirectionNotes[i + 1];
-
-            // 이 구간에서 사용할 BPM/subdivision
-            const segmentBpm = a.bpm || bpm;
-            const segmentSubdivisions = a.subdivisions || subdivisions;
-
-            // subdivision 간격으로 비트 마커 표시
-            const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
-            const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
-
-            // 성능 최적화: 비트 마커들을 배치로 수집
-            const beatMarkers = [];
-            for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
-                const position = getPositionAtTime(time, segmentTimes);
-                if (position) {
-                    const screenX = position.x * zoom + viewOffset.x;
-                    const screenY = position.y * zoom + viewOffset.y;
-
-                    // 뷰포트 컬링 적용
-                    if (isNoteInViewport(screenX, screenY)) {
-                        beatMarkers.push({ screenX, screenY });
-                    }
-                }
-            }
-
-            // 이 구간의 비트 마커들을 한 번에 렌더링
-            if (beatMarkers.length > 0) {
-                ctx.fillStyle = "rgba(100,150,255,0.6)";
-                ctx.beginPath();
-                beatMarkers.forEach(({ screenX, screenY }) => {
-                    ctx.moveTo(screenX + 2, screenY);
-                    ctx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
-                });
-                ctx.fill();
-            }
         }
     }
 
