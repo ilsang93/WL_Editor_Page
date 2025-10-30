@@ -4285,17 +4285,22 @@ function createEventParamElement(event, eventIndex, param, paramIndex) {
 
 // 메모리 누수 방지를 위한 이벤트 리스너 정리
 function cleanupEventListeners(container) {
+    if (!container) return;
+
     const elements = container.querySelectorAll('input, select, button');
     elements.forEach(element => {
-        // Clone하여 모든 이벤트 리스너 제거
-        const clone = element.cloneNode(true);
-        element.parentNode.replaceChild(clone, element);
+        if (element.parentNode) {
+            // Clone하여 모든 이벤트 리스너 제거
+            const clone = element.cloneNode(true);
+            element.parentNode.replaceChild(clone, element);
+        }
     });
 }
 
 // 기존 이벤트 렌더링 로직 (가상 스크롤링 비활성화)
 function renderEventListImmediate_Original() {
     const container = document.getElementById("event-list");
+    if (!container) return;
 
     // 성능 최적화: 메모리 누수 방지를 위한 이벤트 리스너 정리
     if (container.children.length > 0) {
@@ -4479,7 +4484,10 @@ function renderEventListImmediate_Original() {
             }
 
             saveToStorage();
-            scheduleRender({ eventList: true });
+            // DOM 재렌더링을 지연시켜 이벤트 처리가 완료된 후 실행
+            requestAnimationFrame(() => {
+                scheduleRender({ eventList: true });
+            });
         });
         timeLabel.appendChild(timeInput);
 
@@ -4611,8 +4619,11 @@ function switchTab(tabName) {
     tabButtons.forEach(btn => btn.classList.remove('active'));
     tabContents.forEach(content => content.classList.remove('active'));
 
-    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(`${tabName}-tab`).classList.add('active');
+    const tabButton = document.querySelector(`[data-tab="${tabName}"]`);
+    const tabContent = document.getElementById(`${tabName}-tab`);
+
+    if (tabButton) tabButton.classList.add('active');
+    if (tabContent) tabContent.classList.add('active');
 
     if (tabName === 'events') {
         // 노트 선택 해제
@@ -4668,7 +4679,10 @@ function handleEventListClick(e) {
 
     if (!eventItem) return;
 
-    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) || Array.from(eventItem.parentNode.children).indexOf(eventItem);
+    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) ||
+        (eventItem.parentNode ? Array.from(eventItem.parentNode.children).indexOf(eventItem) : -1);
+
+    if (eventIndex < 0) return;
 
     // 삭제 버튼
     if (target.classList.contains('delete-event-btn')) {
@@ -4701,7 +4715,8 @@ function handleEventListClick(e) {
     if (target.classList.contains('delete-param-btn')) {
         const paramItem = target.closest('.param-item');
         if (paramItem) {
-            const paramIndex = parseInt(paramItem.getAttribute('data-param-index')) || Array.from(paramItem.parentNode.children).indexOf(paramItem);
+            const paramIndex = parseInt(paramItem.getAttribute('data-param-index')) ||
+                (paramItem.parentNode ? Array.from(paramItem.parentNode.children).indexOf(paramItem) : -1);
             removeEventParam(eventIndex, paramIndex);
             scheduleRender({ eventList: true });
             saveToStorage();
@@ -4712,6 +4727,8 @@ function handleEventListClick(e) {
     // 파라미터 토글
     if (target.classList.contains('params-toggle') || target.closest('.params-label')) {
         const paramsContainer = eventItem.querySelector('.params-container');
+        if (!paramsContainer) return;
+
         const content = paramsContainer.querySelector('.params-content');
         const toggle = paramsContainer.querySelector('.params-toggle');
 
@@ -4736,7 +4753,11 @@ function handleEventListChange(e) {
 
     if (!eventItem) return;
 
-    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) || Array.from(eventItem.parentNode.children).indexOf(eventItem);
+    const eventIndex = parseInt(eventItem.getAttribute('data-event-index')) ||
+        (eventItem.parentNode ? Array.from(eventItem.parentNode.children).indexOf(eventItem) : -1);
+
+    if (eventIndex < 0) return;
+
     const events = getAllEvents();
     const event = events[eventIndex];
 
@@ -4762,7 +4783,7 @@ function handleEventListChange(e) {
         } else if (target.classList.contains('param-name-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
-                const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+                const paramIndex = paramItem.parentNode ? Array.from(paramItem.parentNode.children).indexOf(paramItem) : -1;
                 if (event.eventParams[paramIndex]) {
                     event.eventParams[paramIndex].paramName = target.value;
                 }
@@ -4770,7 +4791,7 @@ function handleEventListChange(e) {
         } else if (target.classList.contains('param-value-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
-                const paramIndex = Array.from(paramItem.parentNode.children).indexOf(paramItem);
+                const paramIndex = paramItem.parentNode ? Array.from(paramItem.parentNode.children).indexOf(paramItem) : -1;
                 if (event.eventParams[paramIndex]) {
                     event.eventParams[paramIndex].paramValue = target.value;
                 }
