@@ -150,12 +150,34 @@ let pathCache = {
     lastSpeedMultiplier: null
 };
 
+// 배경 레이어 캐시 (그리드, 경로, 마커)
+let backgroundCache = {
+    lastZoom: null,
+    lastViewOffsetX: null,
+    lastViewOffsetY: null,
+    lastNotesHash: null,
+    lastBpm: null,
+    lastSubdivisions: null,
+    lastPreDelaySeconds: null,
+    lastRealtimeDrawingEnabled: null,
+    lastIsPlaying: null,
+    lastDrawTime: null
+};
+
 // 캐시 무효화 함수
 function invalidatePathCache() {
     pathCache.pathDirectionNotes = null;
     pathCache.nodePositions = null;
     pathCache.segmentTimes = null;
     pathCache.lastNotesHash = null;
+}
+
+// 배경 캐시 무효화
+function invalidateBackgroundCache() {
+    backgroundCache.lastZoom = null;
+    backgroundCache.lastViewOffsetX = null;
+    backgroundCache.lastViewOffsetY = null;
+    backgroundCache.lastNotesHash = null;
 }
 
 // 노트 배열 해시 생성 (변경 감지용)
@@ -241,11 +263,11 @@ function calculateNodePositions(pathDirectionNotes, bpm, subdivisions) {
 }
 
 // 경로 세그먼트 그리기 함수
-function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime) {
+function drawPathSegments(targetCtx, pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime) {
     if (nodePositions.length === 0) return;
 
-    ctx.beginPath();
-    ctx.moveTo(nodePositions[0].x * zoom + viewOffset.x, nodePositions[0].y * zoom + viewOffset.y);
+    targetCtx.beginPath();
+    targetCtx.moveTo(nodePositions[0].x * zoom + viewOffset.x, nodePositions[0].y * zoom + viewOffset.y);
 
     for (let i = 0; i < nodePositions.length - 1; i++) {
         const currentPos = nodePositions[i];
@@ -262,7 +284,7 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
 
         // 실시간 그리기 로직
         if (realtimeDrawingEnabled && isPlaying && segment.end <= drawTime) {
-            ctx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
+            targetCtx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
         } else if (realtimeDrawingEnabled && isPlaying && segment.start <= drawTime && segment.end > drawTime) {
             // 부분적으로 그리기 (선형 보간)
             const segmentProgress = (drawTime - segment.start) / (segment.end - segment.start);
@@ -270,10 +292,10 @@ function drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realt
                 x: currentPos.x + (nextPos.x - currentPos.x) * segmentProgress,
                 y: currentPos.y + (nextPos.y - currentPos.y) * segmentProgress
             };
-            ctx.lineTo(partialNext.x * zoom + viewOffset.x, partialNext.y * zoom + viewOffset.y);
+            targetCtx.lineTo(partialNext.x * zoom + viewOffset.x, partialNext.y * zoom + viewOffset.y);
         } else if (!realtimeDrawingEnabled || !isPlaying) {
             // 전체 경로 그리기
-            ctx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
+            targetCtx.lineTo(nextPos.x * zoom + viewOffset.x, nextPos.y * zoom + viewOffset.y);
         }
     }
 }
@@ -285,9 +307,9 @@ function isNoteInViewport(screenX, screenY, zoomLevel = zoom) {
     const margin = Math.max(20, Math.min(100, zoomLevel * 3));
 
     return screenX >= -margin &&
-           screenX <= canvas.width + margin &&
-           screenY >= -margin &&
-           screenY <= canvas.height + margin;
+        screenX <= canvas.width + margin &&
+        screenY >= -margin &&
+        screenY <= canvas.height + margin;
 }
 
 // 최적화된 노트 렌더링 함수
@@ -353,6 +375,28 @@ function renderNotesOptimized(notes, pathDirectionNotes, nodePositions, bpm, sub
 
 // 배치된 노트 렌더링 함수 (노트 타입별로 그룹화하여 렌더링)
 function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bpm, subdivisions) {
+    // OffscreenCanvas 사용 시도
+    let targetCtx = ctx;
+    let useOffscreen = false;
+
+    if (offscreenSupported && notesToRender.length > 100) {
+        // 노트가 많을 때만 OffscreenCanvas 사용
+        try {
+            if (!notesOffscreenCanvas || notesOffscreenCanvas.width !== canvas.width || notesOffscreenCanvas.height !== canvas.height) {
+                notesOffscreenCanvas = new OffscreenCanvas(canvas.width, canvas.height);
+                notesOffscreenCtx = notesOffscreenCanvas.getContext('2d');
+            }
+            notesOffscreenCtx.clearRect(0, 0, notesOffscreenCanvas.width, notesOffscreenCanvas.height);
+            targetCtx = notesOffscreenCtx;
+            useOffscreen = true;
+        } catch (e) {
+            // Offscreen 실패 시 폴백
+            console.warn('OffscreenCanvas fallback:', e);
+            targetCtx = ctx;
+            useOffscreen = false;
+        }
+    }
+
     // 노트 타입별로 그룹화
     const notesByType = {
         tab: [],
@@ -373,15 +417,34 @@ function renderNotesBatched(notesToRender, pathDirectionNotes, nodePositions, bp
     });
 
     // 타입별로 배치 렌더링 (롱노트를 먼저 렌더링하여 1회성 노트가 위에 표시되도록 함)
+    // 롱노트는 복잡한 구조로 인해 ctx를 직접 사용 (추후 개선 가능)
+    const originalCtx = ctx;
+    if (useOffscreen && targetCtx !== ctx) {
+        // OffscreenCanvas를 사용 중이면 임시로 전역 ctx를 교체
+        window.tempCtx = ctx;
+        window.ctx = targetCtx;
+    }
+
     renderLongNotes(notesByType.longtab, notesByType.longdirection, notesByType.longboth, pathDirectionNotes, nodePositions, bpm, subdivisions);
-    renderTabNotes(notesByType.tab);
-    renderDirectionNotes(notesByType.direction);
-    renderBothNotes(notesByType.both);
-    renderNodeNotes(notesByType.node, bpm);
+    renderTabNotes(notesByType.tab, targetCtx);
+    renderDirectionNotes(notesByType.direction, targetCtx);
+    renderBothNotes(notesByType.both, targetCtx);
+    renderNodeNotes(notesByType.node, bpm, targetCtx);
+
+    if (useOffscreen && window.tempCtx) {
+        // 전역 ctx 복원
+        window.ctx = window.tempCtx;
+        delete window.tempCtx;
+    }
+
+    // OffscreenCanvas를 사용한 경우 메인 캔버스로 전송
+    if (useOffscreen && notesOffscreenCanvas) {
+        ctx.drawImage(notesOffscreenCanvas, 0, 0);
+    }
 }
 
 // 탭 노트 배치 렌더링 (배치 최적화)
-function renderTabNotes(tabNotes) {
+function renderTabNotes(tabNotes, targetCtx = ctx) {
     if (tabNotes.length === 0) return;
 
     // 성능 최적화: 노트를 색상별로 그룹화하여 배치 렌더링
@@ -398,44 +461,44 @@ function renderTabNotes(tabNotes) {
 
     // 빨간 노트들을 한 번에 렌더링
     if (redNotes.length > 0) {
-        ctx.fillStyle = "red";
-        ctx.beginPath();
+        targetCtx.fillStyle = "red";
+        targetCtx.beginPath();
         redNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.fill();
+        targetCtx.fill();
     }
 
     // 일반 노트들을 한 번에 렌더링
     if (normalNotes.length > 0) {
-        ctx.fillStyle = "#FF6B6B";
-        ctx.strokeStyle = "#4CAF50";
-        ctx.lineWidth = 2;
+        targetCtx.fillStyle = "#FF6B6B";
+        targetCtx.strokeStyle = "#4CAF50";
+        targetCtx.lineWidth = 2;
 
         // Fill 패스
-        ctx.beginPath();
+        targetCtx.beginPath();
         normalNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.fill();
+        targetCtx.fill();
 
         // Stroke 패스
-        ctx.beginPath();
+        targetCtx.beginPath();
         normalNotes.forEach(({ screenX, screenY }) => {
-            ctx.moveTo(screenX + 5, screenY);
-            ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+            targetCtx.moveTo(screenX + 5, screenY);
+            targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
         });
-        ctx.stroke();
+        targetCtx.stroke();
     }
 }
 
 // 방향 노트 배치 렌더링
-function renderDirectionNotes(directionNotes) {
+function renderDirectionNotes(directionNotes, targetCtx = ctx) {
     if (directionNotes.length === 0) return;
 
-    ctx.lineWidth = 2;
+    targetCtx.lineWidth = 2;
 
     directionNotes.forEach(({ note, screenX, screenY }) => {
         const [dx, dy] = directionToVector(note.direction);
@@ -446,45 +509,45 @@ function renderDirectionNotes(directionNotes) {
         const endY = screenY + uy;
 
         // 화살표 선 그리기
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(endX, endY);
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, screenY);
+        targetCtx.lineTo(endX, endY);
 
         if (note.beat === 0) {
-            ctx.strokeStyle = "#f00";
-            ctx.fillStyle = "#f00";
+            targetCtx.strokeStyle = "#f00";
+            targetCtx.fillStyle = "#f00";
         } else {
-            ctx.strokeStyle = "#4CAF50";
-            ctx.fillStyle = "#4CAF50";
+            targetCtx.strokeStyle = "#4CAF50";
+            targetCtx.fillStyle = "#4CAF50";
         }
-        ctx.stroke();
+        targetCtx.stroke();
 
         // 화살표 머리 그리기
         const perpX = -uy * 0.5;
         const perpY = ux * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-        ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-        ctx.closePath();
-        ctx.fill();
+        targetCtx.beginPath();
+        targetCtx.moveTo(endX, endY);
+        targetCtx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+        targetCtx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+        targetCtx.closePath();
+        targetCtx.fill();
     });
 }
 
 // both 노트 배치 렌더링
-function renderBothNotes(bothNotes) {
+function renderBothNotes(bothNotes, targetCtx = ctx) {
     if (bothNotes.length === 0) return;
 
-    ctx.fillStyle = "#9C27B0";
-    ctx.strokeStyle = "#4A148C";
-    ctx.lineWidth = 2;
+    targetCtx.fillStyle = "#9C27B0";
+    targetCtx.strokeStyle = "#4A148C";
+    targetCtx.lineWidth = 2;
 
     bothNotes.forEach(({ note, screenX, screenY }) => {
         // 원 그리기
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.arc(screenX, screenY, 5, 0, 2 * Math.PI);
+        targetCtx.fill();
+        targetCtx.stroke();
 
         // 방향 화살표 그리기
         const [dx, dy] = directionToVector(note.direction);
@@ -494,60 +557,60 @@ function renderBothNotes(bothNotes) {
         const endX = screenX + ux;
         const endY = screenY + uy;
 
-        ctx.beginPath();
-        ctx.moveTo(screenX, screenY);
-        ctx.lineTo(endX, endY);
-        ctx.strokeStyle = "#9C27B0";
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, screenY);
+        targetCtx.lineTo(endX, endY);
+        targetCtx.strokeStyle = "#9C27B0";
+        targetCtx.stroke();
 
         const perpX = -uy * 0.5;
         const perpY = ux * 0.5;
-        ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
-        ctx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
-        ctx.closePath();
-        ctx.fillStyle = "#9C27B0";
-        ctx.fill();
+        targetCtx.beginPath();
+        targetCtx.moveTo(endX, endY);
+        targetCtx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+        targetCtx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+        targetCtx.closePath();
+        targetCtx.fillStyle = "#9C27B0";
+        targetCtx.fill();
     });
 }
 
 // 노드 노트 배치 렌더링
-function renderNodeNotes(nodeNotes, bpm) {
+function renderNodeNotes(nodeNotes, bpm, targetCtx = ctx) {
     if (nodeNotes.length === 0) return;
 
-    ctx.fillStyle = "#607D8B";
-    ctx.strokeStyle = "#263238";
-    ctx.lineWidth = 2;
+    targetCtx.fillStyle = "#607D8B";
+    targetCtx.strokeStyle = "#263238";
+    targetCtx.lineWidth = 2;
 
     nodeNotes.forEach(({ note, screenX, screenY }) => {
         const nodeDisplayY = screenY - 30;
 
-        ctx.beginPath();
-        ctx.arc(screenX, nodeDisplayY, 6, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.arc(screenX, nodeDisplayY, 6, 0, 2 * Math.PI);
+        targetCtx.fill();
+        targetCtx.stroke();
 
         // BPM 텍스트 표시
-        ctx.fillStyle = "white";
-        ctx.font = "bold 8px Arial";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
+        targetCtx.fillStyle = "white";
+        targetCtx.font = "bold 8px Arial";
+        targetCtx.textAlign = "center";
+        targetCtx.textBaseline = "middle";
         const noteBpm = note.bpm || bpm;
-        ctx.fillText(noteBpm.toString(), screenX, nodeDisplayY);
+        targetCtx.fillText(noteBpm.toString(), screenX, nodeDisplayY);
 
         // 연결선 그리기
-        ctx.beginPath();
-        ctx.moveTo(screenX, nodeDisplayY + 6);
-        ctx.lineTo(screenX, screenY - 3);
-        ctx.strokeStyle = "rgba(96, 125, 139, 0.5)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        targetCtx.beginPath();
+        targetCtx.moveTo(screenX, nodeDisplayY + 6);
+        targetCtx.lineTo(screenX, screenY - 3);
+        targetCtx.strokeStyle = "rgba(96, 125, 139, 0.5)";
+        targetCtx.lineWidth = 1;
+        targetCtx.stroke();
     });
 }
 
 // 롱노트 배치 렌더링
-function renderLongNotes(longTabNotes, longDirectionNotes, longBothNotes, pathDirectionNotes, nodePositions, bpm, subdivisions) {
+function renderLongNotes(longTabNotes, longDirectionNotes, longBothNotes, pathDirectionNotes, nodePositions, bpm, subdivisions, targetCtx = ctx) {
     // 롱노트는 개별적으로 처리해야 함 (각각 다른 길이를 가지므로)
     [...longTabNotes, ...longDirectionNotes, ...longBothNotes].forEach(({ note, screenX, screenY, pathBeat, finalTime }) => {
         if (note.longTime <= 0) return;
@@ -794,8 +857,12 @@ const btnDemoPause = document.getElementById("demo-pause");
 const btnDemoStop = document.getElementById("demo-stop");
 const spanDemoTime = document.getElementById("demo-time");
 const seekbar = document.getElementById("demo-seekbar");
+// Canvas layers
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const backgroundCanvas = document.getElementById("background-canvas");
+const backgroundCtx = backgroundCanvas.getContext("2d");
+
 const waveformCanvas = document.getElementById("waveform-canvas");
 const waveformCtx = waveformCanvas.getContext("2d");
 const waveformContainer = document.getElementById("waveform-container");
@@ -803,6 +870,22 @@ const waveformProgress = document.getElementById("waveform-progress");
 const rulerCanvas = document.getElementById("ruler-canvas");
 const rulerCtx = rulerCanvas.getContext("2d");
 const waveformSlider = document.getElementById("waveform-slider");
+
+// OffscreenCanvas support detection and fallback
+let offscreenSupported = false;
+let notesOffscreenCanvas = null;
+let notesOffscreenCtx = null;
+
+try {
+    if (typeof OffscreenCanvas !== 'undefined') {
+        offscreenSupported = true;
+        console.log('OffscreenCanvas is supported');
+    } else {
+        console.log('OffscreenCanvas not supported, using fallback');
+    }
+} catch (e) {
+    console.log('OffscreenCanvas detection failed, using fallback');
+}
 
 // Wrapper function for drawWaveform to maintain compatibility
 function drawWaveformWrapper() {
@@ -966,44 +1049,134 @@ function resizeCanvas() {
     if (canvas.width !== currentWidth || canvas.height !== currentHeight) {
         canvas.width = currentWidth;
         canvas.height = currentHeight;
+        backgroundCanvas.width = currentWidth;
+        backgroundCanvas.height = currentHeight;
         lastCanvasWidth = currentWidth;
         lastCanvasHeight = currentHeight;
+
+        // OffscreenCanvas 크기도 조정
+        if (offscreenSupported && notesOffscreenCanvas) {
+            notesOffscreenCanvas.width = currentWidth;
+            notesOffscreenCanvas.height = currentHeight;
+        }
+
         return true; // 리사이즈 발생
     }
     return false; // 리사이즈 없음
 }
 
-function drawGrid() {
+function drawGrid(targetCtx, targetCanvas) {
     // 줌이 너무 작으면 그리드 생략 (성능 최적화)
     const MIN_ZOOM_FOR_GRID = 0.5;
     if (zoom < MIN_ZOOM_FOR_GRID) return;
 
     const gridSize = 8;
     const startX = Math.floor(-viewOffset.x / zoom / gridSize) - 1;
-    const endX = Math.ceil((canvas.width - viewOffset.x) / zoom / gridSize) + 1;
+    const endX = Math.ceil((targetCanvas.width - viewOffset.x) / zoom / gridSize) + 1;
     const startY = Math.floor(-viewOffset.y / zoom / gridSize) - 1;
-    const endY = Math.ceil((canvas.height - viewOffset.y) / zoom / gridSize) + 1;
+    const endY = Math.ceil((targetCanvas.height - viewOffset.y) / zoom / gridSize) + 1;
 
     // 성능 최적화: 모든 그리드 선을 한 번에 그리기
-    ctx.strokeStyle = "rgba(150, 150, 150, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
+    targetCtx.strokeStyle = "rgba(150, 150, 150, 0.2)";
+    targetCtx.lineWidth = 1;
+    targetCtx.beginPath();
 
     // 수직선들 한 번에 그리기
     for (let i = startX; i <= endX; i++) {
         const x = i * gridSize * zoom + viewOffset.x;
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
+        targetCtx.moveTo(x, 0);
+        targetCtx.lineTo(x, targetCanvas.height);
     }
 
     // 수평선들 한 번에 그리기
     for (let j = startY; j <= endY; j++) {
         const y = j * gridSize * zoom + viewOffset.y;
-        ctx.moveTo(0, y);
-        ctx.lineTo(canvas.width, y);
+        targetCtx.moveTo(0, y);
+        targetCtx.lineTo(targetCanvas.width, y);
     }
 
-    ctx.stroke();
+    targetCtx.stroke();
+}
+
+// 배경 레이어 렌더링 (그리드, 경로, 마커)
+function drawBackground(pathDirectionNotes, nodePositions, segmentTimes, bpm, subdivisions, realtimeDrawingEnabled, isPlaying, drawTime) {
+    // 배경 캔버스 클리어
+    backgroundCtx.clearRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+
+    // 그리드 그리기
+    drawGrid(backgroundCtx, backgroundCanvas);
+
+    // 경로 그리기
+    drawPathSegments(backgroundCtx, pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime);
+
+    // 그려진 경로 표시
+    backgroundCtx.strokeStyle = "#000";
+    backgroundCtx.lineWidth = 2;
+    backgroundCtx.stroke();
+
+    // 시간 기준 마커 (1초 간격)
+    const MIN_ZOOM_FOR_TIME_MARKERS = 2.5;
+    if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
+        const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
+        const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
+
+        const timeMarkers = [];
+        for (let time = 1; time < maxMarkerTime; time += 1) {
+            const position = getPositionAtTime(time, segmentTimes);
+            if (position) {
+                const screenX = position.x * zoom + viewOffset.x;
+                const screenY = position.y * zoom + viewOffset.y;
+                if (isNoteInViewport(screenX, screenY)) {
+                    timeMarkers.push({ screenX, screenY });
+                }
+            }
+        }
+
+        if (timeMarkers.length > 0) {
+            backgroundCtx.fillStyle = "rgba(128,128,128,0.4)";
+            backgroundCtx.beginPath();
+            timeMarkers.forEach(({ screenX, screenY }) => {
+                backgroundCtx.moveTo(screenX + 4, screenY);
+                backgroundCtx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
+            });
+            backgroundCtx.fill();
+        }
+    }
+
+    // BPM 기반 비트 마커
+    const MIN_ZOOM_FOR_BEAT_MARKERS = 3.75;
+    if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
+        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
+            const a = pathDirectionNotes[i];
+            const b = pathDirectionNotes[i + 1];
+            const segmentBpm = a.bpm || bpm;
+            const segmentSubdivisions = a.subdivisions || subdivisions;
+            const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
+            const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
+
+            const beatMarkers = [];
+            for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
+                const position = getPositionAtTime(time, segmentTimes);
+                if (position) {
+                    const screenX = position.x * zoom + viewOffset.x;
+                    const screenY = position.y * zoom + viewOffset.y;
+                    if (isNoteInViewport(screenX, screenY)) {
+                        beatMarkers.push({ screenX, screenY });
+                    }
+                }
+            }
+
+            if (beatMarkers.length > 0) {
+                backgroundCtx.fillStyle = "rgba(100,150,255,0.6)";
+                backgroundCtx.beginPath();
+                beatMarkers.forEach(({ screenX, screenY }) => {
+                    backgroundCtx.moveTo(screenX + 2, screenY);
+                    backgroundCtx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
+                });
+                backgroundCtx.fill();
+            }
+        }
+    }
 }
 
 function drawPath() {
@@ -1011,22 +1184,11 @@ function drawPath() {
 
     resizeCanvas();
 
-    // 캔버스 완전 클리어 (이전 프레임 데이터 제거)
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // 컨텍스트 상태 초기화 (변환, 경로 등 리셋)
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.beginPath();
-    ctx.restore();
-
     ensureInitialDirectionNote(notes);
 
     const preDelaySeconds = getPreDelaySeconds();
     const bpm = parseFloat(document.getElementById("bpm").value || 120);
     const subdivisions = parseInt(document.getElementById("subdivisions").value || 16);
-
-    drawGrid();
 
     // 실시간 그리기를 위한 변수들
     const realtimeDrawingEnabled = document.getElementById("realtime-drawing").checked;
@@ -1076,13 +1238,37 @@ function drawPath() {
         segmentTimes = pathCache.segmentTimes;
     }
 
-    // 경로 그리기
-    drawPathSegments(pathDirectionNotes, nodePositions, segmentTimes, realtimeDrawingEnabled, isPlaying, drawTime);
+    // 배경 레이어 업데이트 확인 (변경사항이 있을 때만 다시 그리기)
+    const needsBackgroundRedraw =
+        backgroundCache.lastZoom !== zoom ||
+        backgroundCache.lastViewOffsetX !== viewOffset.x ||
+        backgroundCache.lastViewOffsetY !== viewOffset.y ||
+        backgroundCache.lastNotesHash !== currentNotesHash ||
+        backgroundCache.lastBpm !== bpm ||
+        backgroundCache.lastSubdivisions !== subdivisions ||
+        backgroundCache.lastPreDelaySeconds !== preDelaySeconds ||
+        backgroundCache.lastRealtimeDrawingEnabled !== realtimeDrawingEnabled ||
+        backgroundCache.lastIsPlaying !== isPlaying ||
+        (realtimeDrawingEnabled && isPlaying && Math.abs(backgroundCache.lastDrawTime - drawTime) > 0.1);
 
-    // 그려진 경로만 표시
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    if (needsBackgroundRedraw) {
+        drawBackground(pathDirectionNotes, nodePositions, segmentTimes, bpm, subdivisions, realtimeDrawingEnabled, isPlaying, drawTime);
+
+        // 배경 캐시 업데이트
+        backgroundCache.lastZoom = zoom;
+        backgroundCache.lastViewOffsetX = viewOffset.x;
+        backgroundCache.lastViewOffsetY = viewOffset.y;
+        backgroundCache.lastNotesHash = currentNotesHash;
+        backgroundCache.lastBpm = bpm;
+        backgroundCache.lastSubdivisions = subdivisions;
+        backgroundCache.lastPreDelaySeconds = preDelaySeconds;
+        backgroundCache.lastRealtimeDrawingEnabled = realtimeDrawingEnabled;
+        backgroundCache.lastIsPlaying = isPlaying;
+        backgroundCache.lastDrawTime = drawTime;
+    }
+
+    // 전경 레이어 클리어 (매 프레임)
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // 그리기 오브젝트 표시 (투명한 원) - 실시간 그리기 활성화 시에만
     if (realtimeDrawingEnabled && isPlaying && drawTime <= (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0)) {
@@ -1095,84 +1281,6 @@ function drawPath() {
             ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.stroke();
-        }
-    }
-
-    // 시간 기준 마커 (1초 간격) - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 2.5 이하일 때는 마커가 너무 많아서 성능 저하 유발 (기존 10에서 2.5로 변경)
-    const MIN_ZOOM_FOR_TIME_MARKERS = 2.5;
-    if (zoom >= MIN_ZOOM_FOR_TIME_MARKERS) {
-        const totalPathTime = pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0;
-        const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? Math.min(totalPathTime, drawTime) : totalPathTime;
-
-        // 성능 최적화: 시간 마커들을 배치로 렌더링
-        const timeMarkers = [];
-        for (let time = 1; time < maxMarkerTime; time += 1) {
-            const position = getPositionAtTime(time, segmentTimes);
-            if (position) {
-                const screenX = position.x * zoom + viewOffset.x;
-                const screenY = position.y * zoom + viewOffset.y;
-
-                // 뷰포트 컬링 적용
-                if (isNoteInViewport(screenX, screenY)) {
-                    timeMarkers.push({ screenX, screenY });
-                }
-            }
-        }
-
-        // 모든 시간 마커를 한 번에 렌더링
-        if (timeMarkers.length > 0) {
-            ctx.fillStyle = "rgba(128,128,128,0.4)";
-            ctx.beginPath();
-            timeMarkers.forEach(({ screenX, screenY }) => {
-                ctx.moveTo(screenX + 4, screenY);
-                ctx.arc(screenX, screenY, 4, 0, 2 * Math.PI);
-            });
-            ctx.fill();
-        }
-    }
-
-    // BPM 기반 비트 마커 - 줌 레벨이 충분할 때만 표시
-    // 줌 레벨이 3.75 이하일 때는 비트 마커가 너무 조밀해서 성능 저하 및 가독성 저하 (기존 15에서 3.75로 변경)
-    const MIN_ZOOM_FOR_BEAT_MARKERS = 3.75;
-    if (zoom >= MIN_ZOOM_FOR_BEAT_MARKERS) {
-        for (let i = 0; i < pathDirectionNotes.length - 1; i++) {
-            const a = pathDirectionNotes[i];
-            const b = pathDirectionNotes[i + 1];
-
-            // 이 구간에서 사용할 BPM/subdivision
-            const segmentBpm = a.bpm || bpm;
-            const segmentSubdivisions = a.subdivisions || subdivisions;
-
-            // subdivision 간격으로 비트 마커 표시
-            const beatInterval = beatToTime(1, segmentBpm, segmentSubdivisions);
-            const maxMarkerTime = (realtimeDrawingEnabled && isPlaying) ? drawTime : (pathDirectionNotes[pathDirectionNotes.length - 1]?.finalTime || 0);
-
-            // 성능 최적화: 비트 마커들을 배치로 수집
-            const beatMarkers = [];
-            for (let time = a.finalTime + beatInterval; time < b.finalTime && time <= maxMarkerTime; time += beatInterval) {
-                const position = getPositionAtTime(time, segmentTimes);
-                if (position) {
-                    const screenX = position.x * zoom + viewOffset.x;
-                    const screenY = position.y * zoom + viewOffset.y;
-
-                    // 뷰포트 컬링 적용
-                    if (isNoteInViewport(screenX, screenY)) {
-                        beatMarkers.push({ screenX, screenY });
-                    }
-                }
-            }
-
-            // 이 구간의 비트 마커들을 한 번에 렌더링
-            if (beatMarkers.length > 0) {
-                ctx.fillStyle = "rgba(100,150,255,0.6)";
-                ctx.beginPath();
-                beatMarkers.forEach(({ screenX, screenY }) => {
-                    ctx.moveTo(screenX + 2, screenY);
-                    ctx.arc(screenX, screenY, 2, 0, 2 * Math.PI);
-                });
-                ctx.fill();
-            }
         }
     }
 
@@ -1273,26 +1381,26 @@ function drawPath() {
             // 뷰포트 컬링 - 화면 밖의 이벤트는 그리지 않음
             if (!isNoteInViewport(screenX, screenY)) return;
 
-        // 강조된 이벤트인지 확인
-        const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
+            // 강조된 이벤트인지 확인
+            const isHighlighted = highlightedEventIndex === eventIndex && highlightedEventTimer > 0;
 
-        if (isHighlighted) {
-            // 강조 효과를 위한 큰 원 그리기
-            const alpha = Math.min(1, highlightedEventTimer * 2);
-            const radius = 15 + (2.0 - highlightedEventTimer) * 20;
+            if (isHighlighted) {
+                // 강조 효과를 위한 큰 원 그리기
+                const alpha = Math.min(1, highlightedEventTimer * 2);
+                const radius = 15 + (2.0 - highlightedEventTimer) * 20;
 
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
-            ctx.strokeStyle = `rgba(255, 152, 0, ${alpha * 0.8})`;
-            ctx.lineWidth = 3;
-            ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
+                ctx.strokeStyle = `rgba(255, 152, 0, ${alpha * 0.8})`;
+                ctx.lineWidth = 3;
+                ctx.stroke();
 
-            // 내부 원
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, radius * 0.6, 0, 2 * Math.PI);
-            ctx.fillStyle = `rgba(255, 152, 0, ${alpha * 0.3})`;
-            ctx.fill();
-        }
+                // 내부 원
+                ctx.beginPath();
+                ctx.arc(screenX, screenY, radius * 0.6, 0, 2 * Math.PI);
+                ctx.fillStyle = `rgba(255, 152, 0, ${alpha * 0.3})`;
+                ctx.fill();
+            }
 
             // 삼각형 마커 그리기 (강조된 경우 더 크게)
             const markerSize = isHighlighted ? 15 : 10;
@@ -3574,93 +3682,93 @@ function addNote(noteProps) {
         let insertionIndex;
 
 
-    if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
-        const selectedNote = notes[selectedNoteIndex];
+        if (selectedNoteIndex !== null && selectedNoteIndex < notes.length) {
+            const selectedNote = notes[selectedNoteIndex];
 
-        // 선택된 노트와 직전 노트의 간격을 계산
-        let interval;
-        if (selectedNoteIndex > 0) {
-            const previousNote = notes[selectedNoteIndex - 1];
-            interval = selectedNote.beat - previousNote.beat;
-            console.log(`Interval calculation: ${selectedNote.beat} - ${previousNote.beat} = ${interval}`);
-        } else {
-            // 첫 번째 노트라면 기본 간격 사용
-            interval = subdivisions;
-            console.log(`First note - using default interval: ${interval}`);
-        }
-
-        // 간격이 0 이하라면 기본 간격 사용
-        if (interval <= 0) {
-            interval = subdivisions;
-            console.log(`Invalid interval - using default: ${interval}`);
-        }
-
-        // 선택된 노트 + 간격으로 새 노트 beat 설정
-        newBeat = selectedNote.beat + interval;
-        console.log(`New note beat: ${selectedNote.beat} + ${interval} = ${newBeat}`);
-
-        // 선택된 노트 바로 다음 위치에 삽입
-        insertionIndex = selectedNoteIndex + 1;
-    } else {
-        // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
-        const bpm = parseFloat(document.getElementById("bpm").value || 120);
-        // subdivisions는 이미 함수 상단에서 선언됨
-
-        insertionIndex = notes.length;
-        const maxBeat = Math.max(0, ...notes.map(n => {
-            let endBeat = n.beat;
-            if (n.isLong && n.longTime > 0) {
-                // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
-                const noteBpm = n.bpm || bpm;
-                const noteSubdivisions = n.subdivisions || subdivisions;
-                const longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
-                const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
-                endBeat = n.beat + longTimeInGlobalBeats;
+            // 선택된 노트와 직전 노트의 간격을 계산
+            let interval;
+            if (selectedNoteIndex > 0) {
+                const previousNote = notes[selectedNoteIndex - 1];
+                interval = selectedNote.beat - previousNote.beat;
+                console.log(`Interval calculation: ${selectedNote.beat} - ${previousNote.beat} = ${interval}`);
+            } else {
+                // 첫 번째 노트라면 기본 간격 사용
+                interval = subdivisions;
+                console.log(`First note - using default interval: ${interval}`);
             }
-            return endBeat;
-        }));
-        newBeat = maxBeat + subdivisions;
-    }
 
-    // 현재 BPM/Subdivisions 가져오기
-    const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
-    const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+            // 간격이 0 이하라면 기본 간격 사용
+            if (interval <= 0) {
+                interval = subdivisions;
+                console.log(`Invalid interval - using default: ${interval}`);
+            }
 
-    const newNote = {
-        ...noteProps,
-        beat: newBeat,
-        bpm: currentBpm,          // 노트별 BPM 저장
-        subdivisions: currentSubdivisions  // 노트별 subdivision 저장
-    };
+            // 선택된 노트 + 간격으로 새 노트 beat 설정
+            newBeat = selectedNote.beat + interval;
+            console.log(`New note beat: ${selectedNote.beat} + ${interval} = ${newBeat}`);
 
-    if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
-        const precedingDirectionNotes = notes
-            .slice(0, insertionIndex)
-            .filter(n => n.type === "direction" || n.type === "longdirection" || n.type === "both" || n.type === "longboth")
-            .sort((a, b) => a.beat - b.beat);
+            // 선택된 노트 바로 다음 위치에 삽입
+            insertionIndex = selectedNoteIndex + 1;
+        } else {
+            // 현재 BPM/Subdivisions 가져오기 (maxBeat 계산에 필요)
+            const bpm = parseFloat(document.getElementById("bpm").value || 120);
+            // subdivisions는 이미 함수 상단에서 선언됨
 
-        const lastDirNote = precedingDirectionNotes.length > 0 ? precedingDirectionNotes[precedingDirectionNotes.length - 1] : null;
-        newNote.direction = lastDirNote ? lastDirNote.direction : "none";
-    }
+            insertionIndex = notes.length;
+            const maxBeat = Math.max(0, ...notes.map(n => {
+                let endBeat = n.beat;
+                if (n.isLong && n.longTime > 0) {
+                    // 롱노트 길이를 해당 노트의 BPM/subdivision으로 시간 변환 후 전역 기준으로 재변환
+                    const noteBpm = n.bpm || bpm;
+                    const noteSubdivisions = n.subdivisions || subdivisions;
+                    const longTimeInSeconds = beatToTime(n.longTime, noteBpm, noteSubdivisions);
+                    const longTimeInGlobalBeats = timeToBeat(longTimeInSeconds, bpm, subdivisions);
+                    endBeat = n.beat + longTimeInGlobalBeats;
+                }
+                return endBeat;
+            }));
+            newBeat = maxBeat + subdivisions;
+        }
 
-    if (newNote.isLong) {
-        newNote.longTime = newNote.longTime || subdivisions;
-    }
+        // 현재 BPM/Subdivisions 가져오기
+        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
+        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
-    // 변경 전 상태를 히스토리에 저장
-    saveState();
+        const newNote = {
+            ...noteProps,
+            beat: newBeat,
+            bpm: currentBpm,          // 노트별 BPM 저장
+            subdivisions: currentSubdivisions  // 노트별 subdivision 저장
+        };
 
-    notes.splice(insertionIndex, 0, newNote);
+        if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
+            const precedingDirectionNotes = notes
+                .slice(0, insertionIndex)
+                .filter(n => n.type === "direction" || n.type === "longdirection" || n.type === "both" || n.type === "longboth")
+                .sort((a, b) => a.beat - b.beat);
 
-    // 캐시 무효화
-    invalidatePathCache();
+            const lastDirNote = precedingDirectionNotes.length > 0 ? precedingDirectionNotes[precedingDirectionNotes.length - 1] : null;
+            newNote.direction = lastDirNote ? lastDirNote.direction : "none";
+        }
 
-    saveToStorage();
-    drawPath();
-    renderNoteList();
-    if (waveformData) drawWaveformWrapper();
+        if (newNote.isLong) {
+            newNote.longTime = newNote.longTime || subdivisions;
+        }
 
-    focusNoteAtIndex(insertionIndex);
+        // 변경 전 상태를 히스토리에 저장
+        saveState();
+
+        notes.splice(insertionIndex, 0, newNote);
+
+        // 캐시 무효화
+        invalidatePathCache();
+
+        saveToStorage();
+        drawPath();
+        renderNoteList();
+        if (waveformData) drawWaveformWrapper();
+
+        focusNoteAtIndex(insertionIndex);
     } catch (error) {
         console.error('Error in addNote:', error);
         console.error('noteProps:', noteProps);
@@ -3744,10 +3852,33 @@ function handleSubdivisionsChange(newSubdivisions) {
 
 // Pre-delay 변경 핸들러
 function handlePreDelayChange() {
-    console.log(`Pre-delay changed to ${getPreDelaySeconds()}s`);
+    const preDelayField = document.getElementById("pre-delay");
+    const newPreDelayMs = parseInt(preDelayField.value || 0);
+    const oldPreDelayMs = parseInt(preDelayField.dataset.previousValue || 0);
+    const preDelayDiffMs = newPreDelayMs - oldPreDelayMs;
+
+    console.log(`Pre-delay changed from ${oldPreDelayMs}ms to ${newPreDelayMs}ms (diff: ${preDelayDiffMs}ms)`);
+
+    // 모든 이벤트의 시간을 pre-delay 변경량만큼 조정
+    if (preDelayDiffMs !== 0) {
+        const preDelayDiffSeconds = preDelayDiffMs / 1000;
+        const allEvents = getAllEvents();
+
+        allEvents.forEach(event => {
+            if (event && typeof event.eventTime === 'number') {
+                event.eventTime += preDelayDiffSeconds;
+            }
+        });
+
+        console.log(`Updated ${allEvents.length} events by ${preDelayDiffSeconds}s`);
+    }
+
+    // 현재 값을 이전 값으로 업데이트
+    preDelayField.dataset.previousValue = newPreDelayMs;
 
     saveToStorage();
     renderNoteList();
+    renderEventList();
     if (waveformData)
         drawWaveformWrapper();
 }
@@ -4029,28 +4160,52 @@ function attachEventClickListener(eventDiv, eventIndex) {
 
 // 이벤트 클릭 처리 로직 분리
 function handleEventClick(e, eventIndex) {
+    const container = document.getElementById("event-list");
+
     if (e.shiftKey && lastClickedEventIndex !== null) {
         const start = Math.min(lastClickedEventIndex, eventIndex);
         const end = Math.max(lastClickedEventIndex, eventIndex);
+
+        // DOM만 업데이트 (전체 리렌더링 방지)
         for (let i = start; i <= end; i++) {
             selectedEventIndices.add(i);
+            const eventItem = container.querySelector(`[data-event-index="${i}"]`);
+            if (eventItem) {
+                eventItem.classList.add("selected");
+            }
         }
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
     } else if (e.ctrlKey || e.metaKey) {
+        // DOM만 업데이트 (전체 리렌더링 방지)
         if (selectedEventIndices.has(eventIndex)) {
             selectedEventIndices.delete(eventIndex);
+            const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+            if (eventItem) {
+                eventItem.classList.remove("selected");
+            }
         } else {
             selectedEventIndices.add(eventIndex);
+            const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+            if (eventItem) {
+                eventItem.classList.add("selected");
+            }
         }
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
     } else {
         // 단순 클릭: 선택 상태 초기화 후 해당 이벤트만 선택
+        // DOM만 업데이트 (전체 리렌더링 방지)
+        const allItems = container.querySelectorAll('.event-item');
+        allItems.forEach(item => item.classList.remove("selected"));
+
         selectedEventIndices.clear();
         selectedEventIndices.add(eventIndex);
+
+        const eventItem = container.querySelector(`[data-event-index="${eventIndex}"]`);
+        if (eventItem) {
+            eventItem.classList.add("selected");
+        }
+
         lastClickedEventIndex = eventIndex;
-        scheduleRender({ eventList: true });
         focusEventAtIndex(eventIndex);
     }
 }
@@ -4302,15 +4457,8 @@ function renderEventListImmediate_Original() {
     const container = document.getElementById("event-list");
     if (!container) return;
 
-    // 성능 최적화: 메모리 누수 방지를 위한 이벤트 리스너 정리
-    if (container.children.length > 0) {
-        cleanupEventListeners(container);
-    }
-
-    // 기존 요소들 제거
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
+    // 기존 요소들 제거 (이벤트 위임을 사용하므로 개별 리스너 정리 불필요)
+    container.innerHTML = "";
 
     const events = getAllEvents();
     const eventTypes = getEventTypes();
@@ -4354,26 +4502,7 @@ function renderEventListImmediate_Original() {
             typeSelect.title = currentDescription;
         }
 
-        typeSelect.addEventListener("change", (e) => {
-            event.eventType = e.target.value;
-            // 선택된 값의 설명으로 툴팁 업데이트
-            const newDescription = getEventTypeDescription(e.target.value);
-            typeSelect.title = newDescription || '';
-
-            // EventType이 변경되면 EventId 입력 요소를 재생성
-            const oldIdInput = idLabel.querySelector('.event-id-input, .event-id-select');
-            if (oldIdInput) {
-                oldIdInput.remove();
-            }
-
-            // 타입이 변경되었으므로 eventId 초기화
-            event.eventId = '';
-
-            const newIdInput = createEventIdInput();
-            idLabel.appendChild(newIdInput);
-
-            saveToStorage();
-        });
+        // 이벤트 위임으로 처리되므로 개별 리스너 불필요
         typeLabel.appendChild(typeSelect);
 
         // Event ID 입력 (타입에 따라 드롭다운 또는 텍스트 입력)
@@ -4390,10 +4519,7 @@ function renderEventListImmediate_Original() {
                 idInput.type = "text";
                 idInput.className = "event-id-input";
                 idInput.value = event.eventId;
-                idInput.addEventListener("change", (e) => {
-                    event.eventId = e.target.value;
-                    saveToStorage();
-                });
+                // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             } else {
                 // 사전 정의된 타입이면 드롭다운
                 idInput = document.createElement("select");
@@ -4425,15 +4551,7 @@ function renderEventListImmediate_Original() {
                     idInput.appendChild(customOption);
                 }
 
-                idInput.addEventListener("change", (e) => {
-                    event.eventId = e.target.value;
-
-                    // 사전 정의된 파라미터 자동 추가
-                    applyPredefinedParams(eventIndex);
-
-                    saveToStorage();
-                    scheduleRender({ eventList: true }); // UI 새로고침으로 새로 추가된 파라미터들 표시
-                });
+                // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             }
 
             return idInput;
@@ -4560,10 +4678,7 @@ function renderEventListImmediate_Original() {
             paramNameInput.type = "text";
             paramNameInput.className = "param-name-input";
             paramNameInput.value = param.paramName;
-            paramNameInput.addEventListener("change", (e) => {
-                param.paramName = e.target.value;
-                saveToStorage();
-            });
+            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             paramNameLabel.appendChild(paramNameInput);
 
             // Param Value 입력
@@ -4573,10 +4688,7 @@ function renderEventListImmediate_Original() {
             paramValueInput.type = "text";
             paramValueInput.className = "param-value-input";
             paramValueInput.value = param.paramValue;
-            paramValueInput.addEventListener("change", (e) => {
-                param.paramValue = e.target.value;
-                saveToStorage();
-            });
+            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
             paramValueLabel.appendChild(paramValueInput);
 
             // Param 삭제 버튼
@@ -4775,11 +4887,44 @@ function handleEventListChange(e) {
             const newDescription = getEventTypeDescription(target.value);
             target.title = newDescription || '';
             event.eventId = '';
+            saveToStorage();
             requestAnimationFrame(() => renderEventList());
-        } else if (target.classList.contains('event-id-input') || target.classList.contains('event-id-select')) {
+        } else if (target.classList.contains('event-id-input')) {
             event.eventId = target.value;
+            saveToStorage();
+        } else if (target.classList.contains('event-id-select')) {
+            event.eventId = target.value;
+            // 사전 정의된 파라미터 자동 추가
+            applyPredefinedParams(eventIndex);
+            saveToStorage();
+            scheduleRender({ eventList: true }); // UI 새로고침으로 새로 추가된 파라미터들 표시
         } else if (target.classList.contains('event-time-input')) {
-            event.eventTime = parseFloat(target.value) || 0;
+            const newTime = parseFloat(target.value) || 0;
+            const oldTime = event.eventTime;
+            const timeDiff = newTime - oldTime;
+
+            // 여러 이벤트가 선택되어 있고, 현재 이벤트가 선택된 이벤트 중 하나일 때
+            if (selectedEventIndices.has(eventIndex) && selectedEventIndices.size > 1) {
+                // 선택된 모든 이벤트의 시간을 동일한 증감치만큼 조정
+                const updates = [];
+                selectedEventIndices.forEach(idx => {
+                    const eventToUpdate = getEventAtIndex(idx);
+                    if (eventToUpdate) {
+                        updates.push({
+                            index: idx,
+                            event: {
+                                ...eventToUpdate,
+                                eventTime: eventToUpdate.eventTime + timeDiff
+                            }
+                        });
+                    }
+                });
+                updateMultipleEvents(updates);
+            } else {
+                // 단일 이벤트 업데이트
+                event.eventTime = newTime;
+            }
+            saveToStorage();
         } else if (target.classList.contains('param-name-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
@@ -4788,6 +4933,7 @@ function handleEventListChange(e) {
                     event.eventParams[paramIndex].paramName = target.value;
                 }
             }
+            saveToStorage();
         } else if (target.classList.contains('param-value-input')) {
             const paramItem = target.closest('.param-item');
             if (paramItem) {
@@ -4796,9 +4942,9 @@ function handleEventListChange(e) {
                     event.eventParams[paramIndex].paramValue = target.value;
                 }
             }
+            saveToStorage();
         }
 
-        saveToStorage();
         eventChangeTimeouts.delete(target);
     }, 300);
 
@@ -5009,6 +5155,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (subdivisionsField) {
         subdivisionsField.dataset.previousValue = subdivisionsField.value || "16";
+    }
+    if (preDelayField) {
+        preDelayField.dataset.previousValue = preDelayField.value || "0";
     }
 
     if (bpmField) {
@@ -5327,12 +5476,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
                     let preDelayMs;
                     if (json.preDelay !== undefined) {
-                        if (json.preDelay <= 10) {
-                            preDelayMs = json.preDelay * 1000;
-                            console.log(`Legacy format detected: ${json.preDelay}s converted to ${preDelayMs}ms`);
-                        } else {
-                            preDelayMs = json.preDelay;
-                        }
+                        preDelayMs = json.preDelay;
                     } else {
                         preDelayMs = 0;
                     }
@@ -5373,6 +5517,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("bpm").value = bpm;
                     document.getElementById("subdivisions").value = subdivisions;
                     document.getElementById("pre-delay").value = preDelayMs;
+
+                    // previousValue도 업데이트하여 로드 후 변경 감지가 올바르게 작동하도록 함
+                    const preDelayField = document.getElementById("pre-delay");
+                    if (preDelayField) {
+                        preDelayField.dataset.previousValue = preDelayMs;
+                    }
 
                     // Level 값 설정 (없으면 기본값 10)
                     const levelValue = json.level || 10;
