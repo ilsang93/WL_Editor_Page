@@ -5,7 +5,9 @@ import {
     EVENT_TYPE_DESCRIPTIONS,
     PARAM_TYPE_DESCRIPTIONS,
     EVENT_IDS_BY_TYPE,
-    PREDEFINED_PARAMS_BY_EVENT_ID
+    PREDEFINED_PARAMS_BY_EVENT_ID,
+    DIALOG_ITEM_TYPES,
+    DIALOG_ITEM_FIELDS
 } from './event-config.js';
 
 // 전역 이벤트 목록
@@ -223,15 +225,24 @@ function getDefaultValueForParamType(paramType) {
 
 // 이벤트 리스트를 JSON으로 변환
 export function eventsToJson() {
-    return events.map(event => ({
-        eventType: event.eventType,
-        eventId: event.eventId,
-        eventTime: event.eventTime,
-        eventParams: event.eventParams.map(param => ({
-            paramName: param.paramName,
-            paramValue: param.paramValue
-        }))
-    }));
+    return events.map(event => {
+        const jsonEvent = {
+            eventType: event.eventType,
+            eventId: event.eventId,
+            eventTime: event.eventTime,
+            eventParams: event.eventParams.map(param => ({
+                paramName: param.paramName,
+                paramValue: param.paramValue
+            }))
+        };
+
+        // dialog 이벤트인 경우 dialogItems도 포함
+        if (isDialogEvent(event) && event.dialogItems) {
+            jsonEvent.dialogItems = event.dialogItems;
+        }
+
+        return jsonEvent;
+    });
 }
 
 // JSON에서 이벤트 리스트 로드
@@ -243,13 +254,43 @@ export function loadEventsFromJson(jsonEvents) {
                 eventType: eventData.eventType || EVENT_TYPES[0],
                 eventId: eventData.eventId || '',
                 eventTime: typeof eventData.eventTime === 'number' ? eventData.eventTime : 0.0,
-                eventParams: Array.isArray(eventData.eventParams) ?
-                    eventData.eventParams.map(param => ({
-                        paramType: param.paramType || PARAM_TYPES[0],
-                        paramName: param.paramName || '',
-                        paramValue: param.paramValue || ''
-                    })) : []
+                eventParams: []
             };
+
+            // 기본 eventParams 처리
+            event.eventParams = Array.isArray(eventData.eventParams) ?
+                eventData.eventParams.map(param => ({
+                    paramType: param.paramType || PARAM_TYPES[0],
+                    paramName: param.paramName || '',
+                    paramValue: param.paramValue || ''
+                })) : [];
+
+            // dialog 이벤트인지 확인
+            if (event.eventType === 'system' && event.eventId === 'dialog') {
+                // 새로운 형식: dialogItems 필드가 있는 경우
+                if (Array.isArray(eventData.dialogItems)) {
+                    event.dialogItems = eventData.dialogItems.map((item, index) => ({
+                        index: index,
+                        type: item.type || 'text',
+                        ...item
+                    }));
+                }
+                // 이전 형식 호환성: eventParams가 dialog 아이템 형식인 경우
+                else if (Array.isArray(eventData.eventParams) && eventData.eventParams.length > 0 &&
+                         eventData.eventParams[0].type && !eventData.eventParams[0].paramName) {
+                    event.dialogItems = eventData.eventParams.map((item, index) => ({
+                        index: index,
+                        type: item.type || 'text',
+                        ...item
+                    }));
+                    event.eventParams = []; // dialog 아이템을 eventParams에서 분리
+                }
+                // dialogItems가 없으면 빈 배열로 초기화
+                else {
+                    event.dialogItems = [];
+                }
+            }
+
             events.push(event);
         });
     }
@@ -308,4 +349,130 @@ export function updateMultipleEvents(updates) {
         }
     });
     return success;
+}
+
+// Dialog 아이템 관련 함수들
+
+// 새 Dialog 아이템 생성
+export function createDialogItem(type = 'text') {
+    const fields = DIALOG_ITEM_FIELDS[type] || DIALOG_ITEM_FIELDS['text'];
+    const item = {
+        index: 0,
+        type: type
+    };
+
+    // 각 필드의 기본값 설정
+    fields.forEach(field => {
+        item[field.fieldName] = getDefaultValueForFieldType(field.fieldType);
+    });
+
+    return item;
+}
+
+// 필드 타입에 따른 기본값 반환
+function getDefaultValueForFieldType(fieldType) {
+    switch (fieldType) {
+        case 'float':
+            return 0.0;
+        case 'int':
+            return 0;
+        case 'string':
+            return '';
+        case 'bool':
+            return false;
+        default:
+            return '';
+    }
+}
+
+// 이벤트가 system-dialog 타입인지 확인
+export function isDialogEvent(event) {
+    return event.eventType === 'system' && event.eventId === 'dialog';
+}
+
+// 이벤트에 dialog 아이템 추가
+export function addDialogItem(eventIndex, itemType = 'text') {
+    if (eventIndex < 0 || eventIndex >= events.length) return -1;
+
+    const event = events[eventIndex];
+    if (!isDialogEvent(event)) return -1;
+
+    // dialogItems가 없으면 초기화
+    if (!event.dialogItems) {
+        event.dialogItems = [];
+    }
+
+    const newItem = createDialogItem(itemType);
+    newItem.index = event.dialogItems.length;
+    event.dialogItems.push(newItem);
+
+    return newItem.index;
+}
+
+// dialog 아이템 삭제
+export function removeDialogItem(eventIndex, itemIndex) {
+    if (eventIndex < 0 || eventIndex >= events.length) return false;
+
+    const event = events[eventIndex];
+    if (!isDialogEvent(event) || !event.dialogItems) return false;
+
+    if (itemIndex < 0 || itemIndex >= event.dialogItems.length) return false;
+
+    // 아이템 삭제
+    event.dialogItems.splice(itemIndex, 1);
+
+    // 나머지 아이템들의 인덱스 재정렬
+    event.dialogItems.forEach((item, index) => {
+        item.index = index;
+    });
+
+    return true;
+}
+
+// dialog 아이템 이동 (드래그 앤 드롭용)
+export function moveDialogItem(eventIndex, fromIndex, toIndex) {
+    if (eventIndex < 0 || eventIndex >= events.length) return false;
+
+    const event = events[eventIndex];
+    if (!isDialogEvent(event) || !event.dialogItems) return false;
+
+    if (fromIndex < 0 || fromIndex >= event.dialogItems.length ||
+        toIndex < 0 || toIndex >= event.dialogItems.length) return false;
+
+    // 아이템 이동
+    const [movedItem] = event.dialogItems.splice(fromIndex, 1);
+    event.dialogItems.splice(toIndex, 0, movedItem);
+
+    // 모든 아이템의 인덱스 재정렬
+    event.dialogItems.forEach((item, index) => {
+        item.index = index;
+    });
+
+    return true;
+}
+
+// dialog 아이템 업데이트
+export function updateDialogItem(eventIndex, itemIndex, updatedItem) {
+    if (eventIndex < 0 || eventIndex >= events.length) return false;
+
+    const event = events[eventIndex];
+    if (!isDialogEvent(event) || !event.dialogItems) return false;
+
+    if (itemIndex < 0 || itemIndex >= event.dialogItems.length) return false;
+
+    // 기존 아이템 업데이트 (인덱스는 유지)
+    const currentIndex = event.dialogItems[itemIndex].index;
+    event.dialogItems[itemIndex] = { ...updatedItem, index: currentIndex };
+
+    return true;
+}
+
+// Dialog 아이템 타입 목록 가져오기
+export function getDialogItemTypes() {
+    return [...DIALOG_ITEM_TYPES];
+}
+
+// Dialog 아이템 타입별 필드 정의 가져오기
+export function getDialogItemFields(itemType) {
+    return DIALOG_ITEM_FIELDS[itemType] || [];
 }

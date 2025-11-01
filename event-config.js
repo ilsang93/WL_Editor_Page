@@ -8,6 +8,7 @@ export const EVENT_TYPES = [
     'overlay',
     'startrail',
     'light',
+    'system',
     'custom',
 ];
 
@@ -72,6 +73,9 @@ export const EVENT_IDS_BY_TYPE = {
         'setstatic',
         'setnote',
         'setchar'
+    ],
+    'system' : [
+        'dialog'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -199,6 +203,44 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'inner', paramType: 'float' },
         { paramName: 'outer', paramType: 'float' },
     ],
+
+    // system 타입 이벤트
+    'system-dialog': [
+        // dialog는 특별한 구조를 가지므로 여기서는 빈 배열
+    ],
+};
+
+// Dialog 아이템 타입 목록
+export const DIALOG_ITEM_TYPES = [
+    'text',
+    'character',
+    'pause',
+    'choice',
+    'image',
+    'sound'
+];
+
+// Dialog 아이템 타입별 필드 정의
+export const DIALOG_ITEM_FIELDS = {
+    'text': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '텍스트 내용' }
+    ],
+    'character': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '캐릭터 ID' }
+    ],
+    'pause': [
+        { fieldName: 'value', fieldType: 'float', placeholder: '대기 시간 (초)' }
+    ],
+    'choice': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '선택지 텍스트' },
+        { fieldName: 'target', fieldType: 'string', placeholder: '다음 대화 ID' }
+    ],
+    'image': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '이미지 파일명' }
+    ],
+    'sound': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '사운드 파일명' }
+    ]
 };
 
 // 이벤트 타입별 설명 (선택사항)

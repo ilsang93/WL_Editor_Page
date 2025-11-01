@@ -1068,3 +1068,192 @@ input[type="range"]::-moz-range-thumb {
 .waveform-trigger-zone.sidebar-hidden {
   left: 0; /* 사이드바가 숨겨졌을 때 전체 너비 사용 */
 }
+
+/* Dialog Items 스타일 */
+.dialog-container {
+  margin-top: 10px;
+}
+
+.dialog-label {
+  background: #3a3a3a;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.dialog-label:hover {
+  background: #4a4a4a;
+}
+
+.dialog-toggle {
+  display: inline-block;
+  width: 12px;
+  font-family: monospace;
+  transition: transform 0.2s;
+}
+
+.dialog-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+.dialog-content {
+  background: #2a2a2a;
+  border-radius: 4px;
+  padding: 10px;
+  border-left: 3px solid #007cba;
+}
+
+.dialog-content.collapsed {
+  display: none;
+}
+
+.dialog-items-list {
+  margin-bottom: 10px;
+}
+
+.dialog-item {
+  background: #333;
+  border: 1px solid #555;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  padding: 8px;
+  transition: all 0.2s;
+}
+
+.dialog-item:hover {
+  border-color: #777;
+}
+
+.dialog-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: #888;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 2px;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+.drag-handle:hover {
+  color: #bbb;
+  background: #444;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.item-index {
+  font-weight: bold;
+  color: #4CAF50;
+  min-width: 20px;
+}
+
+.dialog-item-type-select {
+  background: #444;
+  color: #fff;
+  border: 1px solid #666;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+
+.delete-dialog-item-btn {
+  background: #d32f2f;
+  color: white;
+  border: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  margin-left: auto;
+  transition: background 0.2s;
+}
+
+.delete-dialog-item-btn:hover {
+  background: #f44336;
+}
+
+.dialog-item-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dialog-item-field {
+  display: flex;
+  align-items: center;
+}
+
+.dialog-item-field label {
+  font-size: 11px;
+  color: #ccc;
+  min-width: 60px;
+  margin-right: 8px;
+}
+
+.dialog-item-field-input {
+  background: #444;
+  color: #fff;
+  border: 1px solid #666;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  flex: 1;
+  transition: border-color 0.2s;
+}
+
+.dialog-item-field-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.add-dialog-item-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+  width: 100%;
+}
+
+.add-dialog-item-btn:hover {
+  background: #66BB6A;
+}
+
+/* Parameters 섹션이 접혀있을 때 스타일 */
+.params-container.collapsed .params-content {
+  display: none;
+}
+
+.params-container.collapsed .params-toggle {
+  transform: rotate(-90deg);
+}
+
+/* 드래그 시 스타일 */
+.dialog-item.dragging {
+  opacity: 0.5;
+  transform: rotate(2deg);
+}
+
+/* 드롭 인디케이터 */
+.drop-indicator {
+  height: 2px;
+  background: #007cba;
+  margin: 2px 0;
+  border-radius: 1px;
+}

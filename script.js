@@ -68,7 +68,15 @@ import {
     insertMultipleEvents,
     getEventAtIndex,
     updateEvent,
-    updateMultipleEvents
+    updateMultipleEvents,
+    isDialogEvent,
+    addDialogItem,
+    removeDialogItem,
+    moveDialogItem,
+    updateDialogItem,
+    getDialogItemTypes,
+    getDialogItemFields,
+    createDialogItem
 } from './events.js';
 
 // 전역 변수들
@@ -4359,6 +4367,13 @@ function createEventParamsSection(event, eventIndex) {
     const paramsContainer = document.createElement("div");
     paramsContainer.className = "params-container";
 
+    const isDialog = isDialogEvent(event);
+
+    // Dialog 이벤트인 경우 특별한 UI 생성
+    if (isDialog) {
+        return createDialogItemsSection(event, eventIndex);
+    }
+
     const paramsLabel = document.createElement("div");
     paramsLabel.className = "params-label";
     paramsLabel.innerHTML = '<span class="params-toggle">▼</span> Parameters';
@@ -4452,10 +4467,78 @@ function cleanupEventListeners(container) {
     });
 }
 
+// 접기 상태 저장/복원 함수들
+function saveCollapseStates() {
+    const states = new Map();
+
+    // Parameters 접기 상태 저장
+    document.querySelectorAll('.params-container').forEach((container, index) => {
+        const eventIndex = container.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            states.set(`params-${eventIndex}`, container.classList.contains('collapsed'));
+        }
+    });
+
+    // Dialog 접기 상태 저장
+    document.querySelectorAll('.dialog-content').forEach((content, index) => {
+        const eventIndex = content.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            states.set(`dialog-${eventIndex}`, content.classList.contains('collapsed'));
+        }
+    });
+
+    return states;
+}
+
+function restoreCollapseStates(states) {
+    if (!states) return;
+
+    // Parameters 접기 상태 복원
+    document.querySelectorAll('.params-container').forEach(container => {
+        const eventIndex = container.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            const isCollapsed = states.get(`params-${eventIndex}`);
+            if (isCollapsed !== undefined) {
+                const toggle = container.querySelector('.params-toggle');
+                if (isCollapsed) {
+                    container.classList.add('collapsed');
+                    if (toggle) toggle.textContent = "▶";
+                } else {
+                    container.classList.remove('collapsed');
+                    if (toggle) toggle.textContent = "▼";
+                }
+            }
+        }
+    });
+
+    // Dialog 접기 상태 복원
+    document.querySelectorAll('.dialog-content').forEach(content => {
+        const eventIndex = content.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            const isCollapsed = states.get(`dialog-${eventIndex}`);
+            if (isCollapsed !== undefined) {
+                const toggle = content.parentElement?.querySelector('.dialog-toggle');
+                if (isCollapsed) {
+                    content.classList.add('collapsed');
+                    if (toggle) toggle.textContent = "▶";
+                } else {
+                    content.classList.remove('collapsed');
+                    if (toggle) toggle.textContent = "▼";
+                }
+            }
+        }
+    });
+}
+
 // 기존 이벤트 렌더링 로직 (가상 스크롤링 비활성화)
 function renderEventListImmediate_Original() {
     const container = document.getElementById("event-list");
-    if (!container) return;
+    if (!container) {
+        return;
+    }
+
+    // 접기 상태 저장
+    const collapseStates = saveCollapseStates();
 
     // 기존 요소들 제거 (이벤트 위임을 사용하므로 개별 리스너 정리 불필요)
     container.innerHTML = "";
@@ -4639,87 +4722,18 @@ function renderEventListImmediate_Original() {
         eventHeader.appendChild(predefinedParamsBtn);
         eventHeader.appendChild(deleteBtn);
 
-        // Parameters 컨테이너
-        const paramsContainer = document.createElement("div");
-        paramsContainer.className = "event-params-container";
-
-        const paramsLabel = document.createElement("div");
-        paramsLabel.className = "params-label";
-
-        const toggleIcon = document.createElement("span");
-        toggleIcon.className = "params-toggle";
-        toggleIcon.textContent = "▼";
-
-        const labelText = document.createElement("span");
-        labelText.textContent = "Parameters:";
-
-        paramsLabel.appendChild(toggleIcon);
-        paramsLabel.appendChild(labelText);
-
-        const paramsContent = document.createElement("div");
-        paramsContent.className = "params-content";
-
-        paramsContainer.appendChild(paramsLabel);
-
-        const paramsList = document.createElement("div");
-        paramsList.className = "params-list";
-
-        event.eventParams.forEach((param, paramIndex) => {
-            const paramDiv = document.createElement("div");
-            paramDiv.className = "param-item";
-            // data-param-index 속성 추가
-            paramDiv.setAttribute('data-param-index', paramIndex);
-
-
-            // Param Name 입력
-            const paramNameLabel = document.createElement("label");
-            paramNameLabel.textContent = "Name: ";
-            const paramNameInput = document.createElement("input");
-            paramNameInput.type = "text";
-            paramNameInput.className = "param-name-input";
-            paramNameInput.value = param.paramName;
-            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
-            paramNameLabel.appendChild(paramNameInput);
-
-            // Param Value 입력
-            const paramValueLabel = document.createElement("label");
-            paramValueLabel.textContent = "Value: ";
-            const paramValueInput = document.createElement("input");
-            paramValueInput.type = "text";
-            paramValueInput.className = "param-value-input";
-            paramValueInput.value = param.paramValue;
-            // 이벤트 위임으로 처리되므로 개별 리스너 불필요
-            paramValueLabel.appendChild(paramValueInput);
-
-            // Param 삭제 버튼
-            const deleteParamBtn = document.createElement("button");
-            deleteParamBtn.textContent = "−";
-            deleteParamBtn.className = "delete-param-btn";
-            // 파라미터 삭제 버튼 이벤트는 handleEventListClick에서 위임으로 처리
-
-            paramDiv.appendChild(paramNameLabel);
-            paramDiv.appendChild(paramValueLabel);
-            paramDiv.appendChild(deleteParamBtn);
-
-            paramsList.appendChild(paramDiv);
-        });
-
-        // Add Param 버튼
-        const addParamBtn = document.createElement("button");
-        addParamBtn.textContent = "+ Add Param";
-        addParamBtn.className = "add-param-btn";
-        // 파라미터 추가 버튼 이벤트는 handleEventListClick에서 위임으로 처리
-
-        paramsContent.appendChild(paramsList);
-        paramsContent.appendChild(addParamBtn);
-        paramsContainer.appendChild(paramsContent);
-
-        // 접기/펼치기 이벤트는 handleEventListClick에서 위임으로 처리
+        // Parameters 섹션 생성 (dialog 지원)
+        const paramsContainer = createEventParamsSection(event, eventIndex);
 
         eventDiv.appendChild(eventHeader);
         eventDiv.appendChild(paramsContainer);
 
         container.appendChild(eventDiv);
+    });
+
+    // 접기 상태 복원 (다음 프레임에서 실행하여 DOM이 완전히 업데이트된 후 실행)
+    requestAnimationFrame(() => {
+        restoreCollapseStates(collapseStates);
     });
 }
 
@@ -4758,6 +4772,12 @@ function setupEventDelegation() {
     if (eventListContainer) {
         eventListContainer.addEventListener("click", handleEventListClick);
         eventListContainer.addEventListener("change", handleEventListChange);
+
+        // 드래그 앤 드롭 이벤트 추가
+        eventListContainer.addEventListener("dragstart", handleDialogItemDragStart);
+        eventListContainer.addEventListener("dragover", handleDialogItemDragOver);
+        eventListContainer.addEventListener("drop", handleDialogItemDrop);
+        eventListContainer.addEventListener("dragend", handleDialogItemDragEnd);
     }
 
     // 사이드바 이벤트 델리게이션
@@ -4841,12 +4861,58 @@ function handleEventListClick(e) {
         const paramsContainer = eventItem.querySelector('.params-container');
         if (!paramsContainer) return;
 
-        const content = paramsContainer.querySelector('.params-content');
         const toggle = paramsContainer.querySelector('.params-toggle');
 
+        // CSS와 일치하도록 paramsContainer에 collapsed 클래스 토글
+        paramsContainer.classList.toggle("collapsed");
+
+        // 토글 아이콘 업데이트
+        if (paramsContainer.classList.contains("collapsed")) {
+            toggle.textContent = "▶";
+        } else {
+            toggle.textContent = "▼";
+        }
+        return;
+    }
+
+    // Dialog 토글
+    if (target.classList.contains('dialog-toggle') || target.closest('.dialog-label')) {
+        const dialogContainer = eventItem.querySelector('.dialog-container');
+        if (!dialogContainer) return;
+
+        const content = dialogContainer.querySelector('.dialog-content');
+        const toggle = dialogContainer.querySelector('.dialog-toggle');
+
+        // content에 collapsed 클래스 토글 (dialog는 기존 방식 유지)
         content.classList.toggle("collapsed");
-        toggle.classList.toggle("collapsed");
-        toggle.textContent = content.classList.contains("collapsed") ? "▶" : "▼";
+
+        // 토글 아이콘 업데이트
+        if (content.classList.contains("collapsed")) {
+            toggle.textContent = "▶";
+        } else {
+            toggle.textContent = "▼";
+        }
+        return;
+    }
+
+    // Dialog 아이템 추가 버튼
+    if (target.classList.contains('add-dialog-item-btn')) {
+        const itemType = 'text'; // 기본 타입
+        addDialogItem(eventIndex, itemType);
+        scheduleRender({ eventList: true });
+        saveToStorage();
+        return;
+    }
+
+    // Dialog 아이템 삭제 버튼
+    if (target.classList.contains('delete-dialog-item-btn')) {
+        const itemIndex = parseInt(target.dataset.itemIndex);
+        if (confirm("Dialog 아이템을 삭제하시겠습니까?")) {
+            if (removeDialogItem(eventIndex, itemIndex)) {
+                scheduleRender({ eventList: true });
+                saveToStorage();
+            }
+        }
         return;
     }
 
@@ -4943,6 +5009,35 @@ function handleEventListChange(e) {
                 }
             }
             saveToStorage();
+        } else if (target.classList.contains('dialog-item-type-select')) {
+            const itemIndex = parseInt(target.dataset.itemIndex);
+            const newType = target.value;
+
+            if (event.dialogItems && event.dialogItems[itemIndex]) {
+                // 새로운 타입의 아이템으로 교체
+                const newItem = createDialogItem(newType);
+                newItem.index = itemIndex;
+                event.dialogItems[itemIndex] = newItem;
+                saveToStorage();
+                scheduleRender({ eventList: true });
+            }
+        } else if (target.classList.contains('dialog-item-field-input')) {
+            const itemIndex = parseInt(target.dataset.itemIndex);
+            const fieldName = target.dataset.fieldName;
+
+            if (event.dialogItems && event.dialogItems[itemIndex]) {
+                let value = target.value;
+
+                // 타입에 따른 값 변환
+                const field = getDialogItemFields(event.dialogItems[itemIndex].type)
+                    .find(f => f.fieldName === fieldName);
+                if (field && field.fieldType === 'float') {
+                    value = parseFloat(value) || 0.0;
+                }
+
+                event.dialogItems[itemIndex][fieldName] = value;
+                saveToStorage();
+            }
         }
 
         eventChangeTimeouts.delete(target);
@@ -5093,7 +5188,7 @@ function handleMainClick(e) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
-    console.log('DOM loaded, initializing...');
+
 
     // 이벤트 델리게이션 시스템 설정 (성능 최적화)
     setupEventDelegation();
@@ -5103,7 +5198,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     try {
         await initDB();
-        console.log('IndexedDB initialized');
     } catch (err) {
         console.warn('IndexedDB initialization failed:', err);
     }
@@ -5220,29 +5314,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 모두 접기 버튼 이벤트 리스너
     document.getElementById("collapse-all").addEventListener("click", () => {
-        const paramsContents = document.querySelectorAll(".params-content");
-        const paramsLists = document.querySelectorAll(".params-list");
-        const toggleIcons = document.querySelectorAll(".params-toggle");
+        const paramsContainers = document.querySelectorAll(".params-container");
+        const dialogContents = document.querySelectorAll(".dialog-content");
 
-        paramsContents.forEach(content => content.classList.add("collapsed"));
-        paramsLists.forEach(list => list.classList.add("collapsed"));
-        toggleIcons.forEach(icon => {
-            icon.classList.add("collapsed");
-            icon.textContent = "▶";
+        paramsContainers.forEach(container => {
+            container.classList.add("collapsed");
+            const toggle = container.querySelector('.params-toggle');
+            if (toggle) toggle.textContent = "▶";
+        });
+
+        dialogContents.forEach(content => {
+            content.classList.add("collapsed");
+            const toggle = content.parentElement.querySelector('.dialog-toggle');
+            if (toggle) toggle.textContent = "▶";
         });
     });
 
     // 모두 펼치기 버튼 이벤트 리스너
     document.getElementById("expand-all").addEventListener("click", () => {
-        const paramsContents = document.querySelectorAll(".params-content");
-        const paramsLists = document.querySelectorAll(".params-list");
-        const toggleIcons = document.querySelectorAll(".params-toggle");
+        const paramsContainers = document.querySelectorAll(".params-container");
+        const dialogContents = document.querySelectorAll(".dialog-content");
 
-        paramsContents.forEach(content => content.classList.remove("collapsed"));
-        paramsLists.forEach(list => list.classList.remove("collapsed"));
-        toggleIcons.forEach(icon => {
-            icon.classList.remove("collapsed");
-            icon.textContent = "▼";
+        paramsContainers.forEach(container => {
+            container.classList.remove("collapsed");
+            const toggle = container.querySelector('.params-toggle');
+            if (toggle) toggle.textContent = "▼";
+        });
+
+        dialogContents.forEach(content => {
+            content.classList.remove("collapsed");
+            const toggle = content.parentElement.querySelector('.dialog-toggle');
+            if (toggle) toggle.textContent = "▼";
         });
     });
 
@@ -6202,4 +6304,306 @@ function showNotification(message) {
             }
         }, 300);
     }, 3000);
+}
+
+// Dialog 아이템 섹션 생성
+function createDialogItemsSection(event, eventIndex) {
+    const dialogContainer = document.createElement("div");
+    dialogContainer.className = "dialog-container";
+
+    // 기본 Parameters 섹션 (접혀있는 상태)
+    const paramsSection = createCollapsibleParamsSection(event, eventIndex);
+    dialogContainer.appendChild(paramsSection);
+
+    // Dialog Items 섹션
+    const dialogLabel = document.createElement("div");
+    dialogLabel.className = "dialog-label";
+    dialogLabel.innerHTML = '<span class="dialog-toggle">▼</span> Dialog Items';
+
+    const dialogContent = document.createElement("div");
+    dialogContent.className = "dialog-content";
+
+    const dialogItemsList = document.createElement("div");
+    dialogItemsList.className = "dialog-items-list";
+    dialogItemsList.dataset.eventIndex = eventIndex;
+
+    // dialogItems가 없으면 초기화
+    if (!event.dialogItems) {
+        event.dialogItems = [];
+    }
+
+    // Dialog 아이템들 렌더링
+    event.dialogItems.forEach((item, itemIndex) => {
+        const itemDiv = createDialogItemElement(event, eventIndex, item, itemIndex);
+        dialogItemsList.appendChild(itemDiv);
+    });
+
+    // Add Dialog Item 버튼
+    const addItemBtn = document.createElement("button");
+    addItemBtn.textContent = "+ Dialog Item 추가";
+    addItemBtn.className = "add-dialog-item-btn";
+    addItemBtn.dataset.eventIndex = eventIndex;
+
+    dialogContent.appendChild(dialogItemsList);
+    dialogContent.appendChild(addItemBtn);
+    dialogContainer.appendChild(dialogLabel);
+    dialogContainer.appendChild(dialogContent);
+
+    return dialogContainer;
+}
+
+// 접을 수 있는 기본 Parameters 섹션 생성
+function createCollapsibleParamsSection(event, eventIndex) {
+    const paramsContainer = document.createElement("div");
+    paramsContainer.className = "params-container collapsed";
+
+    const paramsLabel = document.createElement("div");
+    paramsLabel.className = "params-label";
+    paramsLabel.innerHTML = '<span class="params-toggle">▶</span> Parameters';
+
+    const paramsContent = document.createElement("div");
+    paramsContent.className = "params-content";
+    paramsContent.style.display = "none";
+
+    const paramsList = document.createElement("div");
+    paramsList.className = "params-list";
+
+    // 파라미터들 렌더링
+    event.eventParams.forEach((param, paramIndex) => {
+        const paramDiv = createEventParamElement(event, eventIndex, param, paramIndex);
+        paramsList.appendChild(paramDiv);
+    });
+
+    const addParamBtn = document.createElement("button");
+    addParamBtn.textContent = "파라미터 추가";
+    addParamBtn.className = "add-param-btn";
+
+    paramsContent.appendChild(paramsList);
+    paramsContent.appendChild(addParamBtn);
+    paramsContainer.appendChild(paramsLabel);
+    paramsContainer.appendChild(paramsContent);
+
+    return paramsContainer;
+}
+
+// Dialog 아이템 요소 생성
+function createDialogItemElement(event, eventIndex, item, itemIndex) {
+    const itemDiv = document.createElement("div");
+    itemDiv.className = "dialog-item";
+    itemDiv.dataset.itemIndex = itemIndex;
+    // itemDiv.draggable = true; // 제거: 전체 아이템이 아닌 드래그 핸들만 드래그 가능하게
+
+    // 드래그 핸들
+    const dragHandle = document.createElement("div");
+    dragHandle.className = "drag-handle";
+    dragHandle.innerHTML = "⋮⋮";
+    dragHandle.title = "드래그하여 순서 변경";
+    dragHandle.draggable = true; // 드래그 핸들만 드래그 가능하게
+
+    // 인덱스 표시
+    const indexSpan = document.createElement("span");
+    indexSpan.className = "item-index";
+    indexSpan.textContent = `${itemIndex}:`;
+
+    // 아이템 타입 선택
+    const typeSelect = document.createElement("select");
+    typeSelect.className = "dialog-item-type-select";
+    typeSelect.dataset.eventIndex = eventIndex;
+    typeSelect.dataset.itemIndex = itemIndex;
+
+    const itemTypes = getDialogItemTypes();
+    itemTypes.forEach(type => {
+        const option = document.createElement("option");
+        option.value = type;
+        option.textContent = type;
+        option.selected = type === item.type;
+        typeSelect.appendChild(option);
+    });
+
+    // 아이템 필드들 생성
+    const fieldsContainer = document.createElement("div");
+    fieldsContainer.className = "dialog-item-fields";
+
+    const fields = getDialogItemFields(item.type);
+    fields.forEach(field => {
+        const fieldDiv = document.createElement("div");
+        fieldDiv.className = "dialog-item-field";
+
+        const fieldLabel = document.createElement("label");
+        fieldLabel.textContent = `${field.fieldName}: `;
+
+        const fieldInput = document.createElement("input");
+        fieldInput.type = field.fieldType === 'float' ? 'number' : 'text';
+        if (field.fieldType === 'float') {
+            fieldInput.step = "0.01";
+        }
+        fieldInput.value = item[field.fieldName] || '';
+        fieldInput.placeholder = field.placeholder || '';
+        fieldInput.className = "dialog-item-field-input";
+        fieldInput.dataset.eventIndex = eventIndex;
+        fieldInput.dataset.itemIndex = itemIndex;
+        fieldInput.dataset.fieldName = field.fieldName;
+
+        fieldLabel.appendChild(fieldInput);
+        fieldDiv.appendChild(fieldLabel);
+        fieldsContainer.appendChild(fieldDiv);
+    });
+
+    // 삭제 버튼
+    const deleteBtn = document.createElement("button");
+    deleteBtn.textContent = "×";
+    deleteBtn.className = "delete-dialog-item-btn";
+    deleteBtn.dataset.eventIndex = eventIndex;
+    deleteBtn.dataset.itemIndex = itemIndex;
+    deleteBtn.title = "아이템 삭제";
+
+    // 요소들 조합
+    const headerDiv = document.createElement("div");
+    headerDiv.className = "dialog-item-header";
+    headerDiv.appendChild(dragHandle);
+    headerDiv.appendChild(indexSpan);
+    headerDiv.appendChild(typeSelect);
+    headerDiv.appendChild(deleteBtn);
+
+    itemDiv.appendChild(headerDiv);
+    itemDiv.appendChild(fieldsContainer);
+
+    return itemDiv;
+}
+
+// 드래그 앤 드롭 관련 변수들
+let draggedItem = null;
+let draggedEventIndex = null;
+let draggedItemIndex = null;
+
+// Dialog 아이템 드래그 시작
+function handleDialogItemDragStart(e) {
+
+    // 드래그 핸들인지 확인
+    if (!e.target.classList.contains('drag-handle')) {
+        e.preventDefault();
+        return;
+    }
+
+    const dialogItem = e.target.closest('.dialog-item');
+    if (!dialogItem) {
+        e.preventDefault();
+        return;
+    }
+
+    draggedItem = dialogItem;
+    draggedEventIndex = parseInt(dialogItem.closest('.event-item').dataset.eventIndex);
+    draggedItemIndex = parseInt(dialogItem.dataset.itemIndex);
+
+
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', dialogItem.outerHTML);
+
+    // 드래그 중인 아이템 스타일 변경
+    setTimeout(() => {
+        dialogItem.style.opacity = '0.5';
+    }, 0);
+}
+
+// Dialog 아이템 드래그 오버
+function handleDialogItemDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+
+    const dialogItem = e.target.closest('.dialog-item');
+    if (!dialogItem || !draggedItem || dialogItem === draggedItem) {
+        return;
+    }
+
+    // 같은 이벤트 내의 아이템만 허용
+    const targetEventIndex = parseInt(dialogItem.closest('.event-item').dataset.eventIndex);
+    if (targetEventIndex !== draggedEventIndex) {
+        return;
+    }
+
+
+    // 드롭 위치 표시를 위한 스타일 추가
+    const rect = dialogItem.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+
+    // 기존 drop-indicator 제거
+    document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+
+    if (e.clientY < midY) {
+        // 위에 드롭
+        dialogItem.style.borderTop = '2px solid #007cba';
+    } else {
+        // 아래에 드롭
+        dialogItem.style.borderBottom = '2px solid #007cba';
+    }
+}
+
+// Dialog 아이템 드롭
+function handleDialogItemDrop(e) {
+    e.preventDefault();
+
+    if (!draggedItem) {
+        return;
+    }
+
+    const targetItem = e.target.closest('.dialog-item');
+    if (!targetItem || targetItem === draggedItem) {
+        return;
+    }
+
+    // 같은 이벤트 내의 아이템만 허용
+    const targetEventIndex = parseInt(targetItem.closest('.event-item').dataset.eventIndex);
+    if (targetEventIndex !== draggedEventIndex) {
+        return;
+    }
+
+    const targetItemIndex = parseInt(targetItem.dataset.itemIndex);
+
+    // 드롭 위치 계산
+    const rect = targetItem.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    let newIndex = targetItemIndex;
+
+    if (e.clientY >= midY) {
+        newIndex = targetItemIndex + 1;
+    }
+
+    // 드래그된 아이템이 뒤에 있을 때 인덱스 조정
+    if (draggedItemIndex < newIndex) {
+        newIndex--;
+    }
+
+
+    // 같은 위치로 드롭하면 무시
+    if (newIndex === draggedItemIndex) {
+        return;
+    }
+
+    // 아이템 이동
+    if (moveDialogItem(draggedEventIndex, draggedItemIndex, newIndex)) {
+        scheduleRender({ eventList: true });
+        saveToStorage();
+    }
+}
+
+// Dialog 아이템 드래그 종료
+function handleDialogItemDragEnd(e) {
+    // 스타일 초기화
+    if (draggedItem) {
+        draggedItem.style.opacity = '';
+    }
+
+    // border 스타일 제거
+    document.querySelectorAll('.dialog-item').forEach(item => {
+        item.style.borderTop = '';
+        item.style.borderBottom = '';
+    });
+
+    // drop-indicator 제거
+    document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+
+    // 변수 초기화
+    draggedItem = null;
+    draggedEventIndex = null;
+    draggedItemIndex = null;
 }
