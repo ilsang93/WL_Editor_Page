@@ -224,7 +224,7 @@ export const DIALOG_ITEM_TYPES = [
 // Dialog 아이템 타입별 필드 정의
 export const DIALOG_ITEM_FIELDS = {
     'text': [
-        { fieldName: 'value', fieldType: 'string', placeholder: '텍스트 내용' }
+        { fieldName: 'value', fieldType: 'textarea', placeholder: '텍스트 내용' }
     ],
     'character': [
         { fieldName: 'value', fieldType: 'string', placeholder: '캐릭터 ID' }
