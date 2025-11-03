@@ -74,7 +74,7 @@ export const EVENT_IDS_BY_TYPE = {
         'setnote',
         'setchar'
     ],
-    'system' : [
+    'system': [
         'dialog'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
@@ -229,18 +229,19 @@ export const DIALOG_ITEM_FIELDS = {
     'character': [
         { fieldName: 'value', fieldType: 'string', placeholder: '캐릭터 ID' }
     ],
-    'pause': [
-        { fieldName: 'value', fieldType: 'float', placeholder: '대기 시간 (초)' }
+    'focus': [
+        { fieldName: 'value', fieldType: 'float', placeholder: '포커스 할 타겟 시간' }
     ],
-    'choice': [
-        { fieldName: 'value', fieldType: 'string', placeholder: '선택지 텍스트' },
-        { fieldName: 'target', fieldType: 'string', placeholder: '다음 대화 ID' }
+    'focusoff': [
     ],
-    'image': [
-        { fieldName: 'value', fieldType: 'string', placeholder: '이미지 파일명' }
+    'waitinput': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '입력 대기할 인풋값' }
     ],
-    'sound': [
-        { fieldName: 'value', fieldType: 'string', placeholder: '사운드 파일명' }
+    'skip': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '이동할 scene name' }
+    ],
+    'status': [
+        { fieldName: 'value', fieldType: 'string', placeholder: '캐릭터 표정' }
     ]
 };
 
