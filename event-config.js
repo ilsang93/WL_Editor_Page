@@ -214,10 +214,11 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
 export const DIALOG_ITEM_TYPES = [
     'text',
     'character',
-    'pause',
-    'choice',
-    'image',
-    'sound'
+    'focus',
+    'focusoff',
+    'waitinput',
+    'skip',
+    'status'
 ];
 
 // Dialog 아이템 타입별 필드 정의
