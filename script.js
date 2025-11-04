@@ -133,10 +133,23 @@ let pendingRenderFlags = {
 
 // Virtual Scrolling 상태
 let virtualScrollState = {
-    scrollTop: 0,
-    itemHeight: 35, // 각 행의 높이 (픽셀)
-    visibleCount: 50, // 화면에 보이는 항목 수
-    bufferCount: 10 // 위아래 버퍼 항목 수
+    // NoteList용
+    note: {
+        scrollTop: 0,
+        itemHeight: 35, // 각 행의 높이 (픽셀)
+        visibleCount: 50, // 화면에 보이는 항목 수
+        bufferCount: 10 // 위아래 버퍼 항목 수
+    },
+    // EventList용
+    event: {
+        scrollTop: 0,
+        containerHeight: 0,
+        itemHeight: 120, // 기본 아이템 높이 (동적으로 조정됨)
+        overscan: 5, // 버퍼로 추가 렌더링할 아이템 수
+        renderedRange: { start: 0, end: 0 },
+        itemHeights: new Map(), // 각 아이템의 실제 높이 캐싱
+        enabled: true // 가상 스크롤링 활성화 여부
+    }
 };
 
 const demoPlayer = {
@@ -683,16 +696,27 @@ function saveState() {
     }));
 
     // 현재 events 배열의 깊은 복사본을 생성
-    const currentEventsState = getAllEvents().map(event => ({
-        eventType: event.eventType,
-        eventId: event.eventId,
-        eventTime: event.eventTime,
-        eventParams: event.eventParams.map(param => ({
-            paramType: param.paramType,
-            paramName: param.paramName,
-            paramValue: param.paramValue
-        }))
-    }));
+    const currentEventsState = getAllEvents().map(event => {
+        const eventCopy = {
+            eventType: event.eventType,
+            eventId: event.eventId,
+            eventTime: event.eventTime,
+            eventParams: event.eventParams.map(param => ({
+                paramType: param.paramType,
+                paramName: param.paramName,
+                paramValue: param.paramValue
+            }))
+        };
+
+        // dialogItems도 복사 (System-dialog 이벤트용)
+        if (event.dialogItems && Array.isArray(event.dialogItems)) {
+            eventCopy.dialogItems = event.dialogItems.map(item => ({
+                ...item  // 모든 필드 복사 (type, text, speaker, character, emotion, animation 등)
+            }));
+        }
+
+        return eventCopy;
+    });
 
     // 노트와 이벤트를 함께 저장
     const currentState = {
@@ -732,16 +756,27 @@ function undo() {
         wait: note.wait || false
     }));
 
-    const currentEventsState = getAllEvents().map(event => ({
-        eventType: event.eventType,
-        eventId: event.eventId,
-        eventTime: event.eventTime,
-        eventParams: event.eventParams.map(param => ({
-            paramType: param.paramType,
-            paramName: param.paramName,
-            paramValue: param.paramValue
-        }))
-    }));
+    const currentEventsState = getAllEvents().map(event => {
+        const eventCopy = {
+            eventType: event.eventType,
+            eventId: event.eventId,
+            eventTime: event.eventTime,
+            eventParams: event.eventParams.map(param => ({
+                paramType: param.paramType,
+                paramName: param.paramName,
+                paramValue: param.paramValue
+            }))
+        };
+
+        // dialogItems도 복사 (System-dialog 이벤트용)
+        if (event.dialogItems && Array.isArray(event.dialogItems)) {
+            eventCopy.dialogItems = event.dialogItems.map(item => ({
+                ...item
+            }));
+        }
+
+        return eventCopy;
+    });
 
     redoStack.push({
         notes: currentNotesState,
@@ -790,16 +825,27 @@ function redo() {
         wait: note.wait || false
     }));
 
-    const currentEventsState = getAllEvents().map(event => ({
-        eventType: event.eventType,
-        eventId: event.eventId,
-        eventTime: event.eventTime,
-        eventParams: event.eventParams.map(param => ({
-            paramType: param.paramType,
-            paramName: param.paramName,
-            paramValue: param.paramValue
-        }))
-    }));
+    const currentEventsState = getAllEvents().map(event => {
+        const eventCopy = {
+            eventType: event.eventType,
+            eventId: event.eventId,
+            eventTime: event.eventTime,
+            eventParams: event.eventParams.map(param => ({
+                paramType: param.paramType,
+                paramName: param.paramName,
+                paramValue: param.paramValue
+            }))
+        };
+
+        // dialogItems도 복사 (System-dialog 이벤트용)
+        if (event.dialogItems && Array.isArray(event.dialogItems)) {
+            eventCopy.dialogItems = event.dialogItems.map(item => ({
+                ...item
+            }));
+        }
+
+        return eventCopy;
+    });
 
     undoStack.push({
         notes: currentNotesState,
@@ -2571,12 +2617,13 @@ function renderNoteListImmediate() {
 
     // Virtual Scrolling: 렌더링할 범위 계산
     const totalNotes = notes.length;
-    const startIndex = Math.max(0, Math.floor(virtualScrollState.scrollTop / virtualScrollState.itemHeight) - virtualScrollState.bufferCount);
-    const endIndex = Math.min(totalNotes, startIndex + virtualScrollState.visibleCount + virtualScrollState.bufferCount * 2);
+    const noteState = virtualScrollState.note;
+    const startIndex = Math.max(0, Math.floor(noteState.scrollTop / noteState.itemHeight) - noteState.bufferCount);
+    const endIndex = Math.min(totalNotes, startIndex + noteState.visibleCount + noteState.bufferCount * 2);
 
     // 상단 스페이서 (스크롤 위치 유지용)
     if (startIndex > 0) {
-        const offsetY = startIndex * virtualScrollState.itemHeight;
+        const offsetY = startIndex * noteState.itemHeight;
         const spacerTop = document.createElement("tr");
         spacerTop.style.height = `${offsetY}px`;
         spacerTop.style.pointerEvents = "none";
@@ -2997,7 +3044,7 @@ function renderNoteListImmediate() {
 
     // 하단 스페이서 (스크롤 위치 유지용)
     if (endIndex < totalNotes) {
-        const remainingHeight = (totalNotes - endIndex) * virtualScrollState.itemHeight;
+        const remainingHeight = (totalNotes - endIndex) * noteState.itemHeight;
         const spacerBottom = document.createElement("tr");
         spacerBottom.style.height = `${remainingHeight}px`;
         spacerBottom.style.pointerEvents = "none";
@@ -4085,16 +4132,279 @@ function renderEventList() {
     scheduleRender({ eventList: true });
 }
 
-// 실제 렌더링 함수 (즉시 실행)
-function renderEventListImmediate() {
-    // 일시적으로 기존 방식 사용 (가상 스크롤링 비활성화)
-    return renderEventListImmediate_Original();
+// 접기 상태를 메모리에 저장 (DOM 순회 제거)
+const collapseStatesMemoryCache = {
+    params: new Map(), // eventIndex -> boolean
+    dialog: new Map()  // eventIndex -> boolean
+};
+
+// 옵션 요소 캐싱 (중복 생성 방지)
+const optionElementCache = {
+    eventTypes: null,
+    paramTypes: null,
+    dialogItemTypes: null
+};
+
+// EventType 옵션 캐시 생성
+function getCachedEventTypeOptions() {
+    if (!optionElementCache.eventTypes) {
+        const eventTypes = getEventTypes();
+        const fragment = document.createDocumentFragment();
+
+        eventTypes.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type;
+            const description = getEventTypeDescription(type);
+            if (description) {
+                option.title = description;
+            }
+            fragment.appendChild(option);
+        });
+
+        optionElementCache.eventTypes = fragment;
+    }
+
+    // cloneNode로 재사용
+    return optionElementCache.eventTypes.cloneNode(true);
 }
 
-// 가상 스크롤링 함수 (나중에 구현 예정)
-// function renderEventListVirtualized(events, eventTypes) {
-//     // TODO: 가상 스크롤링 구현
-// }
+// ParamType 옵션 캐시 생성
+function getCachedParamTypeOptions() {
+    if (!optionElementCache.paramTypes) {
+        const paramTypes = getParamTypes();
+        const fragment = document.createDocumentFragment();
+
+        paramTypes.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type;
+            option.textContent = type;
+            const description = getParamTypeDescription(type);
+            if (description) {
+                option.title = description;
+            }
+            fragment.appendChild(option);
+        });
+
+        optionElementCache.paramTypes = fragment;
+    }
+
+    return optionElementCache.paramTypes.cloneNode(true);
+}
+
+// DialogItemType 옵션 캐시 생성
+function getCachedDialogItemTypeOptions() {
+    if (!optionElementCache.dialogItemTypes) {
+        const itemTypes = getDialogItemTypes();
+        const fragment = document.createDocumentFragment();
+
+        itemTypes.forEach(type => {
+            const option = document.createElement("option");
+            option.value = type.type;
+            option.textContent = type.type;
+            fragment.appendChild(option);
+        });
+
+        optionElementCache.dialogItemTypes = fragment;
+    }
+
+    return optionElementCache.dialogItemTypes.cloneNode(true);
+}
+
+// 실제 렌더링 함수 (즉시 실행)
+function renderEventListImmediate() {
+    const startTime = performance.now();
+    const events = getAllEvents();
+    const state = virtualScrollState.event;
+
+    // 100개 이하면 전체 렌더링, 100개 초과면 가상 스크롤링
+    let result;
+    if (state.enabled && events.length > 100) {
+        result = renderEventListVirtualized();
+    } else {
+        result = renderEventListImmediate_Original();
+    }
+
+    const endTime = performance.now();
+    const renderTime = endTime - startTime;
+
+    // 성능 로그 (100개 이상일 때만 출력)
+    if (events.length > 100) {
+        console.log(`[EventList 렌더링] ${events.length}개 이벤트, ${renderTime.toFixed(2)}ms, 방식: ${state.enabled ? '가상스크롤링' : '전체렌더링'}`);
+    }
+
+    return result;
+}
+
+// 가상 스크롤링 렌더링 함수
+function renderEventListVirtualized() {
+    const container = document.getElementById("event-list");
+    if (!container) return;
+
+    const events = getAllEvents();
+    const eventTypes = getEventTypes();
+    const state = virtualScrollState.event;
+
+    // 컨테이너 높이 업데이트
+    state.containerHeight = container.clientHeight;
+
+    // 현재 스크롤 위치에서 보이는 범위 계산
+    const scrollTop = container.scrollTop;
+    state.scrollTop = scrollTop;
+
+    // 평균 아이템 높이 계산 (캐시된 높이 기반)
+    if (state.itemHeights.size > 0) {
+        const heights = Array.from(state.itemHeights.values());
+        const avgHeight = heights.reduce((a, b) => a + b, 0) / heights.length;
+        state.itemHeight = avgHeight;
+    }
+
+    const itemHeight = state.itemHeight;
+    const overscan = state.overscan;
+
+    // 보이는 범위의 시작과 끝 인덱스 계산
+    const startIndex = Math.max(0, Math.floor(scrollTop / itemHeight) - overscan);
+    const endIndex = Math.min(
+        events.length - 1,
+        Math.ceil((scrollTop + state.containerHeight) / itemHeight) + overscan
+    );
+
+    state.renderedRange = { start: startIndex, end: endIndex };
+
+    // 전체 높이를 유지하기 위한 spacer 계산
+    const totalHeight = events.length * itemHeight;
+    const topSpacerHeight = startIndex * itemHeight;
+
+    // 기존 렌더링된 아이템들의 인덱스 확인
+    const existingItems = new Map();
+    container.querySelectorAll('.event-item').forEach(item => {
+        const index = parseInt(item.getAttribute('data-event-index'));
+        if (!isNaN(index)) {
+            existingItems.set(index, item);
+        }
+    });
+
+    // DocumentFragment 사용하여 배치 DOM 업데이트
+    const fragment = document.createDocumentFragment();
+
+    // Top spacer
+    let topSpacer = container.querySelector('.virtual-scroll-top-spacer');
+    if (!topSpacer) {
+        topSpacer = document.createElement('div');
+        topSpacer.className = 'virtual-scroll-top-spacer';
+    }
+    topSpacer.style.height = `${topSpacerHeight}px`;
+
+    // 렌더링할 아이템들
+    const itemsToRender = [];
+    for (let i = startIndex; i <= endIndex; i++) {
+        if (existingItems.has(i)) {
+            // 이미 렌더링된 아이템 재사용
+            itemsToRender.push(existingItems.get(i));
+            existingItems.delete(i);
+        } else {
+            // 새 아이템 생성
+            const event = events[i];
+            const eventDiv = createEventElement(event, i);
+            itemsToRender.push(eventDiv);
+        }
+    }
+
+    // Bottom spacer
+    let bottomSpacer = container.querySelector('.virtual-scroll-bottom-spacer');
+    if (!bottomSpacer) {
+        bottomSpacer = document.createElement('div');
+        bottomSpacer.className = 'virtual-scroll-bottom-spacer';
+    }
+    const bottomSpacerHeight = Math.max(0, totalHeight - topSpacerHeight - (endIndex - startIndex + 1) * itemHeight);
+    bottomSpacer.style.height = `${bottomSpacerHeight}px`;
+
+    // DOM 업데이트 (한 번에)
+    container.innerHTML = '';
+    container.appendChild(topSpacer);
+    itemsToRender.forEach(item => container.appendChild(item));
+    container.appendChild(bottomSpacer);
+
+    // 아이템 높이 측정 및 캐싱 (다음 렌더링에 사용)
+    requestAnimationFrame(() => {
+        container.querySelectorAll('.event-item').forEach(item => {
+            const index = parseInt(item.getAttribute('data-event-index'));
+            if (!isNaN(index)) {
+                const height = item.offsetHeight;
+                if (height > 0) {
+                    state.itemHeights.set(index, height);
+                }
+            }
+        });
+    });
+
+    // 접기 상태 복원 (메모리 캐시 사용)
+    restoreCollapseStatesFromMemory();
+}
+
+// 메모리 캐시에서 접기 상태 저장
+function saveCollapseStatesToMemory() {
+    // Parameters 접기 상태 저장
+    document.querySelectorAll('.params-container').forEach(container => {
+        const eventIndex = container.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            collapseStatesMemoryCache.params.set(
+                parseInt(eventIndex),
+                container.classList.contains('collapsed')
+            );
+        }
+    });
+
+    // Dialog 접기 상태 저장
+    document.querySelectorAll('.dialog-content').forEach(content => {
+        const eventIndex = content.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            collapseStatesMemoryCache.dialog.set(
+                parseInt(eventIndex),
+                content.classList.contains('collapsed')
+            );
+        }
+    });
+}
+
+// 메모리 캐시에서 접기 상태 복원
+function restoreCollapseStatesFromMemory() {
+    // Parameters 접기 상태 복원
+    document.querySelectorAll('.params-container').forEach(container => {
+        const eventIndex = container.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            const isCollapsed = collapseStatesMemoryCache.params.get(parseInt(eventIndex));
+            if (isCollapsed !== undefined) {
+                const toggle = container.querySelector('.params-toggle');
+                if (isCollapsed) {
+                    container.classList.add('collapsed');
+                    if (toggle) toggle.textContent = "▶";
+                } else {
+                    container.classList.remove('collapsed');
+                    if (toggle) toggle.textContent = "▼";
+                }
+            }
+        }
+    });
+
+    // Dialog 접기 상태 복원
+    document.querySelectorAll('.dialog-content').forEach(content => {
+        const eventIndex = content.closest('.event-item')?.dataset.eventIndex;
+        if (eventIndex !== undefined) {
+            const isCollapsed = collapseStatesMemoryCache.dialog.get(parseInt(eventIndex));
+            if (isCollapsed !== undefined) {
+                const toggle = content.parentElement?.querySelector('.dialog-toggle');
+                if (isCollapsed) {
+                    content.classList.add('collapsed');
+                    if (toggle) toggle.textContent = "▶";
+                } else {
+                    content.classList.remove('collapsed');
+                    if (toggle) toggle.textContent = "▼";
+                }
+            }
+        }
+    });
+}
 
 // 새로운 이벤트 하나만 리스트에 추가하는 최적화된 함수
 function appendSingleEventToList(eventIndex) {
@@ -4546,6 +4856,9 @@ function renderEventListImmediate_Original() {
     const events = getAllEvents();
     const eventTypes = getEventTypes();
 
+    // DocumentFragment 생성 (배치 DOM 업데이트)
+    const fragment = document.createDocumentFragment();
+
     events.forEach((event, eventIndex) => {
         const eventDiv = document.createElement("div");
         eventDiv.className = "event-item";
@@ -4728,8 +5041,12 @@ function renderEventListImmediate_Original() {
         eventDiv.appendChild(eventHeader);
         eventDiv.appendChild(paramsContainer);
 
-        container.appendChild(eventDiv);
+        // DocumentFragment에 추가 (DOM 조작 최소화)
+        fragment.appendChild(eventDiv);
     });
+
+    // DocumentFragment를 한 번에 컨테이너에 추가 (단일 reflow)
+    container.appendChild(fragment);
 
     // 접기 상태 복원 (다음 프레임에서 실행하여 DOM이 완전히 업데이트된 후 실행)
     requestAnimationFrame(() => {
@@ -4778,6 +5095,28 @@ function setupEventDelegation() {
         eventListContainer.addEventListener("dragover", handleDialogItemDragOver);
         eventListContainer.addEventListener("drop", handleDialogItemDrop);
         eventListContainer.addEventListener("dragend", handleDialogItemDragEnd);
+
+        // 가상 스크롤링을 위한 스크롤 이벤트 리스너 (스로틀링 적용)
+        let scrollTimeout = null;
+        eventListContainer.addEventListener("scroll", () => {
+            // 접기 상태를 메모리에 저장 (스크롤 전에)
+            saveCollapseStatesToMemory();
+
+            // 스로틀링: 스크롤 중에는 너무 자주 렌더링하지 않음
+            if (scrollTimeout) return;
+
+            scrollTimeout = setTimeout(() => {
+                const events = getAllEvents();
+                const state = virtualScrollState.event;
+
+                // 가상 스크롤링이 활성화되고 이벤트가 100개 초과일 때만
+                if (state.enabled && events.length > 100) {
+                    renderEventListVirtualized();
+                }
+
+                scrollTimeout = null;
+            }, 50); // 50ms 디바운스
+        });
     }
 
     // 사이드바 이벤트 델리게이션
@@ -4872,6 +5211,12 @@ function handleEventListClick(e) {
         } else {
             toggle.textContent = "▼";
         }
+
+        // 메모리 캐시에 상태 저장 (증분 업데이트)
+        collapseStatesMemoryCache.params.set(
+            eventIndex,
+            paramsContainer.classList.contains("collapsed")
+        );
         return;
     }
 
@@ -4892,6 +5237,12 @@ function handleEventListClick(e) {
         } else {
             toggle.textContent = "▼";
         }
+
+        // 메모리 캐시에 상태 저장 (증분 업데이트)
+        collapseStatesMemoryCache.dialog.set(
+            eventIndex,
+            content.classList.contains("collapsed")
+        );
         return;
     }
 
@@ -5222,14 +5573,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (scrollContainer) {
             // 스크롤 이벤트 리스너 추가
             scrollContainer.addEventListener("scroll", () => {
-                virtualScrollState.scrollTop = scrollContainer.scrollTop;
+                virtualScrollState.note.scrollTop = scrollContainer.scrollTop;
                 scheduleRender({ noteList: true });
             });
 
             // 화면 크기에 따른 visibleCount 계산
             const updateVisibleCount = () => {
                 const containerHeight = scrollContainer.clientHeight;
-                virtualScrollState.visibleCount = Math.ceil(containerHeight / virtualScrollState.itemHeight) + 10;
+                virtualScrollState.note.visibleCount = Math.ceil(containerHeight / virtualScrollState.note.itemHeight) + 10;
             };
             updateVisibleCount();
             window.addEventListener('resize', updateVisibleCount);
@@ -6605,5 +6956,32 @@ function handleDialogItemDragEnd(e) {
     // 변수 초기화
     draggedItem = null;
     draggedEventIndex = null;
-    draggedItemIndex = null;
 }
+
+// 개발자 도구용: 가상 스크롤링 토글 함수
+window.toggleEventListVirtualScrolling = function(enabled) {
+    virtualScrollState.event.enabled = enabled;
+    console.log(`가상 스크롤링: ${enabled ? '활성화' : '비활성화'}`);
+    renderEventList();
+};
+
+// 개발자 도구용: 대량 테스트 이벤트 생성
+window.generateTestEvents = function(count = 1000) {
+    const startTime = performance.now();
+
+    clearAllEvents();
+
+    for (let i = 0; i < count; i++) {
+        addEvent();
+        const event = getEventAtIndex(i);
+        if (event) {
+            event.eventType = i % 2 === 0 ? 'player' : 'camera';
+            event.eventId = 'test';
+            event.eventTime = i * 0.1;
+        }
+    }
+
+    const endTime = performance.now();
+    console.log(`${count}개 테스트 이벤트 생성 완료 (${(endTime - startTime).toFixed(2)}ms)`);
+    renderEventList();
+};
