@@ -3,7 +3,8 @@
     "allow": [
       "Bash(sed:*)",
       "Bash(node:*)",
-      "Bash(start index.html)"
+      "Bash(start index.html)",
+      "Read(//i/Download/**)"
     ],
     "deny": []
   }

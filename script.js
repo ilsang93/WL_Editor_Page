@@ -54,9 +54,7 @@ import {
     eventsToJson,
     loadEventsFromJson,
     getEventTypes,
-    getParamTypes,
     getEventTypeDescription,
-    getParamTypeDescription,
     getEventIdsByType,
     isCustomEventType,
     createEvent,
@@ -148,7 +146,7 @@ let virtualScrollState = {
         overscan: 5, // 버퍼로 추가 렌더링할 아이템 수
         renderedRange: { start: 0, end: 0 },
         itemHeights: new Map(), // 각 아이템의 실제 높이 캐싱
-        enabled: true // 가상 스크롤링 활성화 여부
+        enabled: false // 가상 스크롤링 활성화 여부
     }
 };
 
@@ -702,7 +700,6 @@ function saveState() {
             eventId: event.eventId,
             eventTime: event.eventTime,
             eventParams: event.eventParams.map(param => ({
-                paramType: param.paramType,
                 paramName: param.paramName,
                 paramValue: param.paramValue
             }))
@@ -762,7 +759,6 @@ function undo() {
             eventId: event.eventId,
             eventTime: event.eventTime,
             eventParams: event.eventParams.map(param => ({
-                paramType: param.paramType,
                 paramName: param.paramName,
                 paramValue: param.paramValue
             }))
@@ -831,7 +827,6 @@ function redo() {
             eventId: event.eventId,
             eventTime: event.eventTime,
             eventParams: event.eventParams.map(param => ({
-                paramType: param.paramType,
                 paramName: param.paramName,
                 paramValue: param.paramValue
             }))
@@ -4141,7 +4136,6 @@ const collapseStatesMemoryCache = {
 // 옵션 요소 캐싱 (중복 생성 방지)
 const optionElementCache = {
     eventTypes: null,
-    paramTypes: null,
     dialogItemTypes: null
 };
 
@@ -4169,28 +4163,6 @@ function getCachedEventTypeOptions() {
     return optionElementCache.eventTypes.cloneNode(true);
 }
 
-// ParamType 옵션 캐시 생성
-function getCachedParamTypeOptions() {
-    if (!optionElementCache.paramTypes) {
-        const paramTypes = getParamTypes();
-        const fragment = document.createDocumentFragment();
-
-        paramTypes.forEach(type => {
-            const option = document.createElement("option");
-            option.value = type;
-            option.textContent = type;
-            const description = getParamTypeDescription(type);
-            if (description) {
-                option.title = description;
-            }
-            fragment.appendChild(option);
-        });
-
-        optionElementCache.paramTypes = fragment;
-    }
-
-    return optionElementCache.paramTypes.cloneNode(true);
-}
 
 // DialogItemType 옵션 캐시 생성
 function getCachedDialogItemTypeOptions() {
@@ -4720,23 +4692,6 @@ function createEventParamElement(event, eventIndex, param, paramIndex) {
     const paramDiv = document.createElement("div");
     paramDiv.className = "param-item";
 
-    const paramTypeSelect = document.createElement("select");
-    paramTypeSelect.className = "param-type-select";
-
-    const paramTypes = getParamTypes();
-    paramTypes.forEach(type => {
-        const option = document.createElement("option");
-        option.value = type;
-        option.textContent = type;
-        option.selected = type === param.paramType;
-
-        const description = getParamTypeDescription(type);
-        if (description) {
-            option.title = description;
-        }
-        paramTypeSelect.appendChild(option);
-    });
-
     const paramNameInput = document.createElement("input");
     paramNameInput.type = "text";
     paramNameInput.placeholder = "파라미터 이름";
@@ -4755,7 +4710,6 @@ function createEventParamElement(event, eventIndex, param, paramIndex) {
 
     // 이벤트 델리게이션으로 처리됨
 
-    paramDiv.appendChild(paramTypeSelect);
     paramDiv.appendChild(paramNameInput);
     paramDiv.appendChild(paramValueInput);
     paramDiv.appendChild(deleteParamBtn);
@@ -6556,20 +6510,11 @@ async function pasteItems() {
                     eventTime: targetTime !== null ? targetTime : (eventData.eventTime || 0),
                     eventParams: Array.isArray(eventData.eventParams) ?
                         eventData.eventParams.map(param => ({
-                            paramType: 'string', // 기본값, 실제로는 사전 정의된 파라미터 타입 사용
                             paramName: param.paramName || '',
                             paramValue: param.paramValue || ''
                         })) : []
                 };
 
-                // 파라미터 타입 복원을 위해 사전 정의된 파라미터 확인
-                const predefinedParams = getPredefinedParamsForEventId(newEvent.eventType, newEvent.eventId);
-                newEvent.eventParams.forEach(param => {
-                    const predefined = predefinedParams.find(p => p.paramName === param.paramName);
-                    if (predefined) {
-                        param.paramType = predefined.paramType;
-                    }
-                });
 
                 addEvent(newEvent);
                 pastedEventCount++;

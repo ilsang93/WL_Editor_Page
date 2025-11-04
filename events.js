@@ -1,9 +1,7 @@
 // 이벤트 관리 관련 함수들
 import {
     EVENT_TYPES,
-    PARAM_TYPES,
     EVENT_TYPE_DESCRIPTIONS,
-    PARAM_TYPE_DESCRIPTIONS,
     EVENT_IDS_BY_TYPE,
     PREDEFINED_PARAMS_BY_EVENT_ID,
     DIALOG_ITEM_TYPES,
@@ -33,9 +31,6 @@ export function validateEvent(event) {
         errors.push('Event params must be an array');
     } else {
         event.eventParams.forEach((param, index) => {
-            if (!param.paramType || !PARAM_TYPES.includes(param.paramType)) {
-                errors.push(`Invalid param type at index ${index}`);
-            }
             if (!param.paramName || typeof param.paramName !== 'string') {
                 errors.push(`Invalid param name at index ${index}`);
             }
@@ -64,7 +59,6 @@ export function createEvent() {
 // 새 파라미터 생성
 export function createEventParam() {
     return {
-        paramType: PARAM_TYPES[0],
         paramName: '',
         paramValue: ''
     };
@@ -130,7 +124,6 @@ export function cloneEvent(event) {
         eventId: event.eventId,
         eventTime: event.eventTime,
         eventParams: event.eventParams.map(param => ({
-            paramType: param.paramType,
             paramName: param.paramName,
             paramValue: param.paramValue
         }))
@@ -142,20 +135,12 @@ export function getEventTypes() {
     return [...EVENT_TYPES];
 }
 
-// 파라미터 타입 목록 가져오기
-export function getParamTypes() {
-    return [...PARAM_TYPES];
-}
 
 // 이벤트 타입 설명 가져오기
 export function getEventTypeDescription(eventType) {
     return EVENT_TYPE_DESCRIPTIONS[eventType] || '';
 }
 
-// 파라미터 타입 설명 가져오기
-export function getParamTypeDescription(paramType) {
-    return PARAM_TYPE_DESCRIPTIONS[paramType] || '';
-}
 
 // 이벤트 타입별 사전 정의된 EventId 목록 가져오기
 export function getEventIdsByType(eventType) {
@@ -191,7 +176,6 @@ export function applyPredefinedParams(eventIndex) {
     predefinedParams.forEach(predefinedParam => {
         if (!existingParamNames.includes(predefinedParam.paramName)) {
             event.eventParams.push({
-                paramType: predefinedParam.paramType,
                 paramName: predefinedParam.paramName,
                 paramValue: getDefaultValueForParamType(predefinedParam.paramType)
             });
@@ -260,7 +244,6 @@ export function loadEventsFromJson(jsonEvents) {
             // 기본 eventParams 처리
             event.eventParams = Array.isArray(eventData.eventParams) ?
                 eventData.eventParams.map(param => ({
-                    paramType: param.paramType || PARAM_TYPES[0],
                     paramName: param.paramName || '',
                     paramValue: param.paramValue || ''
                 })) : [];
