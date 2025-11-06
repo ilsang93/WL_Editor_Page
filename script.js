@@ -6091,7 +6091,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     canvas.addEventListener("mousedown", (e) => {
-        if (e.button === 1) {
+        if (e.button === 0) {
             isPanning = true;
             lastMousePos = {
                 x: e.clientX,
@@ -6115,7 +6115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     canvas.addEventListener("mouseup", (e) => {
-        if (e.button === 1) {
+        if (e.button === 0) {
             isPanning = false;
         }
     });
@@ -6904,14 +6904,14 @@ function handleDialogItemDragEnd(e) {
 }
 
 // 개발자 도구용: 가상 스크롤링 토글 함수
-window.toggleEventListVirtualScrolling = function(enabled) {
+window.toggleEventListVirtualScrolling = function (enabled) {
     virtualScrollState.event.enabled = enabled;
     console.log(`가상 스크롤링: ${enabled ? '활성화' : '비활성화'}`);
     renderEventList();
 };
 
 // 개발자 도구용: 대량 테스트 이벤트 생성
-window.generateTestEvents = function(count = 1000) {
+window.generateTestEvents = function (count = 1000) {
     const startTime = performance.now();
 
     clearAllEvents();
