@@ -6091,7 +6091,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     canvas.addEventListener("mousedown", (e) => {
-        if (e.button === 0) {
+        if (e.button === 0 || e.button === 1) {
             isPanning = true;
             lastMousePos = {
                 x: e.clientX,
@@ -6115,7 +6115,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     canvas.addEventListener("mouseup", (e) => {
-        if (e.button === 0) {
+        if (e.button === 0 || e.button === 1) {
             isPanning = false;
         }
     });
