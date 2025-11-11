@@ -51,11 +51,14 @@ export const EVENT_IDS_BY_TYPE = {
     ],
     'speedshift': [
         'speedup',
-        'speeddown'
+        'speeddown',
+        'show',
+        'dontshow'
     ],
     'startrail': [
         'defaultstar',
         'startrail',
+        'starfall',
         'none'
     ],
     'light': [
@@ -172,8 +175,16 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'image_name', paramType: 'string' },
     ],
 
-    'startrail-defaultstar': [],
-    'startrail-startrail': [],
+    'startrail-defaultstar': [
+        { paramName: 'intensity', paramType: 'float' },
+    ],
+    'startrail-startrail': [
+        { paramName: 'intensity', paramType: 'float' },
+    ],
+    'startrail-starfall': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'isleft', paramType: 'bool' },
+    ],
     'startrail-none': [],
 
     'light-setstatic': [
