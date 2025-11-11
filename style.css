@@ -530,6 +530,31 @@ body {
   box-shadow: 0 0 12px rgba(76, 175, 80, 0.8) !important;
 }
 
+/* 사이드바 리사이저 */
+.sidebar-resizer {
+  position: fixed;
+  top: 0;
+  left: 648px; /* 실제 사이드바 경계보다 2px 왼쪽부터 시작 */
+  width: 9px; /* 5px → 9px로 확대하여 클릭 영역 증가 */
+  height: 100vh;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 101;
+  transition: left 0.3s ease;
+}
+
+.sidebar-resizer:hover {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.sidebar-resizer:active {
+  background: rgba(76, 175, 80, 0.6);
+}
+
+.sidebar-resizer.hidden {
+  left: -5px;
+}
+
 /* 사이드바 토글 버튼 */
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
@@ -652,12 +677,34 @@ button:disabled {
   font-size: 12px;
 }
 
+/* 컨트롤바 리사이저 */
+.control-bar-resizer {
+  position: absolute;
+  top: 0;
+  left: -7px; /* -5px → -7px로 조정하여 클릭 영역 확대 */
+  width: 9px; /* 5px → 9px로 확대하여 클릭 영역 증가 */
+  height: 100%;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 1;
+}
+
+.control-bar-resizer:hover {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.control-bar-resizer:active {
+  background: rgba(76, 175, 80, 0.6);
+}
+
 /* #control-bar를 우상단의 독립된 섬처럼 표시하도록 수정 */
 #control-bar {
   position: fixed;
   top: 60px; /* top-bar 아래 */
   right: 20px;
-  width: auto;
+  width: 280px; /* 고정 너비에서 resizable로 변경 */
+  min-width: 200px;
+  max-width: 500px;
   height: auto;
   background: #444;
   padding: 8px 12px; /* 10px 16px → 8px 12px로 축소 */

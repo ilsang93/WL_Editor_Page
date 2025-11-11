@@ -3472,6 +3472,107 @@ function setupToggleFeatures() {
     });
 }
 
+function setupResizerFeatures() {
+    const sidebar = document.getElementById('sidebar');
+    const sidebarResizer = document.getElementById('sidebar-resizer');
+    const sidebarToggle = document.querySelector('.sidebar-toggle');
+    const main = document.getElementById('main');
+    const waveformContainer = document.getElementById('waveform-container');
+    const waveformTriggerZone = document.querySelector('.waveform-trigger-zone');
+
+    const controlBar = document.getElementById('control-bar');
+    const controlBarResizer = document.getElementById('control-bar-resizer');
+
+    let isResizing = false;
+    let activeResizer = null; // 어떤 리사이저가 활성화된지 추적
+    let startX = 0;
+    let startWidth = 0;
+
+    // 사이드바 리사이저
+    sidebarResizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        activeResizer = 'sidebar';
+        startX = e.clientX;
+        startWidth = parseInt(getComputedStyle(sidebar).width);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    // 컨트롤바 리사이저
+    controlBarResizer.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        activeResizer = 'controlbar';
+        startX = e.clientX;
+        startWidth = parseInt(getComputedStyle(controlBar).width);
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isResizing || !activeResizer) return;
+
+        const deltaX = e.clientX - startX;
+
+        // 사이드바 리사이저
+        if (activeResizer === 'sidebar') {
+            const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+
+            sidebar.style.width = newWidth + 'px';
+            sidebarResizer.style.left = newWidth + 'px';
+            sidebarToggle.style.left = newWidth + 'px';
+            main.style.marginLeft = newWidth + 'px';
+            waveformContainer.style.left = newWidth + 'px';
+            waveformTriggerZone.style.left = newWidth + 'px';
+
+            // CSS 변수로 사이드바 너비 업데이트
+            document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');
+        }
+
+        // 컨트롤바 리사이저
+        if (activeResizer === 'controlbar') {
+            const newWidth = Math.max(200, Math.min(500, startWidth - deltaX));
+            controlBar.style.width = newWidth + 'px';
+        }
+
+        e.preventDefault();
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (isResizing) {
+            isResizing = false;
+            activeResizer = null;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+
+            // 캔버스와 웨이브폼 다시 그리기
+            setTimeout(() => {
+                resizeCanvas();
+                if (waveformData) {
+                    resizeWaveformCanvas();
+                    drawWaveformWrapper();
+                }
+                drawPath();
+            }, 50);
+        }
+    });
+
+    // 마우스가 페이지를 벗어났을 때도 리사이징 중지
+    document.addEventListener('mouseleave', () => {
+        if (isResizing) {
+            isResizing = false;
+            activeResizer = null;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+    });
+}
+
 function setupNoteButtons() {
     // 노트 버튼들은 이벤트 델리게이션으로 처리됨
     // 기존 개별 addEventListener 제거하여 중복 실행 방지
@@ -6001,15 +6102,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         demoAudio.volume = musicVolume;
         demoAudio.load();
 
-        const container = inputAudio.parentElement;
-        let indicator = container.querySelector('.file-indicator');
-        if (!indicator) {
-            indicator = document.createElement('div');
-            indicator.className = 'file-indicator';
-            indicator.style.cssText = 'margin-top: 5px; font-size: 12px; color: #4CAF50; font-weight: bold;';
-            container.appendChild(indicator);
-        }
-        indicator.textContent = `선택된 파일: ${file.name}`;
+        // 파일 이름 표시 제거
+        // const container = inputAudio.parentElement;
+        // let indicator = container.querySelector('.file-indicator');
+        // if (!indicator) {
+        //     indicator = document.createElement('div');
+        //     indicator.className = 'file-indicator';
+        //     indicator.style.cssText = 'margin-top: 5px; font-size: 12px; color: #4CAF50; font-weight: bold;';
+        //     container.appendChild(indicator);
+        // }
+        // indicator.textContent = `선택된 파일: ${file.name}`;
 
         processAudioForWaveform(file);
     });
@@ -6158,6 +6260,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setupVolumeControls();
     setupToggleFeatures();
+    setupResizerFeatures();
     setupNoteButtons();
 
     ensureInitialDirectionNote(notes);
