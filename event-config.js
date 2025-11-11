@@ -8,6 +8,7 @@ export const EVENT_TYPES = [
     'overlay',
     'startrail',
     'light',
+    'speedshift',
     'system',
     'custom',
 ];
