@@ -9,6 +9,8 @@ export const EVENT_TYPES = [
     'startrail',
     'light',
     'speedshift',
+    'effect',
+    'postprocessing',
     'system',
     'custom',
 ];
@@ -61,6 +63,12 @@ export const EVENT_IDS_BY_TYPE = {
         'startrail',
         'starfall',
         'none'
+    ],
+    'effect': [
+        'firework',
+    ],
+    'postprocessing': [
+        'film',
     ],
     'light': [
         'setstatic',
@@ -203,6 +211,15 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'fade', paramType: 'float' },
         { paramName: 'inner', paramType: 'float' },
         { paramName: 'outer', paramType: 'float' },
+    ],
+
+    'effect-firework': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'active', paramType: 'bool' },
+    ],
+
+    'postprocessing-film': [
+        { paramName: 'intensity', paramType: 'float' },
     ],
 
     // system 타입 이벤트
