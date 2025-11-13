@@ -2986,7 +2986,9 @@ function renderNoteListImmediate() {
             inputBpm.style.fontSize = "11px";
             inputBpm.addEventListener("change", () => {
                 const newBpm = parseFloat(inputBpm.value) || bpm;
-                if (newBpm >= 60 && newBpm <= 300) {
+                const minBpm = parseFloat(document.getElementById("min-bpm").value || 1);
+                const maxBpm = parseFloat(document.getElementById("max-bpm").value || 999);
+                if (newBpm >= minBpm && newBpm <= maxBpm) {
                     // 변경 전 상태를 히스토리에 저장
                     saveState();
 
@@ -3807,15 +3809,24 @@ function addNote(noteProps) {
             newBeat = maxBeat + subdivisions;
         }
 
-        // 현재 BPM/Subdivisions 가져오기
-        const currentBpm = parseFloat(document.getElementById("bpm").value || 120);
-        const currentSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        // BPM/Subdivisions 상속 로직
+        let inheritedBpm, inheritedSubdivisions;
+        if (selectedNoteIndex !== -1) {
+            // 선택된 노트가 있으면 그 노트의 BPM/subdivision을 상속
+            const selectedNote = notes[selectedNoteIndex];
+            inheritedBpm = selectedNote.bpm || parseFloat(document.getElementById("bpm").value || 120);
+            inheritedSubdivisions = selectedNote.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+        } else {
+            // 선택된 노트가 없으면 현재 전역 값 사용
+            inheritedBpm = parseFloat(document.getElementById("bpm").value || 120);
+            inheritedSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
+        }
 
         const newNote = {
             ...noteProps,
             beat: newBeat,
-            bpm: currentBpm,          // 노트별 BPM 저장
-            subdivisions: currentSubdivisions  // 노트별 subdivision 저장
+            bpm: inheritedBpm,          // 상속받은 BPM 저장
+            subdivisions: inheritedSubdivisions  // 상속받은 subdivision 저장
         };
 
         if (newNote.type === "direction" || newNote.type === "longdirection" || newNote.type === "both" || newNote.type === "longboth") {
@@ -3871,6 +3882,20 @@ function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdi
     });
 
     ensureInitialDirectionNote(notes);
+}
+
+// BPM 제약 조건 업데이트 함수
+function updateBpmConstraints() {
+    const minBpm = parseFloat(document.getElementById("min-bpm").value || 1);
+    const maxBpm = parseFloat(document.getElementById("max-bpm").value || 999);
+    const bpmField = document.getElementById("bpm");
+
+    if (bpmField) {
+        bpmField.min = minBpm;
+        bpmField.max = maxBpm;
+    }
+
+    console.log(`BPM constraints updated: ${minBpm} - ${maxBpm}`);
 }
 
 // BPM 필드 변경 핸들러
@@ -5583,6 +5608,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     }
 
+    // Min BPM 변경 이벤트 리스너
+    const minBpmField = document.getElementById("min-bpm");
+    if (minBpmField) {
+        minBpmField.addEventListener("change", (e) => {
+            updateBpmConstraints();
+            saveToStorage();
+        });
+    }
+
+    // Max BPM 변경 이벤트 리스너
+    const maxBpmField = document.getElementById("max-bpm");
+    if (maxBpmField) {
+        maxBpmField.addEventListener("change", (e) => {
+            updateBpmConstraints();
+            saveToStorage();
+        });
+    }
+
     if (preDelayField) {
         preDelayField.addEventListener("change", handlePreDelayChange);
     }
@@ -5955,6 +5998,9 @@ document.addEventListener("DOMContentLoaded", async () => {
                     document.getElementById("min-bpm").value = minBpm;
                     document.getElementById("max-bpm").value = maxBpm;
 
+                    // BPM 제약 조건 업데이트
+                    updateBpmConstraints();
+
                     document.getElementById("bpm").dataset.previousValue = bpm;
                     document.getElementById("subdivisions").dataset.previousValue = subdivisions;
 
@@ -6175,6 +6221,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 기존 노트들에 개별 BPM/subdivision이 없으면 현재 설정값으로 초기화
     initializeNoteBpmSubdivisions();
+
+    // BPM 제약 조건 초기화
+    updateBpmConstraints();
 
     loadNoteSounds();
 
