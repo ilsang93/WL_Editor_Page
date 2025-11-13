@@ -3454,11 +3454,9 @@ function setupResizerFeatures() {
             const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
 
             sidebar.style.width = newWidth + 'px';
-            sidebarResizer.style.left = newWidth + 'px';
+            sidebarResizer.style.left = (newWidth - 2) + 'px';
             sidebarToggle.style.left = newWidth + 'px';
             main.style.marginLeft = newWidth + 'px';
-            null.style.left = newWidth + 'px';
-            waveformTriggerZone.style.left = newWidth + 'px';
 
             // CSS 변수로 사이드바 너비 업데이트
             document.documentElement.style.setProperty('--sidebar-width', newWidth + 'px');

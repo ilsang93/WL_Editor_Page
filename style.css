@@ -1,3 +1,7 @@
+:root {
+  --sidebar-width: 520px;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -11,7 +15,7 @@ body {
   position: fixed;
   left: 0;
   top: 0;
-  width: 520px;
+  width: var(--sidebar-width);
   height: 100vh;
   background: #333;
   overflow: hidden; /* 사이드바 스크롤 숨김 */
@@ -23,7 +27,7 @@ body {
 }
 
 #sidebar.hidden {
-  left: -520px; /* 완전히 숨김 */
+  left: calc(0px - var(--sidebar-width)); /* 완전히 숨김 */
 }
 
 /* 사이드바 상단 컨트롤 영역 */
@@ -45,18 +49,24 @@ body {
 .sidebar-controls input[type="number"],
 .sidebar-controls input[type="range"],
 .sidebar-controls select {
-  width: 70px;
+  width: calc(var(--sidebar-width) * 0.14);
+  min-width: 50px;
+  max-width: 90px;
   font-size: 10px;
   padding: 2px 4px;
   margin-left: 4px;
 }
 
 .sidebar-controls input[type="range"] {
-  width: 80px;
+  width: calc(var(--sidebar-width) * 0.16);
+  min-width: 60px;
+  max-width: 100px;
 }
 
 .sidebar-controls select {
-  width: 75px;
+  width: calc(var(--sidebar-width) * 0.15);
+  min-width: 55px;
+  max-width: 95px;
 }
 
 /* 탭 헤더 스타일 */
@@ -207,7 +217,7 @@ body {
 }
 
 .event-list-container {
-  padding: 8px;
+  padding: 8px 25px 8px 8px; /* 우측에 스크롤바 공간 확보 */
   flex: 1; /* 남은 공간을 모두 차지 */
   overflow-y: auto; /* 세로 스크롤 가능 */
   min-height: 0; /* flex 아이템이 축소될 수 있도록 함 */
@@ -265,11 +275,15 @@ body {
 
 .event-id-input,
 .event-id-select {
-  width: 90px;
+  width: calc(var(--sidebar-width) * 0.18);
+  min-width: 70px;
+  max-width: 120px;
 }
 
 .event-time-input {
-  width: 50px;
+  width: calc(var(--sidebar-width) * 0.1);
+  min-width: 40px;
+  max-width: 70px;
 }
 
 .delete-event-btn {
@@ -318,6 +332,7 @@ body {
   border: 1px solid #444;
   border-radius: 3px;
   background: #1a1a1a;
+  padding: 0 20px 0 0; /* 우측에 스크롤바 공간 확보 */
   transition: all 0.3s ease;
 }
 
@@ -333,7 +348,7 @@ body {
   display: flex;
   gap: 6px;
   align-items: center;
-  padding: 4px 6px;
+  padding: 4px 8px 4px 6px; /* 우측 패딩 약간 증가 */
   border-bottom: 1px solid #333;
   flex-wrap: wrap;
 }
@@ -361,15 +376,21 @@ body {
 }
 
 .param-type-select {
-  width: 55px;
+  width: calc(var(--sidebar-width) * 0.1);
+  min-width: 40px;
+  max-width: 70px;
 }
 
 .param-name-input {
-  width: 70px;
+  width: calc(var(--sidebar-width) * 0.135);
+  min-width: 50px;
+  max-width: 80px;
 }
 
 .param-value-input {
-  width: 80px;
+  width: calc(var(--sidebar-width) * 0.15);
+  min-width: 55px;
+  max-width: 90px;
 }
 
 .delete-param-btn {
@@ -435,22 +456,24 @@ body {
   font-size: 10px; /* 폰트 크기 더 줄임 */
 }
 
-/* 열 너비 지정 - 사이드바 520px에 최적화 (총 500px 내외) */
-#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 30px; }   /* NO. */
-#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 65px; }   /* Type (드롭다운) */
-#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 45px; }   /* Beat */
-#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 70px; }   /* Time (2줄 표시) */
-#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 45px; }   /* Length */
-#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 70px; }   /* Direction */
-#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 55px; }   /* BPM */
-#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 55px; }   /* Sub */
-#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 35px; }   /* Fade */
-#sidebar th:nth-child(10), #sidebar td:nth-child(10) { width: 35px; }   /* Wait */
-#sidebar th:nth-child(11), #sidebar td:nth-child(11) { width: 35px; }   /* Delete */
+/* 열 너비 지정 - 동적 사이드바 크기에 맞춰 퍼센트 기반 */
+#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 6%; }   /* NO. */
+#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 13%; }   /* Type (드롭다운) */
+#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 9%; }   /* Beat */
+#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 14%; }   /* Time (2줄 표시) */
+#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 9%; }   /* Length */
+#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 14%; }   /* Direction */
+#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 11%; }   /* BPM */
+#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 11%; }   /* Sub */
+#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 7%; }   /* Fade */
+#sidebar th:nth-child(10), #sidebar td:nth-child(10) { width: 7%; }   /* Wait */
+#sidebar th:nth-child(11), #sidebar td:nth-child(11) { width: 7%; }   /* Delete */
 
 /* Type 드롭다운 크기 조정 */
 #sidebar td:nth-child(2) select {
-  width: 60px;
+  width: 95%;
+  min-width: 50px;
+  max-width: 80px;
   padding: 1px 2px;
   font-size: 9px;
   border: 1px solid #666;
@@ -458,7 +481,9 @@ body {
 
 /* Beat 입력 필드 크기 조정 */
 #sidebar td:nth-child(3) input {
-  width: 40px;
+  width: 95%;
+  min-width: 30px;
+  max-width: 60px;
   padding: 1px 2px;
   font-size: 9px;
   border: 1px solid #666;
@@ -481,7 +506,9 @@ body {
 
 /* Length 입력 필드 크기 조정 */
 #sidebar td:nth-child(5) input {
-  width: 22px;
+  width: 95%;
+  min-width: 30px;
+  max-width: 60px;
   padding: 1px 2px;
   font-size: 9px;
   border: 1px solid #666;
@@ -489,7 +516,9 @@ body {
 
 /* Direction 선택 필드 크기 조정 */
 #sidebar td:nth-child(6) select {
-  width: 65px;
+  width: 95%;
+  min-width: 55px;
+  max-width: 85px;
   padding: 1px;
   font-size: 9px;
   border: 1px solid #666;
@@ -497,7 +526,9 @@ body {
 
 /* BPM 입력 필드 크기 조정 */
 #sidebar td:nth-child(7) input {
-  width: 50px;
+  width: 95%;
+  min-width: 40px;
+  max-width: 70px;
   padding: 1px 2px;
   font-size: 9px;
   border: 1px solid #666;
@@ -505,7 +536,9 @@ body {
 
 /* Subdivisions 선택 필드 크기 조정 */
 #sidebar td:nth-child(8) select {
-  width: 50px;
+  width: 95%;
+  min-width: 40px;
+  max-width: 70px;
   padding: 1px;
   font-size: 9px;
   border: 1px solid #666;
@@ -520,7 +553,15 @@ body {
 
 /* 삭제 버튼 크기 조정 */
 #sidebar td:nth-child(10) button {
-  width: 40px;
+  width: 10px;
+  padding: 1px 3px;
+  font-size: 9px;
+  border: 1px solid #666;
+}
+
+/* 삭제 버튼 크기 조정 */
+#sidebar td:nth-child(10) button {
+  width: 10px;
   padding: 1px 3px;
   font-size: 9px;
   border: 1px solid #666;
@@ -570,7 +611,7 @@ body {
 .sidebar-resizer {
   position: fixed;
   top: 0;
-  left: 648px; /* 실제 사이드바 경계보다 2px 왼쪽부터 시작 */
+  left: calc(var(--sidebar-width) - 2px); /* 실제 사이드바 경계보다 2px 왼쪽부터 시작 */
   width: 9px; /* 5px → 9px로 확대하여 클릭 영역 증가 */
   height: 100vh;
   background: transparent;
@@ -595,7 +636,7 @@ body {
 .sidebar-toggle {
   position: fixed; /* fixed로 변경 */
   top: 50%;
-  left: 520px; /* 사이드바 오른쪽에 위치 */
+  left: var(--sidebar-width); /* 사이드바 오른쪽에 위치 */
   width: 40px;
   height: 60px;
   background: #333;
@@ -615,7 +656,7 @@ body {
 
 .sidebar-toggle:hover {
   background: #444;
-  left: 525px; /* 520px + 5px */
+  left: calc(var(--sidebar-width) + 5px); /* 사이드바 너비 + 5px */
   top: 50%;
 }
 
@@ -837,7 +878,7 @@ button:disabled {
 
 /* #main의 margin-bottom 제거 */
 #main {
-  margin-left: 520px; /* 사이드바 너비에 맞춤 */
+  margin-left: var(--sidebar-width); /* 사이드바 너비에 맞춤 */
   position: relative;
   height: 100vh;
   overflow: hidden;
