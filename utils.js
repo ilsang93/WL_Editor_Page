@@ -163,3 +163,29 @@ export function normalizeDirection(direction) {
 
     return [dx / magnitude, dy / magnitude];
 }
+
+// BPM fade를 고려한 진행도 계산 (Unity StageUtils.CalculateFadeProgress와 동일)
+// normalizedTime: 0~1 사이의 시간 진행도
+// startBpm: 시작 BPM, endBpm: 끝 BPM
+// 반환값: 실제 이동 거리 진행도 (0~1)
+export function calculateFadeProgress(normalizedTime, startBpm, endBpm) {
+    // v(t) = startBpm + (endBpm - startBpm) * t (선형 BPM 변화)
+    // 거리 = ∫v(t)dt = startBpm*t + (endBpm - startBpm)*t²/2
+    // 정규화된 총 거리 = startBpm + (endBpm - startBpm)/2 = (startBpm + endBpm)/2
+
+    const t = normalizedTime;
+
+    // 전체 구간의 총 거리 (t=1일 때)
+    const totalDistance = (startBpm + endBpm) / 2;
+
+    // 방어 코드: totalDistance가 0이면 선형 보간으로 fallback
+    if (Math.abs(totalDistance) < 0.001) {
+        return t;
+    }
+
+    // 현재 시점까지의 누적 거리
+    const currentDistance = startBpm * t + (endBpm - startBpm) * t * t / 2;
+
+    // 거리 진행도 반환
+    return currentDistance / totalDistance;
+}

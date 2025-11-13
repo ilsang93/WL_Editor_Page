@@ -161,14 +161,15 @@ export function noteToJsonFormat(note, globalBpm, globalSubdivisions, preDelaySe
         longTime: longTimeInSeconds,
         longTimeBeat: note.longTime || 0,
         noteType: noteType,
-        direction: note.direction || "none"
+        direction: note.direction || "none",
+        fade: note.fade || false  // BPM fade 여부 (boolean)
     };
-    
+
     // Node 타입 노트의 경우 isWait 필드 추가
     if (note.type === "node") {
         result.isWait = note.wait || false;
     }
-    
+
     return result;
 }
 
@@ -195,14 +196,15 @@ export function jsonToNoteFormat(jsonNote, globalBpm, globalSubdivisions) {
         isLong: jsonNote.isLong || false,
         longTime: longTimeBeat,
         bpm: jsonNote.bpm || globalBpm,
-        subdivisions: jsonNote.subdivisions || globalSubdivisions
+        subdivisions: jsonNote.subdivisions || globalSubdivisions,
+        fade: jsonNote.fade || false  // BPM fade 여부 (boolean)
     };
-    
+
     // Node 타입 노트의 경우 wait 필드 추가
     if (type === "node") {
         noteData.wait = jsonNote.isWait || false;
     }
-    
+
     return noteData;
 }
 
@@ -287,7 +289,8 @@ export function cloneNote(note) {
         longTime: note.longTime || 0,
         bpm: note.bpm,
         subdivisions: note.subdivisions,
-        wait: note.wait || false
+        wait: note.wait || false,
+        fade: note.fade || false  // BPM fade 여부 (boolean)
     };
 }
 
