@@ -3018,14 +3018,14 @@ function renderNoteListImmediate() {
         const tdBeat = document.createElement("td");
         const inputBeat = document.createElement("input");
         inputBeat.type = "number";
-        inputBeat.step = "1";
+        inputBeat.step = "0.01";
         inputBeat.value = note.beat;
         inputBeat.addEventListener("change", () => {
             // 변경 전 상태를 히스토리에 저장
             saveState();
 
             const oldBeat = note.beat;
-            const newBeat = parseInt(inputBeat.value);
+            const newBeat = parseFloat(inputBeat.value);
             const diff = newBeat - oldBeat;
 
             if (isBatchEditEnabled) {
