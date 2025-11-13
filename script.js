@@ -691,6 +691,7 @@ function saveState() {
         longTime: note.longTime || 0,
         bpm: note.bpm,
         subdivisions: note.subdivisions,
+        fade: note.fade || false,  // fade 속성 저장 추가
         wait: note.wait || false
     }));
 
@@ -819,6 +820,7 @@ function redo() {
         longTime: note.longTime || 0,
         bpm: note.bpm,
         subdivisions: note.subdivisions,
+        fade: note.fade || false,  // fade 속성 저장 추가
         wait: note.wait || false
     }));
 
@@ -2880,7 +2882,7 @@ function renderNoteListImmediate() {
                 const targetFinalTime = parseFloat(inputTime.value);
                 const targetOriginalTime = targetFinalTime - preDelaySeconds;
 
-                // fade 구간을 고려하여 시간에서 beat 역산
+                // fade 구간을 고려하여 시간에서 beat 역산 (소수점 2자리까지 허용)
                 const newBeat = Math.round(timeToBeatInFade(
                     targetOriginalTime,
                     fadeInfo.fadeStartTime,
@@ -2888,7 +2890,7 @@ function renderNoteListImmediate() {
                     fadeInfo.startBpm,
                     fadeInfo.endBpm,
                     fadeInfo.subdivisions
-                ));
+                ) * 100) / 100;
 
                 note.beat = newBeat;
 
