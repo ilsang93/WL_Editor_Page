@@ -187,26 +187,6 @@
   <!-- 컨트롤바 토글 버튼 (컨트롤바 밖에 위치) -->
   <button id="control-bar-toggle" class="toggle-btn control-bar-toggle">×</button>
 
-  <!-- 음향 그래프 플로팅 영역 -->
-  <div id="waveform-container">
-    <div id="waveform-controls">
-      <button id="waveform-zoom-in">+</button>
-      <button id="waveform-zoom-out">-</button>
-      <button id="waveform-reset">Reset</button>
-      <span id="waveform-zoom-level">100%</span>
-    </div>
-    <div id="waveform-wrapper">
-      <canvas id="waveform-canvas"></canvas>
-      <div id="waveform-progress"></div>
-      <canvas id="ruler-canvas"></canvas>
-    </div>
-    <div id="waveform-scrollbar">
-      <input type="range" id="waveform-slider" min="0" max="100" value="0" step="1">
-    </div>
-  </div>
-
-  <!-- 마우스 트리거 영역 -->
-  <div class="waveform-trigger-zone"></div>
 
   <script src="audio-sync-module.js"></script>
   <script type="module" src="script.js"></script>
