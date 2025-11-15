@@ -351,21 +351,27 @@ function renderNotesOptimized(notes, pathDirectionNotes, nodePositions, bpm, sub
         if (note.beat === 0 && !(index === 0 && note.type === "direction")) continue;
 
         // 노트의 실제 시간 계산
-        const noteBpm = note.bpm || bpm;
-        const noteSubdivisions = note.subdivisions || subdivisions;
-        const noteTime = beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        let noteTime, finalTime;
+        if (note.beat === 0 && note.type === "direction") {
+            noteTime = preDelaySeconds;
+            finalTime = 0;
+        } else if ((note.type === "tab" || note.type === "longtab") &&
+                   note.hasOwnProperty('fadeDirectTime')) {
+            // fade 구간의 tab/longtab 노트는 저장된 직접 시간값 사용
+            // fadeDirectTime은 이미 finalTime이므로 그대로 사용
+            noteTime = note.fadeDirectTime;
+            finalTime = note.fadeDirectTime;
+        } else {
+            const noteBpm = note.bpm || bpm;
+            const noteSubdivisions = note.subdivisions || subdivisions;
+            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
+            noteTime = originalTime + preDelaySeconds;
+            finalTime = originalTime + preDelaySeconds;
+        }
 
         // 실시간 그리기: 그리기 오브젝트가 지나간 노트만 표시
         if (realtimeDrawingEnabled && isPlaying && noteTime > drawTime) {
             continue;
-        }
-
-        let finalTime;
-        if (note.beat === 0 && note.type === "direction") {
-            finalTime = 0;
-        } else {
-            const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
-            finalTime = originalTime + preDelaySeconds;
         }
 
         const pos = getNotePositionFromPathData(finalTime, pathDirectionNotes, nodePositions);
@@ -1211,9 +1217,17 @@ function drawPath() {
 
     if (highlightedNoteIndex !== null && highlightedNoteTimer > 0) {
         const note = notes[highlightedNoteIndex];
-        const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
-        const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
-        const noteFinalTime = note.beat === 0 && note.type === "direction" ? 0 : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        let noteFinalTime;
+        if (note.beat === 0 && note.type === "direction") {
+            noteFinalTime = 0;
+        } else if ((note.type === "tab" || note.type === "longtab") &&
+                   note.hasOwnProperty('fadeDirectTime')) {
+            noteFinalTime = note.fadeDirectTime;
+        } else {
+            const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
+            const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+            noteFinalTime = beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        }
 
         const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
@@ -1234,9 +1248,17 @@ function drawPath() {
     // 선택된 노트 하이라이트 (노란색 원)
     if (selectedNoteIndex !== null && notes[selectedNoteIndex]) {
         const note = notes[selectedNoteIndex];
-        const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
-        const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
-        const noteFinalTime = note.beat === 0 && note.type === "direction" ? 0 : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        let noteFinalTime;
+        if (note.beat === 0 && note.type === "direction") {
+            noteFinalTime = 0;
+        } else if ((note.type === "tab" || note.type === "longtab") &&
+                   note.hasOwnProperty('fadeDirectTime')) {
+            noteFinalTime = note.fadeDirectTime;
+        } else {
+            const noteBpm = note.bpm || parseFloat(document.getElementById("bpm").value || 120);
+            const noteSubdivisions = note.subdivisions || parseInt(document.getElementById("subdivisions").value || 16);
+            noteFinalTime = beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+        }
 
         const pos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
         if (pos) {
@@ -1723,6 +1745,10 @@ function checkNoteHits(currentTime) {
                 console.log(`0번 노트 통과 (효과음 없음): beat ${note.beat}, finalTime ${finalTime.toFixed(3)}s, currentTime ${currentTime.toFixed(3)}s`);
             }
             return;
+        } else if ((note.type === "tab" || note.type === "longtab") &&
+                   note.hasOwnProperty('fadeDirectTime')) {
+            // fade 구간의 tab/longtab 노트는 저장된 직접 시간값 사용
+            finalTime = note.fadeDirectTime;
         } else {
             // 각 노트의 개별 BPM/subdivision 사용
             const noteBpm = note.bpm || bpm;
@@ -2406,6 +2432,23 @@ function getTabNoteFadeInfo(note, index) {
 
     // fade 구간 확인
     if (nextFade && Math.abs(prevBpm - nextBpm) > 0.01 && nextIndex !== -1 && prevIndex !== -1) {
+        const currentNote = notes[index];
+
+        // fadeDirectTime이 이미 있는 노트는 항상 fade 구간에 있다고 판정
+        if (currentNote.hasOwnProperty('fadeDirectTime')) {
+            const prevTime = calculateNoteTime(prevIndex);
+            const nextTime = calculateNoteTime(nextIndex);
+            return {
+                inFade: true,
+                fadeStartTime: prevTime,
+                fadeEndTime: nextTime,
+                startBpm: prevBpm,
+                endBpm: nextBpm,
+                subdivisions: nextSubdivisions
+            };
+        }
+
+        // fadeDirectTime이 없는 노트는 일반적인 방식으로 fade 구간 판정
         const noteTime = calculateNoteTime(index);
         const prevTime = calculateNoteTime(prevIndex);
         const nextTime = calculateNoteTime(nextIndex);
@@ -2433,6 +2476,14 @@ function calculateNoteTime(targetIndex) {
     const globalSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
     const targetNote = notes[targetIndex];
+
+    // fade 구간의 tab/longtab 노트이고 직접 시간값이 있으면 그것을 사용
+    if ((targetNote.type === "tab" || targetNote.type === "longtab") &&
+        targetNote.hasOwnProperty('fadeDirectTime')) {
+        const preDelaySeconds = getPreDelaySeconds();
+        return targetNote.fadeDirectTime - preDelaySeconds;
+    }
+
     const targetBeat = targetNote.beat;
 
     // BPM 변경 지점들을 수집
@@ -2490,14 +2541,36 @@ function calculateNoteTime(targetIndex) {
     return accumulatedTime;
 }
 
+// fade 구간에서 벗어난 노트들의 fadeDirectTime 제거
+function cleanupFadeDirectTimes() {
+    notes.forEach((note, index) => {
+        if ((note.type === "tab" || note.type === "longtab") &&
+            note.hasOwnProperty('fadeDirectTime')) {
+
+            // 임시로 fadeDirectTime을 제거해서 원래 방식으로 fade 구간 판정
+            const tempFadeDirectTime = note.fadeDirectTime;
+            delete note.fadeDirectTime;
+
+            const fadeInfo = getTabNoteFadeInfo(note, index);
+
+            if (fadeInfo.inFade) {
+                // 여전히 fade 구간에 있으면 fadeDirectTime 복원
+                note.fadeDirectTime = tempFadeDirectTime;
+            }
+            // fade 구간에서 벗어났으면 fadeDirectTime은 제거된 상태로 유지
+        }
+    });
+}
+
 // Tab 노트들의 BPM/Subdivisions 값을 다음 편집 가능 노트에서 상속받도록 업데이트
 function updateTabNotesInheritance() {
     const globalBpm = parseFloat(document.getElementById("bpm").value || 120);
     const globalSubdivisions = parseInt(document.getElementById("subdivisions").value || 16);
 
     notes.forEach((note, index) => {
-        // Tab 계열 노트만 처리
-        if (note.type === "tab" || note.type === "longtab") {
+        // Tab 계열 노트만 처리 (fade 구간의 직접 시간값이 있는 노트는 제외)
+        if ((note.type === "tab" || note.type === "longtab") &&
+            !note.hasOwnProperty('fadeDirectTime')) {
             // 이전 편집 가능 노트 찾기
             let prevBpm = globalBpm;
             let prevSubdivisions = globalSubdivisions;
@@ -2669,6 +2742,12 @@ function renderNoteList() {
 
 // 실제 렌더링 함수 (즉시 실행)
 function renderNoteListImmediate() {
+    // 시간 입력 직후가 아닐 때만 cleanup 실행
+    if (!window.skipNextCleanup) {
+        // fade 구간에서 벗어난 노트들의 fadeDirectTime 제거
+        cleanupFadeDirectTimes();
+    }
+
     // Tab 노트들의 상속 값을 먼저 업데이트
     updateTabNotesInheritance();
 
@@ -2825,10 +2904,17 @@ function renderNoteListImmediate() {
             if (isBatchEditEnabled) {
                 // 현재 노트는 입력된 값으로 직접 설정
                 note.beat = newBeat;
+                if (note.hasOwnProperty('fadeDirectTime')) {
+                    delete note.fadeDirectTime;
+                }
                 // 이후 노트들은 차이값만큼 조정
                 notes.forEach((n, i) => {
                     if (i > index) {
                         n.beat += diff;
+                        // beat가 변경된 노트들의 fadeDirectTime도 제거
+                        if (n.hasOwnProperty('fadeDirectTime')) {
+                            delete n.fadeDirectTime;
+                        }
                     }
                 });
             } else if (selectedNoteIndices.has(index) && selectedNoteIndices.size > 1) {
@@ -2836,10 +2922,18 @@ function renderNoteListImmediate() {
                 selectedNoteIndices.forEach(idx => {
                     if (idx < notes.length) {
                         notes[idx].beat += diff;
+                        // beat가 변경된 노트들의 fadeDirectTime 제거
+                        if (notes[idx].hasOwnProperty('fadeDirectTime')) {
+                            delete notes[idx].fadeDirectTime;
+                        }
                     }
                 });
             } else {
                 note.beat = newBeat;
+                // beat 값이 변경되면 fade 구간의 직접 시간값 제거
+                if (note.hasOwnProperty('fadeDirectTime')) {
+                    delete note.fadeDirectTime;
+                }
             }
 
             saveToStorage();
@@ -2849,54 +2943,74 @@ function renderNoteListImmediate() {
         tdBeat.appendChild(inputBeat);
 
         const tdTime = document.createElement("td");
-        // 각 노트의 BPM/subdivision 사용
-        const noteBpm = note.bpm || bpm;
-        const noteSubdivisions = note.subdivisions || subdivisions;
-        const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
 
         // Tab 노트가 fade 구간에 있는지 확인
         const isTabNote = note.type === "tab" || note.type === "longtab";
         const fadeInfo = isTabNote ? getTabNoteFadeInfo(note, index) : { inFade: false };
+
+        // 각 노트의 BPM/subdivision 사용
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        const originalTime = beatToTime(note.beat, noteBpm, noteSubdivisions);
 
         if (note.beat === 0 && note.type === "direction") {
             tdTime.textContent = `${originalTime.toFixed(3)}s`;
             tdTime.style.color = '#666';
             tdTime.title = '게임 시작점';
         } else if (fadeInfo.inFade) {
-            // Tab 노트가 fade 구간에 있으면 시간 입력 필드 표시
-            const finalTime = originalTime + preDelaySeconds;
+            // Tab 노트가 fade 구간에 있으면 자유로운 시간 입력 필드 표시
+            let finalTime;
+            if (note.hasOwnProperty('fadeDirectTime')) {
+                // 이미 저장된 직접 시간값이 있으면 그것을 사용
+                finalTime = note.fadeDirectTime;
+            } else {
+                // 처음이면 계산된 시간값을 저장
+                finalTime = originalTime + preDelaySeconds;
+                note.fadeDirectTime = finalTime;
+            }
+
             const inputTime = document.createElement("input");
             inputTime.type = "number";
             inputTime.step = "0.001";
-            inputTime.min = (fadeInfo.fadeStartTime + preDelaySeconds).toFixed(3);
-            inputTime.max = (fadeInfo.fadeEndTime + preDelaySeconds).toFixed(3);
+            // fade 구간 노트는 시간 제한 없이 자유롭게 입력 가능
             inputTime.value = finalTime.toFixed(3);
             inputTime.style.width = "80px";
             inputTime.style.fontSize = "11px";
             inputTime.style.color = "#FF9800";
-            inputTime.title = `Fade 구간 내 시간 (${inputTime.min}s ~ ${inputTime.max}s)`;
+            inputTime.title = "Fade 구간 내 자유 시간 입력 (제한 없음)";
 
             inputTime.addEventListener("change", () => {
                 saveState();
 
                 const targetFinalTime = parseFloat(inputTime.value);
-                const targetOriginalTime = targetFinalTime - preDelaySeconds;
 
-                // fade 구간을 고려하여 시간에서 beat 역산 (소수점 2자리까지 허용)
-                const newBeat = Math.round(timeToBeatInFade(
-                    targetOriginalTime,
-                    fadeInfo.fadeStartTime,
-                    fadeInfo.fadeEndTime,
-                    fadeInfo.startBpm,
-                    fadeInfo.endBpm,
-                    fadeInfo.subdivisions
-                ) * 100) / 100;
+                // fade 구간의 tab/longtab 노트는 입력한 시간값을 그대로 저장
+                // beat 값은 변경하지 않고 fadeDirectTime만 사용
+                note.fadeDirectTime = targetFinalTime;
 
-                note.beat = newBeat;
+                // beat 값은 업데이트하지 않음 (다른 시스템에서 재계산을 유발할 수 있음)
+                // const targetOriginalTime = targetFinalTime - preDelaySeconds;
+                // const newBeat = Math.round(timeToBeatInFade(
+                //     targetOriginalTime,
+                //     fadeInfo.fadeStartTime,
+                //     fadeInfo.fadeEndTime,
+                //     fadeInfo.startBpm,
+                //     fadeInfo.endBpm,
+                //     fadeInfo.subdivisions
+                // ) * 100) / 100;
+                // note.beat = newBeat;
 
                 saveToStorage();
                 drawPath();
+
+                // 시간 입력 직후에는 cleanup을 건너뛰도록 플래그 설정
+                window.skipNextCleanup = true;
                 renderNoteList();
+
+                // 다음 렌더링에서는 cleanup 실행
+                setTimeout(() => {
+                    window.skipNextCleanup = false;
+                }, 100);
              });
 
             tdTime.appendChild(inputTime);
@@ -3287,9 +3401,17 @@ function focusNoteAtIndex(index) {
         nodePositions.push(pos);
     }
 
-    const noteBpm = note.bpm || bpm;
-    const noteSubdivisions = note.subdivisions || subdivisions;
-    const noteFinalTime = note.beat === 0 && note.type === "direction" ? preDelaySeconds : beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+    let noteFinalTime;
+    if (note.beat === 0 && note.type === "direction") {
+        noteFinalTime = preDelaySeconds;
+    } else if ((note.type === "tab" || note.type === "longtab") &&
+               note.hasOwnProperty('fadeDirectTime')) {
+        noteFinalTime = note.fadeDirectTime;
+    } else {
+        const noteBpm = note.bpm || bpm;
+        const noteSubdivisions = note.subdivisions || subdivisions;
+        noteFinalTime = beatToTime(note.beat, noteBpm, noteSubdivisions) + preDelaySeconds;
+    }
     const noteCanvasPos = getNotePositionFromPathData(noteFinalTime, pathDirectionNotes, nodePositions);
 
     if (noteCanvasPos) {
@@ -3871,6 +3993,13 @@ function updateNotesForTimeBasedChange(oldBpm, oldSubdivisions, newBpm, newSubdi
     console.log(`Updating notes from BPM ${oldBpm}/${oldSubdivisions} to ${newBpm}/${newSubdivisions}`);
 
     notes.forEach(note => {
+        // fade 구간의 직접 시간값이 있는 노트는 beat 업데이트를 건너뜀
+        if ((note.type === "tab" || note.type === "longtab") &&
+            note.hasOwnProperty('fadeDirectTime')) {
+            console.log(`Skipping beat update for fade note with fadeDirectTime: ${note.fadeDirectTime}`);
+            return;
+        }
+
         const timeInSeconds = beatToTime(note.beat, oldBpm, oldSubdivisions);
         note.beat = timeToBeat(timeInSeconds, newBpm, newSubdivisions);
 
@@ -5837,44 +5966,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             subdivisions: subdivisions,
             preDelay: preDelayValue,
             noteList: validatedNotes.map(n => {
-                // 각 노트의 개별 BPM/subdivision 사용
-                const noteBpm = n.bpm || bpm;
-                const noteSubdivisions = n.subdivisions || subdivisions;
-                const originalTime = beatToTime(n.beat, noteBpm, noteSubdivisions);
-
-                let finalTime;
-                if (n.beat === 0 && n.type === "direction") {
-                    finalTime = originalTime;
-                } else {
-                    finalTime = originalTime + preDelaySeconds;
-                }
-
-                const noteType = convertNoteTypeToExternal(n.type);
-
-                // LongTime을 각 노트의 BPM/subdivision으로 시간값 변환
-                const longTimeInSeconds = (n.isLong && n.longTime > 0) ? calculateLongNoteTime(n, noteBpm, noteSubdivisions) : 0;
-
-                const result = {
-                    beat: n.beat,
-                    bpm: noteBpm, // 노트별 BPM 사용
-                    subdivisions: noteSubdivisions, // 노트별 subdivision 사용
-                    originalTime: originalTime,
-                    musicTime: MUSIC_START_TIME + originalTime,
-                    finalTime: finalTime,
-                    isLong: n.isLong || false,
-                    longTime: longTimeInSeconds,
-                    longTimeBeat: n.longTime || 0,
-                    noteType: noteType,
-                    direction: n.direction || "none",
-                    fade: n.fade || false  // BPM fade 여부
-                };
-
-                // Node 타입 노트의 경우 isWait 필드 추가
-                if (n.type === "node") {
-                    result.isWait = n.wait || false;
-                }
-
-                return result;
+                // noteToJsonFormat 함수를 사용하여 fadeDirectTime 지원
+                return noteToJsonFormat(n, bpm, subdivisions, preDelaySeconds);
             }),
             eventList: eventsToJson(),
             metadata: {

@@ -137,12 +137,18 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
 // 노트 데이터를 JSON 형식으로 변환
 export function noteToJsonFormat(note, globalBpm, globalSubdivisions, preDelaySeconds) {
     const timing = getNoteTimingParams(note, globalBpm, globalSubdivisions);
-    const originalTime = beatToTime(note.beat, timing.bpm, timing.subdivisions);
-    
-    let finalTime;
+    let originalTime, finalTime;
+
     if (note.beat === 0 && note.type === "direction") {
+        originalTime = beatToTime(note.beat, timing.bpm, timing.subdivisions);
         finalTime = originalTime;
+    } else if ((note.type === "tab" || note.type === "longtab") &&
+               note.hasOwnProperty('fadeDirectTime')) {
+        // fade 구간의 tab/longtab 노트는 저장된 직접 시간값 사용
+        finalTime = note.fadeDirectTime;
+        originalTime = finalTime - preDelaySeconds;
     } else {
+        originalTime = beatToTime(note.beat, timing.bpm, timing.subdivisions);
         finalTime = originalTime + preDelaySeconds;
     }
     
