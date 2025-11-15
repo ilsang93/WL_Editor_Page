@@ -2541,6 +2541,54 @@ function calculateNoteTime(targetIndex) {
     return accumulatedTime;
 }
 
+// fade 구간에서 특정 시간의 BPM을 보간으로 계산
+function calculateBpmAtTime(targetTime, fadeStartTime, fadeEndTime, startBpm, endBpm) {
+    if (targetTime <= fadeStartTime) {
+        return startBpm;
+    } else if (targetTime >= fadeEndTime) {
+        return endBpm;
+    } else {
+        // 선형 보간
+        const fadeDuration = fadeEndTime - fadeStartTime;
+        const timeInFade = targetTime - fadeStartTime;
+        const fadeProgress = timeInFade / fadeDuration;
+        return startBpm + (endBpm - startBpm) * fadeProgress;
+    }
+}
+
+// fade 구간의 tab/longtab 노트의 beat, bpm, subdivision을 시간값에 기반하여 업데이트
+function updateFadeNoteParameters(note, index, targetFinalTime, fadeInfo) {
+    const preDelaySeconds = getPreDelaySeconds();
+    const targetOriginalTime = targetFinalTime - preDelaySeconds;
+
+    // fade 구간에서 해당 시간의 BPM 계산
+    const interpolatedBpm = calculateBpmAtTime(
+        targetOriginalTime,
+        fadeInfo.fadeStartTime,
+        fadeInfo.fadeEndTime,
+        fadeInfo.startBpm,
+        fadeInfo.endBpm
+    );
+
+    // fade 구간을 만든 노트의 subdivision 사용
+    const targetSubdivisions = fadeInfo.subdivisions;
+
+    // 해당 BPM과 subdivision으로 목표 시간이 나오게 하는 beat 값 역산
+    const targetBeat = timeToBeat(targetOriginalTime, interpolatedBpm, targetSubdivisions);
+
+    // float 정밀도로 반올림 (소수점 6자리까지)
+    const roundedBeat = Math.round(targetBeat * 1000000) / 1000000;
+    const roundedBpm = Math.round(interpolatedBpm * 1000000) / 1000000;
+
+    // 노트 파라미터 업데이트
+    note.beat = roundedBeat;
+    note.bpm = roundedBpm;
+    note.subdivisions = targetSubdivisions;
+    note.fadeDirectTime = targetFinalTime;
+
+    console.log(`Updated fade note: time=${targetFinalTime.toFixed(3)}s, beat=${roundedBeat}, bpm=${roundedBpm.toFixed(2)}, subdivisions=${targetSubdivisions}`);
+}
+
 // fade 구간에서 벗어난 노트들의 fadeDirectTime 제거
 function cleanupFadeDirectTimes() {
     notes.forEach((note, index) => {
@@ -2888,11 +2936,23 @@ function renderNoteListImmediate() {
 
         tdType.appendChild(typeSelect);
 
+        // Tab 노트가 fade 구간에 있는지 확인 (한 번만 계산)
+        const isTabNote = note.type === "tab" || note.type === "longtab";
+        const fadeInfo = isTabNote ? getTabNoteFadeInfo(note, index) : { inFade: false };
+
         const tdBeat = document.createElement("td");
         const inputBeat = document.createElement("input");
         inputBeat.type = "number";
         inputBeat.step = "0.01";
         inputBeat.value = note.beat;
+
+        // fade 구간의 tab/longtab 노트는 beat 입력 비활성화
+        if (fadeInfo.inFade) {
+            inputBeat.disabled = true;
+            inputBeat.style.backgroundColor = "#f5f5f5";
+            inputBeat.style.color = "#999";
+            inputBeat.title = "Fade 구간에서는 시간값으로 beat가 자동 계산됩니다";
+        }
         inputBeat.addEventListener("change", () => {
             // 변경 전 상태를 히스토리에 저장
             saveState();
@@ -2944,10 +3004,6 @@ function renderNoteListImmediate() {
 
         const tdTime = document.createElement("td");
 
-        // Tab 노트가 fade 구간에 있는지 확인
-        const isTabNote = note.type === "tab" || note.type === "longtab";
-        const fadeInfo = isTabNote ? getTabNoteFadeInfo(note, index) : { inFade: false };
-
         // 각 노트의 BPM/subdivision 사용
         const noteBpm = note.bpm || bpm;
         const noteSubdivisions = note.subdivisions || subdivisions;
@@ -2984,21 +3040,8 @@ function renderNoteListImmediate() {
 
                 const targetFinalTime = parseFloat(inputTime.value);
 
-                // fade 구간의 tab/longtab 노트는 입력한 시간값을 그대로 저장
-                // beat 값은 변경하지 않고 fadeDirectTime만 사용
-                note.fadeDirectTime = targetFinalTime;
-
-                // beat 값은 업데이트하지 않음 (다른 시스템에서 재계산을 유발할 수 있음)
-                // const targetOriginalTime = targetFinalTime - preDelaySeconds;
-                // const newBeat = Math.round(timeToBeatInFade(
-                //     targetOriginalTime,
-                //     fadeInfo.fadeStartTime,
-                //     fadeInfo.fadeEndTime,
-                //     fadeInfo.startBpm,
-                //     fadeInfo.endBpm,
-                //     fadeInfo.subdivisions
-                // ) * 100) / 100;
-                // note.beat = newBeat;
+                // fade 구간의 tab/longtab 노트의 모든 파라미터를 시간값에 기반하여 업데이트
+                updateFadeNoteParameters(note, index, targetFinalTime, fadeInfo);
 
                 saveToStorage();
                 drawPath();
