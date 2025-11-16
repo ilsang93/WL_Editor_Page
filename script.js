@@ -2943,7 +2943,7 @@ function renderNoteListImmediate() {
         const tdBeat = document.createElement("td");
         const inputBeat = document.createElement("input");
         inputBeat.type = "number";
-        inputBeat.step = "0.01";
+        inputBeat.step = "1";
         inputBeat.value = note.beat;
 
         // fade 구간의 tab/longtab 노트는 beat 입력 비활성화
