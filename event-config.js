@@ -86,7 +86,8 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     // Camera 타입 이벤트들
     'camera-zoom': [
         { paramName: 'distance', paramType: 'float' },
-        { paramName: 'fade', paramType: 'float' }
+        { paramName: 'fade', paramType: 'float' },
+        { paramName: 'followspeed', paramType: 'bool' }
     ],
     'camera-focus_offset': [
         { paramName: 'offset', paramType: 'float' },
@@ -102,6 +103,7 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     'camera-position_from_character': [
         { paramName: 'offset_x', paramType: 'float' },
         { paramName: 'offset_y', paramType: 'float' },
+        { paramName: 'followspeed', paramType: 'bool' },
     ],
     'camera-position_from_time': [
         { paramName: 'offset_x', paramType: 'float' },
@@ -110,6 +112,7 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'time2', paramType: 'float' },
         { paramName: 'time3', paramType: 'float' },
         { paramName: 'time4', paramType: 'float' },
+        { paramName: 'followspeed', paramType: 'bool' },
     ],
     'camera-position_off': [
         { paramName: 'fade', paramType: 'float' },
