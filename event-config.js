@@ -73,7 +73,10 @@ export const EVENT_IDS_BY_TYPE = {
     'light': [
         'setstatic',
         'setnote',
-        'setchar'
+        'setchar',
+        'setstaticcolor',
+        'setcharcolor',
+        'setnotecolor'
     ],
     'system': [
         'dialog'
@@ -214,6 +217,27 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'fade', paramType: 'float' },
         { paramName: 'inner', paramType: 'float' },
         { paramName: 'outer', paramType: 'float' },
+    ],
+    'light-setstaticcolor': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'alpha', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'light-setcharcolor': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'alpha', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'light-setnotecolor': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'alpha', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' }
     ],
 
     'effect-firework': [
