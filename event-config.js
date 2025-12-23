@@ -79,7 +79,9 @@ export const EVENT_IDS_BY_TYPE = {
         'setnotecolor'
     ],
     'system': [
-        'dialog'
+        'dialog',
+        'disableinput',
+        'enableinput'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -252,6 +254,10 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     // system 타입 이벤트
     'system-dialog': [
         // dialog는 특별한 구조를 가지므로 여기서는 빈 배열
+    ],
+    'system-disableinput': [
+    ],
+    'system-enableinput': [
     ],
 };
 
