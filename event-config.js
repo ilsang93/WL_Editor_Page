@@ -8,6 +8,7 @@ export const EVENT_TYPES = [
     'overlay',
     'startrail',
     'light',
+    'spotlight',
     'speedshift',
     'effect',
     'postprocessing',
@@ -77,6 +78,13 @@ export const EVENT_IDS_BY_TYPE = {
         'setstaticcolor',
         'setcharcolor',
         'setnotecolor'
+    ],
+    'spotlight': [
+        'off',
+        'origin',
+        'rainbow',
+        'color',
+        'set'
     ],
     'system': [
         'dialog',
@@ -240,6 +248,26 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'blue', paramType: 'int' },
         { paramName: 'alpha', paramType: 'int' },
         { paramName: 'fade', paramType: 'float' }
+    ],
+
+    'spotlight-off': [
+        { paramName: 'duration', paramType: 'float' }
+    ],
+    'spotlight-origin': [
+
+    ],
+    'spotlight-rainbow': [
+
+    ],
+    'spotlight-color': [
+        { paramName: 'red', paramType: 'float' },
+        { paramName: 'green', paramType: 'float' },
+        { paramName: 'blue', paramType: 'float' }
+    ],
+    'spotlight-set': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'inlange', paramType: 'float' },
+        { paramName: 'outlange', paramType: 'float' }
     ],
 
     'effect-firework': [
