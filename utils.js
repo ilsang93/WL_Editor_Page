@@ -49,16 +49,72 @@ export function calculateLongNoteTime(note, globalBpm, globalSubdivisions) {
     return beatToTime(note.longTime, timing.bpm, timing.subdivisions);
 }
 
-// pathBeat 계산 함수
+// pathBeat 계산 함수 (_sectionOffset 지원)
 export function calculatePathBeat(note, preDelaySeconds, globalBpm, globalSubdivisions) {
-    if (note.beat === 0 && note.type === "direction") {
+    const sectionOffset = note._sectionOffset || 0;
+    if (note.beat === 0 && note.type === "direction" && sectionOffset === 0) {
         return 0;
     } else {
         const timing = getNoteTimingParams(note, globalBpm, globalSubdivisions);
-        const originalTime = beatToTime(note.beat, timing.bpm, timing.subdivisions);
+        const originalTime = sectionOffset + beatToTime(note.beat, timing.bpm, timing.subdivisions);
         const adjustedTime = originalTime + preDelaySeconds;
         return timeToBeat(adjustedTime, globalBpm, globalSubdivisions);
     }
+}
+
+// 구간 번호(sectionIndex)를 각 노트에 부여 (배열 순서 기준)
+// beatReset=true인 Node를 만날 때마다 구간 번호 1 증가
+// 이 함수는 배열 순서가 변경될 때마다 호출해야 함 (노트 추가/삭제/정렬/beatReset 변경 시)
+export function recomputeSectionIndices(notes) {
+    let currentSection = 0;
+    for (let i = 0; i < notes.length; i++) {
+        notes[i].sectionIndex = currentSection;
+        if (notes[i].type === 'node' && notes[i].beatReset) {
+            currentSection++;
+        }
+    }
+}
+
+// 구간(section) 오프셋 계산 함수
+// sectionIndex가 설정된 경우: 배열 순서에 독립적인 방식으로 계산 (정렬 안정성 보장)
+// sectionIndex 미설정: 배열 순서 기반 계산 (레거시 폴백)
+// offsets[i] = i번 노트의 구간 시작 절대시간(초)
+export function calculateSectionOffsets(notes, globalBpm, globalSubdivisions) {
+    if (notes.length === 0) return [];
+
+    // sectionIndex 기반 계산 (정렬 이후에도 안정적)
+    if (notes[0].sectionIndex !== undefined) {
+        // 각 구간의 시작 절대시간을 beatReset 노드에서 계산
+        const sectionStartTimes = new Map([[0, 0]]);
+
+        for (const note of notes) {
+            if (note.type === 'node' && note.beatReset) {
+                const sIdx = note.sectionIndex;
+                if (!sectionStartTimes.has(sIdx + 1)) {
+                    const prevOffset = sectionStartTimes.get(sIdx) || 0;
+                    const bpm = note.bpm || globalBpm;
+                    const subs = note.subdivisions || globalSubdivisions;
+                    sectionStartTimes.set(sIdx + 1, prevOffset + beatToTime(note.beat, bpm, subs));
+                }
+            }
+        }
+
+        return notes.map(n => sectionStartTimes.get(n.sectionIndex) || 0);
+    }
+
+    // 레거시 폴백: 배열 순서 기반 계산
+    const offsets = new Array(notes.length).fill(0);
+    let currentOffset = 0;
+    for (let i = 0; i < notes.length; i++) {
+        offsets[i] = currentOffset;
+        const note = notes[i];
+        if (note.type === 'node' && note.beatReset) {
+            const bpm = note.bpm || globalBpm;
+            const subs = note.subdivisions || globalSubdivisions;
+            currentOffset += beatToTime(note.beat, bpm, subs);
+        }
+    }
+    return offsets;
 }
 
 // 시간을 비트로 변환

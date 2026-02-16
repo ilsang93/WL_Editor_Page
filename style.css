@@ -610,6 +610,11 @@ body {
   box-shadow: 0 0 12px rgba(76, 175, 80, 0.8) !important;
 }
 
+/* beatReset 노드 — 구간 경계 시각화 */
+#sidebar tr.beat-reset-node {
+  border-top: 2px solid #FF9800 !important;
+}
+
 /* 사이드바 리사이저 */
 .sidebar-resizer {
   position: fixed;
