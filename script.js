@@ -2274,9 +2274,10 @@ function loadFromStorage() {
                     } else if (typeof note.fade === 'number') {
                         note.fade = note.fade > 0;
                     }
-                    // Node 타입 노트의 wait, beatReset 필드 초기화
+                    // wait 필드 초기화 (Node 타입만)
                     if (note.type === "node" && note.wait === undefined) note.wait = false;
-                    if (note.type === "node" && note.beatReset === undefined) note.beatReset = false;
+                    // beatReset 필드 초기화 (모든 타입)
+                    if (note.beatReset === undefined) note.beatReset = false;
                 });
 
                 // 캐시 무효화
@@ -2302,9 +2303,10 @@ function loadFromStorage() {
                     } else if (typeof note.fade === 'number') {
                         note.fade = note.fade > 0;
                     }
-                    // Node 타입 노트의 wait, beatReset 필드 초기화
+                    // wait 필드 초기화 (Node 타입만)
                     if (note.type === "node" && note.wait === undefined) note.wait = false;
-                    if (note.type === "node" && note.beatReset === undefined) note.beatReset = false;
+                    // beatReset 필드 초기화 (모든 타입)
+                    if (note.beatReset === undefined) note.beatReset = false;
                 });
 
                 // 캐시 무효화
@@ -2900,7 +2902,7 @@ function renderNoteListImmediate() {
         }
 
         // beatReset 노드는 구간 경계 시각화
-        if (note.type === "node" && note.beatReset) {
+        if (note.beatReset) {
             tr.classList.add("beat-reset-node");
         }
 
@@ -2964,11 +2966,12 @@ function renderNoteListImmediate() {
                     delete n.direction;
                 }
 
-                // Node 타입 전환 시 wait, beatReset 속성 처리
+                // Node 타입 전환 시 wait 속성 처리
                 if (newType === "node" && !n.hasOwnProperty("wait")) {
                     n.wait = false;
                 }
-                if (newType === "node" && !n.hasOwnProperty("beatReset")) {
+                // beatReset 속성 처리 (모든 타입)
+                if (!n.hasOwnProperty("beatReset")) {
                     n.beatReset = false;
                 }
             };
@@ -3350,25 +3353,21 @@ function renderNoteListImmediate() {
             tdWait.textContent = "-";
         }
 
-        // Reset 컬럼 추가 (Node 타입만)
+        // Reset 컬럼 추가 (모든 타입)
         const tdReset = document.createElement("td");
-        if (note.type === "node") {
-            const resetCheckbox = document.createElement("input");
-            resetCheckbox.type = "checkbox";
-            resetCheckbox.checked = note.beatReset || false;
-            resetCheckbox.title = "이 노트 이후 beat를 0부터 재시작";
-            resetCheckbox.addEventListener("change", () => {
-                saveState();
-                note.beatReset = resetCheckbox.checked;
-                invalidatePathCache();
-                saveToStorage();
-                drawPath();
-                renderNoteList();
-            });
-            tdReset.appendChild(resetCheckbox);
-        } else {
-            tdReset.textContent = "-";
-        }
+        const resetCheckbox = document.createElement("input");
+        resetCheckbox.type = "checkbox";
+        resetCheckbox.checked = note.beatReset || false;
+        resetCheckbox.title = "이 노트 이후 beat를 0부터 재시작";
+        resetCheckbox.addEventListener("change", () => {
+            saveState();
+            note.beatReset = resetCheckbox.checked;
+            invalidatePathCache();
+            saveToStorage();
+            drawPath();
+            renderNoteList();
+        });
+        tdReset.appendChild(resetCheckbox);
 
         const tdDelete = document.createElement("td");
         const btn = document.createElement("button");
@@ -4056,7 +4055,7 @@ function addNote(noteProps) {
 
         // BPM/Subdivisions 상속 로직
         let inheritedBpm, inheritedSubdivisions;
-        if (selectedNoteIndex !== -1) {
+        if (selectedNoteIndex !== null && selectedNoteIndex !== -1 && notes[selectedNoteIndex]) {
             // 선택된 노트가 있으면 그 노트의 BPM/subdivision을 상속
             const selectedNote = notes[selectedNoteIndex];
             inheritedBpm = selectedNote.bpm || parseFloat(document.getElementById("bpm").value || 120);
@@ -6196,11 +6195,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                             fade: typeof n.fade === 'boolean' ? n.fade : (typeof n.fade === 'number' ? n.fade > 0 : false) // fade를 boolean으로 변환 (하위 호환성)
                         };
 
-                        // Node 타입 노트의 경우 wait, beatReset 필드 추가
+                        // Node 타입 노트의 경우 wait 필드 추가
                         if (type === "node") {
                             noteData.wait = n.isWait || false;
-                            noteData.beatReset = n.isBeatReset || false;
                         }
+                        // beatReset 필드 추가 (모든 타입)
+                        noteData.beatReset = n.isBeatReset || false;
 
                         // JSON에 절대시간 정보가 있으면 정렬용으로 임시 저장
                         // originalTime과 finalTime 중 사용 가능한 것을 우선 사용

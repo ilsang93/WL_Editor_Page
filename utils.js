@@ -63,13 +63,13 @@ export function calculatePathBeat(note, preDelaySeconds, globalBpm, globalSubdiv
 }
 
 // 구간 번호(sectionIndex)를 각 노트에 부여 (배열 순서 기준)
-// beatReset=true인 Node를 만날 때마다 구간 번호 1 증가
+// beatReset=true인 노트를 만날 때마다 구간 번호 1 증가
 // 이 함수는 배열 순서가 변경될 때마다 호출해야 함 (노트 추가/삭제/정렬/beatReset 변경 시)
 export function recomputeSectionIndices(notes) {
     let currentSection = 0;
     for (let i = 0; i < notes.length; i++) {
         notes[i].sectionIndex = currentSection;
-        if (notes[i].type === 'node' && notes[i].beatReset) {
+        if (notes[i].beatReset) {
             currentSection++;
         }
     }
@@ -84,11 +84,11 @@ export function calculateSectionOffsets(notes, globalBpm, globalSubdivisions) {
 
     // sectionIndex 기반 계산 (정렬 이후에도 안정적)
     if (notes[0].sectionIndex !== undefined) {
-        // 각 구간의 시작 절대시간을 beatReset 노드에서 계산
+        // 각 구간의 시작 절대시간을 beatReset 노트에서 계산
         const sectionStartTimes = new Map([[0, 0]]);
 
         for (const note of notes) {
-            if (note.type === 'node' && note.beatReset) {
+            if (note.beatReset) {
                 const sIdx = note.sectionIndex;
                 if (!sectionStartTimes.has(sIdx + 1)) {
                     const prevOffset = sectionStartTimes.get(sIdx) || 0;
@@ -108,7 +108,7 @@ export function calculateSectionOffsets(notes, globalBpm, globalSubdivisions) {
     for (let i = 0; i < notes.length; i++) {
         offsets[i] = currentOffset;
         const note = notes[i];
-        if (note.type === 'node' && note.beatReset) {
+        if (note.beatReset) {
             const bpm = note.bpm || globalBpm;
             const subs = note.subdivisions || globalSubdivisions;
             currentOffset += beatToTime(note.beat, bpm, subs);

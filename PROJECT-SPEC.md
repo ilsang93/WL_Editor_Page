@@ -109,7 +109,8 @@ WL_Editor_Page/
   subdivisions: Number,  // 개별 세분음 (없으면 글로벌 subdivisions 사용)
   fade: Boolean,         // BPM 페이드 여부
   wait: Boolean,         // (node만) 정지 여부
-  fadeDirectTime: Number // (fade 구간 tab/longtab) 직접 시간값
+  fadeDirectTime: Number, // (fade 구간 tab/longtab) 직접 시간값
+  beatReset: Boolean     // 이 노트 이후 beat를 0부터 재시작
 }
 ```
 
@@ -121,6 +122,14 @@ down    → [0, 1]       downleft → [-1, 1]
 left    → [-1, 0]      downright→ [1, 1]
 right   → [1, 0]       upleft   → [-1, -1]
 ```
+
+### 5.4 Beat Reset 기능
+
+- **beatReset** 속성을 `true`로 설정하면 해당 노트 이후 beat 카운트가 0부터 재시작
+- **용도**: 곡 중간에 새로운 구간 시작을 표시하거나, 변박/구간 전환 시점 명시
+- **적용 범위**: 모든 노트 타입(Tab, Direction, Both, Node, LongTab, LongDirection, LongBoth)에서 사용 가능
+- **UI 표시**: NoteList에서 beatReset이 활성화된 노트의 행 아래에 주황색(#FF9800) 경계선 표시
+- **설정 방법**: NoteList의 Reset 컬럼 체크박스로 토글
 
 ---
 
