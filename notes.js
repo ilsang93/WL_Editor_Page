@@ -182,10 +182,14 @@ export function noteToJsonFormat(note, globalBpm, globalSubdivisions, preDelaySe
         fade: note.fade || false  // BPM fade 여부 (boolean)
     };
 
-    // Node 타입 노트의 경우 isWait, isBeatReset 필드 추가
+    // Node 타입 노트의 경우 isWait 필드 추가
     if (note.type === "node") {
         result.isWait = note.wait || false;
-        result.isBeatReset = note.beatReset || false;
+    }
+
+    // 모든 타입에서 beatReset이 true인 경우 isBeatReset 필드 추가
+    if (note.beatReset) {
+        result.isBeatReset = true;
     }
 
     return result;

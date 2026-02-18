@@ -6886,6 +6886,9 @@ async function pasteItems() {
                     newNote.wait = noteData.isWait || false;
                 }
 
+                // beatReset 필드 추가 (모든 타입)
+                newNote.beatReset = noteData.isBeatReset || false;
+
                 notes.push(newNote);
                 pastedNoteCount++;
             }
