@@ -6623,6 +6623,11 @@ function deleteSelectedItems() {
 
 // 선택된 노트들 삭제
 function deleteSelectedNotes() {
+    // 다중 선택이 없으면 단일 선택(포커스)된 노트를 대상으로 함
+    if (selectedNoteIndices.size === 0 && selectedNoteIndex !== null) {
+        selectedNoteIndices.add(selectedNoteIndex);
+    }
+
     if (selectedNoteIndices.size === 0) {
         return; // 선택된 노트가 없으면 아무것도 하지 않음
     }

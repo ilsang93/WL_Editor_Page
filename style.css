@@ -460,17 +460,18 @@ body {
 }
 
 /* 열 너비 지정 - 동적 사이드바 크기에 맞춰 퍼센트 기반 */
-#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 6%; }   /* NO. */
-#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 13%; }   /* Type (드롭다운) */
-#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 9%; }   /* Beat */
-#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 14%; }   /* Time (2줄 표시) */
-#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 9%; }   /* Length */
-#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 14%; }   /* Direction */
-#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 11%; }   /* BPM */
-#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 11%; }   /* Sub */
-#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 7%; }   /* Fade */
-#sidebar th:nth-child(10), #sidebar td:nth-child(10) { width: 7%; }   /* Wait */
-#sidebar th:nth-child(11), #sidebar td:nth-child(11) { width: 7%; }   /* Delete */
+#sidebar th:nth-child(1), #sidebar td:nth-child(1) { width: 5%; }   /* NO. */
+#sidebar th:nth-child(2), #sidebar td:nth-child(2) { width: 12%; }  /* Type (드롭다운) */
+#sidebar th:nth-child(3), #sidebar td:nth-child(3) { width: 8%; }   /* Beat */
+#sidebar th:nth-child(4), #sidebar td:nth-child(4) { width: 13%; }  /* Time (2줄 표시) */
+#sidebar th:nth-child(5), #sidebar td:nth-child(5) { width: 8%; }   /* Length */
+#sidebar th:nth-child(6), #sidebar td:nth-child(6) { width: 13%; }  /* Direction */
+#sidebar th:nth-child(7), #sidebar td:nth-child(7) { width: 9%; }   /* BPM */
+#sidebar th:nth-child(8), #sidebar td:nth-child(8) { width: 9%; }   /* Sub */
+#sidebar th:nth-child(9), #sidebar td:nth-child(9) { width: 5%; }   /* Fade */
+#sidebar th:nth-child(10), #sidebar td:nth-child(10) { width: 5%; } /* Wait */
+#sidebar th:nth-child(11), #sidebar td:nth-child(11) { width: 5%; } /* Reset */
+#sidebar th:nth-child(12), #sidebar td:nth-child(12) { width: 8%; } /* Delete */
 
 /* Type 드롭다운 크기 조정 */
 #sidebar td:nth-child(2) select {
