@@ -27,7 +27,6 @@ import {
     drawDirectionArrow,
     drawTriangle,
     processLongNote,
-    drawWaveform,
     drawRuler
 } from './canvas.js';
 
@@ -128,8 +127,7 @@ let renderScheduled = false;
 let pendingRenderFlags = {
     noteList: false,
     eventList: false,
-    canvas: false,
-    waveform: false
+    canvas: false
 };
 
 // Virtual Scrolling 상태
@@ -1664,7 +1662,7 @@ function playNoteSound(noteType) {
 
 
 
-function processAudioForWaveform(audioFile) {
+function processAudioFile(audioFile) {
     console.log('Processing audio file:', audioFile.name);
 
     hasAudioFile = true;
@@ -1674,7 +1672,7 @@ function processAudioForWaveform(audioFile) {
         console.warn('Failed to save audio to IndexedDB:', err);
     });
 
-    // Simple audio duration detection without waveform generation
+    // Audio duration detection
     const audio = new Audio();
     const url = URL.createObjectURL(audioFile);
     audio.src = url;
@@ -2363,7 +2361,7 @@ function loadFromStorage() {
                         }
                         indicator.textContent = `자동 복원: ${audioFile.name}`;
 
-                        processAudioForWaveform(audioFile);
+                        processAudioFile(audioFile);
                     }
                 }).catch(err => {
                     console.warn('Failed to load audio from IndexedDB:', err);
@@ -2736,7 +2734,6 @@ function scheduleRender(flags = {}) {
     if (flags.noteList) pendingRenderFlags.noteList = true;
     if (flags.eventList) pendingRenderFlags.eventList = true;
     if (flags.canvas) pendingRenderFlags.canvas = true;
-    if (flags.waveform) pendingRenderFlags.waveform = true;
 
     if (renderScheduled) return;
 
@@ -6327,7 +6324,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         // }
         // indicator.textContent = `선택된 파일: ${file.name}`;
 
-        processAudioForWaveform(file);
+        processAudioFile(file);
     });
 
     btnDemoPlay.addEventListener("click", () => {
@@ -6488,9 +6485,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     window.addEventListener('resize', () => {
-        resizeWaveformCanvas();
- {
-                    }
+        // Canvas resize handling if needed
     });
 
     setupVolumeControls();

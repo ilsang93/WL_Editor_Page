@@ -266,11 +266,6 @@ calculateFadeProgress(normalizedTime, startBpm, endBpm):
   - Linux: latencyHint='balanced', sampleRate=44100
 - 캘리브레이션 데이터 localStorage 저장 (`rhythm_game_calibration_v2`)
 
-### 9.3 웨이브폼
-
-- `generateWaveformData(audioBuffer, samples=1000)`: 1000개 샘플 추출
-- Canvas에 웨이브폼 시각화 (seekbar 위에 표시)
-
 ---
 
 ## 10. 이벤트 시스템
@@ -491,7 +486,7 @@ start-python-server.bat
 ```
 script.js (메인)
   ├── utils.js       (lerp, timeToBeat, beatToTime, 좌표 변환, ...)
-  ├── canvas.js      (drawCircle, drawText, drawDirectionArrow, processLongNote, drawWaveform, drawRuler)
+  ├── canvas.js      (drawCircle, drawText, drawDirectionArrow, processLongNote, drawRuler)
   ├── audio.js       (SoundPool, formatTime)
   ├── notes.js       (validateNote, validateChart, noteToJsonFormat, jsonToNoteFormat, ...)
   └── events.js      (addEvent, removeEvent, eventsToJson, loadEventsFromJson, ...)

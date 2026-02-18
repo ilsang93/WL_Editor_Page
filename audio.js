@@ -44,27 +44,6 @@ export function loadAudioFile(file, callback) {
     reader.readAsArrayBuffer(file);
 }
 
-// 웨이브폼 데이터 생성
-export function generateWaveformData(audioBuffer, samples = 1000) {
-    const channelData = audioBuffer.getChannelData(0);
-    const blockSize = Math.floor(channelData.length / samples);
-    const waveformData = [];
-
-    for (let i = 0; i < samples; i++) {
-        let sum = 0;
-        const start = i * blockSize;
-        const end = start + blockSize;
-        
-        for (let j = start; j < end && j < channelData.length; j++) {
-            sum += Math.abs(channelData[j]);
-        }
-        
-        waveformData.push(sum / blockSize);
-    }
-
-    return waveformData;
-}
-
 // 오디오 시간을 픽셀 위치로 변환
 export function timeToPixels(time, duration, containerWidth) {
     return (time / duration) * containerWidth;

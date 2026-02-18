@@ -99,26 +99,6 @@ export function processLongNote(note, pathBeat, pathDirectionNotes, nodePosition
     return null;
 }
 
-// 웨이브폼 그리기
-export function drawWaveform(waveformData, waveformCtx, waveformCanvas, zoom = 1) {
-    if (!waveformData) return;
-    
-    waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-    waveformCtx.fillStyle = "#333";
-    waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-
-    const barWidth = waveformCanvas.width / waveformData.length * zoom;
-    const barHeight = waveformCanvas.height;
-
-    waveformCtx.fillStyle = "#00ff00";
-    for (let i = 0; i < waveformData.length; i++) {
-        const x = i * barWidth;
-        const height = waveformData[i] * barHeight;
-        const y = (barHeight - height) / 2;
-        waveformCtx.fillRect(x, y, barWidth - 1, height);
-    }
-}
-
 // 눈금자 그리기
 export function drawRuler(rulerCtx, rulerCanvas, duration, zoom = 1) {
     rulerCtx.clearRect(0, 0, rulerCanvas.width, rulerCanvas.height);
