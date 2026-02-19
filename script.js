@@ -1,4 +1,6 @@
 // 모듈 임포트
+import { exportChartSVG } from './export-svg.js';
+
 import {
     lerp,
     getNoteTimingParams,
@@ -6045,6 +6047,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         drawPath();
         renderNoteList();
         renderEventList();
+    });
+
+    document.getElementById("export-image").addEventListener("click", () => {
+        const bpm = parseFloat(document.getElementById("bpm").value) || 120;
+        const subdivisions = parseInt(document.getElementById("subdivisions").value) || 16;
+        const preDelaySeconds = (parseInt(document.getElementById("pre-delay").value) || 0) / 1000;
+        exportChartSVG({
+            notes,
+            events: getAllEvents(),
+            bpm,
+            subdivisions,
+            preDelaySeconds,
+            speedMultiplier
+        });
     });
 
     document.getElementById("save-json").addEventListener("click", () => {
