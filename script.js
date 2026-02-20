@@ -6053,13 +6053,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         const bpm = parseFloat(document.getElementById("bpm").value) || 120;
         const subdivisions = parseInt(document.getElementById("subdivisions").value) || 16;
         const preDelaySeconds = (parseInt(document.getElementById("pre-delay").value) || 0) / 1000;
+        const level = parseInt(document.getElementById("level").value) || 10;
+        const musicName = savedAudioFile ? savedAudioFile.name.replace(/\.[^/.]+$/, "") : "Unknown";
         exportChartSVG({
             notes,
-            events: getAllEvents(),
             bpm,
             subdivisions,
             preDelaySeconds,
-            speedMultiplier
+            speedMultiplier,
+            musicName,
+            level
         });
     });
 
