@@ -6084,8 +6084,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         const validationResult = validateChart(notes, bpm, subdivisions, preDelaySeconds);
         if (!validationResult.isValid) {
-            alert(`차트 검증 실패:\n\n${validationResult.errors.join('\n')}\n\n수정 후 다시 시도해주세요.`);
-            return;
+            const proceedWithErrors = confirm(`차트 검증 실패:\n\n${validationResult.errors.join('\n')}\n\n무시하고 저장하시겠습니까?`);
+            if (!proceedWithErrors) {
+                return;
+            }
         }
 
         // 경고 메시지가 있으면 사용자에게 알림
