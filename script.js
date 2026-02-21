@@ -6076,13 +6076,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         ensureFinalDirectionNote(notes, bpm, subdivisions);
 
         // JSON 저장 전에 시간순으로 정렬 (무작위 순서 방지)
+        // 원본 배열은 수정하지 않고 복사본만 내보내기에 사용
         const sortedNotes = sortNotesByTime(notes, bpm, subdivisions);
-        notes.splice(0, notes.length, ...sortedNotes);
 
-        // 정렬 후 sectionIndex 재계산 및 캐시 무효화
-        invalidatePathCache();
-
-        const validationResult = validateChart(notes, bpm, subdivisions, preDelaySeconds);
+        const validationResult = validateChart(sortedNotes, bpm, subdivisions, preDelaySeconds);
         if (!validationResult.isValid) {
             const proceedWithErrors = confirm(`차트 검증 실패:\n\n${validationResult.errors.join('\n')}\n\n무시하고 저장하시겠습니까?`);
             if (!proceedWithErrors) {
