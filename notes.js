@@ -232,64 +232,59 @@ export function jsonToNoteFormat(jsonNote, globalBpm, globalSubdivisions) {
 }
 
 // 노트 리스트를 시간순으로 정렬
-// 1차 정렬: sectionIndex (구간 번호) — 구간 경계를 항상 보존
-// 2차 정렬: 구간 내 상대 시간 (beat 기반)
-// 무작위 순서의 데이터도 안정적으로 정렬하기 위해 절대시간 기반 반복 정렬 적용
+// 구간(section) 내에서만 정렬 - 구간 경계는 절대 변경하지 않음
+// 구간 정의: 최초 시작 또는 reset 이후부터 ~ reset 토글이 체크된 노트까지
+// beatReset 노트는 해당 구간의 마지막 노트
 export function sortNotesByTime(notes, globalBpm, globalSubdivisions) {
     if (notes.length === 0) return [];
 
-    // 작업용 배열 복사
-    const workNotes = [...notes];
+    // 작업용 배열 복사 (원본 노트 객체도 복사하여 수정 방지)
+    const workNotes = notes.map(n => ({ ...n }));
 
-    // 초기 sectionIndex 계산
+    // sectionIndex 계산 (현재 배열 순서 기준)
     recomputeSectionIndices(workNotes);
 
-    // 반복 정렬: beatReset 노트가 잘못된 위치에 있어도 올바르게 수렴하도록
-    // 절대시간 기반 정렬을 통해 무작위 순서의 데이터도 올바르게 정렬
-    // 최대 3회 반복 (대부분 1-2회면 충분)
-    let previousOrder = null;
-    const maxIterations = 3;
-
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-        // 현재 순서를 문자열로 저장 (수렴 검사용)
-        const currentOrder = workNotes.map(n => `${n.type}:${n.beat}:${n.sectionIndex || 0}`).join('|');
-
-        // 수렴 확인: 순서가 변하지 않으면 종료
-        if (currentOrder === previousOrder) {
-            break;
+    // 구간별로 노트 그룹화
+    const sections = new Map();
+    workNotes.forEach((note, originalIndex) => {
+        const sectionIdx = note.sectionIndex || 0;
+        if (!sections.has(sectionIdx)) {
+            sections.set(sectionIdx, []);
         }
-        previousOrder = currentOrder;
+        sections.get(sectionIdx).push({ note, originalIndex });
+    });
 
-        // 각 노트의 구간 오프셋 계산 (현재 sectionIndex 기반)
-        const sectionOffsets = calculateSectionOffsets(workNotes, globalBpm, globalSubdivisions);
+    // 각 구간 내에서 beat 기준으로 정렬
+    // beatReset 노트는 항상 해당 구간의 맨 뒤에 위치 (구간의 마지막 노트)
+    sections.forEach((sectionNotes, sectionIdx) => {
+        sectionNotes.sort((a, b) => {
+            // beatReset 노트는 구간의 맨 뒤로 (구간의 마지막 노트)
+            if (a.note.beatReset && !b.note.beatReset) return 1;
+            if (!a.note.beatReset && b.note.beatReset) return -1;
 
-        // 각 노트에 절대시간 정보를 임시로 저장
-        workNotes.forEach((note, idx) => {
-            const offset = sectionOffsets[idx] || 0;
-            const timing = getNoteTimingParams(note, globalBpm, globalSubdivisions);
-            note._absTime = offset + beatToTime(note.beat, timing.bpm, timing.subdivisions);
-        });
-
-        // 절대시간 기반 정렬 (동점일 때는 beat 값으로 2차 정렬)
-        workNotes.sort((a, b) => {
-            const timeDiff = a._absTime - b._absTime;
-            if (Math.abs(timeDiff) > 0.0001) { // 부동소수점 오차 고려
-                return timeDiff;
+            // beat 값으로 정렬
+            const beatDiff = a.note.beat - b.note.beat;
+            if (Math.abs(beatDiff) > 0.0001) {
+                return beatDiff;
             }
-            // 동일 시간일 경우 beat 값으로 정렬
-            return a.beat - b.beat;
+            // 동일 beat일 경우 원래 순서 유지
+            return a.originalIndex - b.originalIndex;
         });
+    });
 
-        // 임시 필드 제거
-        workNotes.forEach(note => {
-            delete note._absTime;
+    // 정렬된 구간들을 순서대로 합치기
+    const sortedSectionKeys = Array.from(sections.keys()).sort((a, b) => a - b);
+    const result = [];
+    sortedSectionKeys.forEach(sectionIdx => {
+        sections.get(sectionIdx).forEach(item => {
+            result.push(item.note);
         });
+    });
 
-        // 정렬 후 sectionIndex 재계산
-        recomputeSectionIndices(workNotes);
-    }
+    // 최종 sectionIndex 재계산
+    recomputeSectionIndices(result);
 
-    return workNotes;
+    return result;
 }
 
 // 초기 direction 노트 확인 및 추가
