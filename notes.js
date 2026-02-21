@@ -108,11 +108,11 @@ export function validateChart(notes, globalBpm, globalSubdivisions, preDelaySeco
                         let isValidInRange = false;
 
                         if (currentLongType === 'longtab') {
-                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'direction' || nextNoteType === 'both');
+                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'direction' || nextNoteType === 'both' || nextNoteType === 'node');
                         } else if (currentLongType === 'longdirection') {
-                            isValidInRange = (nextNoteType === 'tab');
+                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'node');
                         } else if (currentLongType === 'longboth') {
-                            isValidInRange = (nextNoteType === 'tab');
+                            isValidInRange = (nextNoteType === 'tab' || nextNoteType === 'node');
                         }
 
                         if (!isValidInRange) {
