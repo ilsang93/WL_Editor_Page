@@ -254,20 +254,23 @@ export function sortNotesByTime(notes, globalBpm, globalSubdivisions) {
         sections.get(sectionIdx).push({ note, originalIndex });
     });
 
-    // 각 구간 내에서 beat 기준으로 정렬
+    // 각 구간 내에서 실제 시간 기준으로 정렬
     // beatReset 노트는 항상 해당 구간의 맨 뒤에 위치 (구간의 마지막 노트)
+    // 주의: subdivisions가 다를 수 있으므로 beat가 아닌 실제 시간으로 비교해야 함
     sections.forEach((sectionNotes, sectionIdx) => {
         sectionNotes.sort((a, b) => {
             // beatReset 노트는 구간의 맨 뒤로 (구간의 마지막 노트)
             if (a.note.beatReset && !b.note.beatReset) return 1;
             if (!a.note.beatReset && b.note.beatReset) return -1;
 
-            // beat 값으로 정렬
-            const beatDiff = a.note.beat - b.note.beat;
-            if (Math.abs(beatDiff) > 0.0001) {
-                return beatDiff;
+            // 실제 시간으로 정렬 (beat, bpm, subdivisions를 모두 고려)
+            const timeA = beatToTime(a.note.beat, a.note.bpm || globalBpm, a.note.subdivisions || globalSubdivisions);
+            const timeB = beatToTime(b.note.beat, b.note.bpm || globalBpm, b.note.subdivisions || globalSubdivisions);
+            const timeDiff = timeA - timeB;
+            if (Math.abs(timeDiff) > 0.0001) {
+                return timeDiff;
             }
-            // 동일 beat일 경우 원래 순서 유지
+            // 동일 시간일 경우 원래 순서 유지
             return a.originalIndex - b.originalIndex;
         });
     });
