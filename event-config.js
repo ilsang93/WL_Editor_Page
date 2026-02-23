@@ -51,7 +51,8 @@ export const EVENT_IDS_BY_TYPE = {
         'illusion',
         'flame',
         'replace_image',
-        'setadditive'
+        'setadditive',
+        'film'
     ],
     'speedshift': [
         'speedup',
@@ -69,7 +70,8 @@ export const EVENT_IDS_BY_TYPE = {
         'firework',
     ],
     'postprocessing': [
-        'film',
+        'color',
+        'monochorme'
     ],
     'light': [
         'setstatic',
@@ -199,6 +201,9 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     'overlay-replace_image': [
         { paramName: 'image_name', paramType: 'string' },
     ],
+    'overlay-film': [
+        { paramName: 'istrue', paramType: 'bool' },
+    ],
 
     'startrail-defaultstar': [
         { paramName: 'intensity', paramType: 'float' },
@@ -275,8 +280,15 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'active', paramType: 'bool' },
     ],
 
-    'postprocessing-film': [
-        { paramName: 'intensity', paramType: 'float' },
+    'postprocessing-color': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
+    'postprocessing-monochrome': [
+        { paramName: 'saturation', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
     ],
 
     // system 타입 이벤트
