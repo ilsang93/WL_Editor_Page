@@ -71,7 +71,7 @@ export const EVENT_IDS_BY_TYPE = {
     ],
     'postprocessing': [
         'color',
-        'monochorme'
+        'monochrome'
     ],
     'light': [
         'setstatic',
