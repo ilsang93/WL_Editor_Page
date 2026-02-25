@@ -91,7 +91,8 @@ export const EVENT_IDS_BY_TYPE = {
     'system': [
         'dialog',
         'disableinput',
-        'enableinput'
+        'enableinput',
+        'appeartime'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -299,6 +300,10 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'system-enableinput': [
     ],
+    'system-appeartime' : [
+        { paramName: 'time', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ]
 };
 
 // Dialog 아이템 타입 목록
