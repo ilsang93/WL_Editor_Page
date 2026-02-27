@@ -203,7 +203,8 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'image_name', paramType: 'string' },
     ],
     'overlay-film': [
-        { paramName: 'istrue', paramType: 'bool' },
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
     ],
 
     'startrail-defaultstar': [
