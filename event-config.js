@@ -206,6 +206,10 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'intensity', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' },
     ],
+    'overlay-letterbox': [
+        { paramName: 'area', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
 
     'startrail-defaultstar': [
         { paramName: 'intensity', paramType: 'float' },
