@@ -52,7 +52,8 @@ export const EVENT_IDS_BY_TYPE = {
         'flame',
         'replace_image',
         'setadditive',
-        'film'
+        'film',
+        'letterbox'
     ],
     'speedshift': [
         'speedup',
