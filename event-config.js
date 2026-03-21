@@ -72,7 +72,10 @@ export const EVENT_IDS_BY_TYPE = {
     ],
     'postprocessing': [
         'color',
-        'monochrome'
+        'monochrome',
+        'glitch',
+        'scanline',
+        'shockwave'
     ],
     'light': [
         'setstatic',
@@ -295,6 +298,30 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'postprocessing-monochrome': [
         { paramName: 'saturation', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
+    'postprocessing-glitch': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'chromaticAberration', paramType: 'float' },
+        { paramName: 'glitchFrequency', paramType: 'float' },
+        { paramName: 'glitchIntensity', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
+    'postprocessing-scanline': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'lineCount', paramType: 'float' },
+        { paramName: 'scrollSpeed', paramType: 'float' },
+        { paramName: 'lineThickness', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' },
+    ],
+    'postprocessing-shockwave': [
+        { paramName: 'intensity', paramType: 'float' },
+        { paramName: 'centerX', paramType: 'float' },
+        { paramName: 'centerY', paramType: 'float' },
+        { paramName: 'scale', paramType: 'float' },
+        { paramName: 'distortionPower', paramType: 'float' },
+        { paramName: 'maskPower', paramType: 'float' },
+        { paramName: 'colorBlend', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' },
     ],
 
