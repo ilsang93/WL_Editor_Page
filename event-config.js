@@ -13,6 +13,7 @@ export const EVENT_TYPES = [
     'effect',
     'postprocessing',
     'system',
+    'text',
     'custom',
 ];
 
@@ -98,6 +99,20 @@ export const EVENT_IDS_BY_TYPE = {
         'disableinput',
         'enableinput',
         'appeartime'
+    ],
+    'text': [
+        'active',
+        'text',
+        'appear',
+        'disappear',
+        'size',
+        'color',
+        'position',
+        'alignment',
+        'speed',
+        'skip',
+        'clear',
+        'font'
     ],
     'custom': [] // custom 타입은 빈 배열 (텍스트 입력 사용)
 };
@@ -336,6 +351,52 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     'system-appeartime' : [
         { paramName: 'time', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' },
+    ],
+
+    // text 타입 이벤트
+    'text-active': [
+        { paramName: 'value', paramType: 'bool' }
+    ],
+    'text-text': [
+        { paramName: 'value', paramType: 'string' }
+    ],
+    'text-appear': [
+        { paramName: 'effect', paramType: 'string' },
+        { paramName: 'canvasfade', paramType: 'float' }
+    ],
+    'text-disappear': [
+        { paramName: 'effect', paramType: 'string' },
+        { paramName: 'canvasfade', paramType: 'bool' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'text-size': [
+        { paramName: 'value', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'text-color': [
+        { paramName: 'red', paramType: 'int' },
+        { paramName: 'green', paramType: 'int' },
+        { paramName: 'blue', paramType: 'int' },
+        { paramName: 'alpha', paramType: 'int' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'text-position': [
+        { paramName: 'x', paramType: 'float' },
+        { paramName: 'y', paramType: 'float' },
+        { paramName: 'fade', paramType: 'float' }
+    ],
+    'text-alignment': [
+        { paramName: 'value', paramType: 'string' }
+    ],
+    'text-speed': [
+        { paramName: 'value', paramType: 'float' }
+    ],
+    'text-skip': [
+    ],
+    'text-clear': [
+    ],
+    'text-font': [
+        // TODO: 폰트 변경 기능 미구현
     ]
 };
 
@@ -380,5 +441,6 @@ export const EVENT_TYPE_DESCRIPTIONS = {
     'background': '배경 및 시각적 효과 관련 이벤트',
     'character': '캐릭터 관련 이벤트',
     'overlay': '오버레이 패널 시각 효과 관련 이벤트',
+    'text': '텍스트 오버레이 연출 이벤트 (TextAnimator 기반)',
     'custom': '사용자 정의 이벤트 (직접 입력)'
 };
