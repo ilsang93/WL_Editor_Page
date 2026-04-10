@@ -2886,6 +2886,7 @@ function renderNoteListImmediate() {
             className = "node-note";
         }
         tr.className = className;
+        tr.dataset.index = index;
         if (index === selectedNoteIndex) {
             tr.classList.add("highlight");
         }
@@ -3536,8 +3537,9 @@ function focusNoteAtIndex(index) {
 
     // 노트 리스트 하이라이트 업데이트
     const tbody = document.getElementById("note-list");
-    Array.from(tbody.children).forEach((row, i) => {
-        if (i === index) {
+    Array.from(tbody.children).forEach((row) => {
+        const rowIndex = parseInt(row.dataset.index, 10);
+        if (rowIndex === index) {
             row.classList.add("highlight");
             row.scrollIntoView({ behavior: "smooth", block: "nearest" });
         } else {
