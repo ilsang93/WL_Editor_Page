@@ -54,7 +54,12 @@ export const EVENT_IDS_BY_TYPE = {
         'replace_image',
         'setadditive',
         'film',
-        'letterbox'
+        'letterbox',
+        'spring',
+        'summer',
+        'fall',
+        'winter',
+        'stop_particle'
     ],
     'speedshift': [
         'speedup',
@@ -230,7 +235,21 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'area', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' },
     ],
+    'overlay-spring': [
 
+    ],
+    'overlay-summer': [
+
+    ],
+    'overlay-fall': [
+
+    ],
+    'overlay-winter': [
+
+    ],
+    'overlay-stop_particle': [
+        
+    ],
     'startrail-defaultstar': [
         { paramName: 'intensity', paramType: 'float' },
     ],
@@ -348,7 +367,7 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
     ],
     'system-enableinput': [
     ],
-    'system-appeartime' : [
+    'system-appeartime': [
         { paramName: 'time', paramType: 'float' },
         { paramName: 'fade', paramType: 'float' },
     ],
