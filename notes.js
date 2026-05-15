@@ -29,6 +29,11 @@ export function validateNote(note, globalBpm, globalSubdivisions) {
             errors.push('Direction notes must have a valid direction');
         }
     }
+
+    // Node 노트는 direction이 옵션 (기본 'none'). 값이 있다면 문자열이어야 함
+    if (note.type === 'node' && note.direction !== undefined && typeof note.direction !== 'string') {
+        errors.push('Node direction must be a string when provided');
+    }
     
     if (note.isLong && (!note.longTime || note.longTime <= 0)) {
         errors.push('Long notes must have positive longTime');

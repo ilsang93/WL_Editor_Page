@@ -289,7 +289,7 @@ function calculateNodePositions(pathDirectionNotes, bpm, subdivisions) {
             const dist = movementSpeed * adjustedDTime;
 
             let direction = a.direction;
-            if (a.type === "node") {
+            if (a.type === "node" && (!direction || direction === "none")) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {
@@ -654,6 +654,9 @@ function renderNodeNotes(nodeNotes, bpm, targetCtx = ctx) {
     nodeNotes.forEach(({ note, screenX, screenY }) => {
         const nodeDisplayY = screenY - 30;
 
+        targetCtx.fillStyle = "#607D8B";
+        targetCtx.strokeStyle = "#263238";
+        targetCtx.lineWidth = 2;
         targetCtx.beginPath();
         targetCtx.arc(screenX, nodeDisplayY, 6, 0, 2 * Math.PI);
         targetCtx.fill();
@@ -674,6 +677,33 @@ function renderNodeNotes(nodeNotes, bpm, targetCtx = ctx) {
         targetCtx.strokeStyle = "rgba(96, 125, 139, 0.5)";
         targetCtx.lineWidth = 1;
         targetCtx.stroke();
+
+        // 명시적 direction이 설정된 경우 화살표 표시
+        if (note.direction && note.direction !== "none") {
+            const [dx, dy] = directionToVector(note.direction);
+            const mag = Math.hypot(dx, dy) || 1;
+            const ux = (dx / mag) * 14;
+            const uy = (dy / mag) * 14;
+            const endX = screenX + ux;
+            const endY = nodeDisplayY + uy;
+
+            targetCtx.strokeStyle = "#607D8B";
+            targetCtx.fillStyle = "#607D8B";
+            targetCtx.lineWidth = 2;
+            targetCtx.beginPath();
+            targetCtx.moveTo(screenX, nodeDisplayY);
+            targetCtx.lineTo(endX, endY);
+            targetCtx.stroke();
+
+            const perpX = -uy * 0.5;
+            const perpY = ux * 0.5;
+            targetCtx.beginPath();
+            targetCtx.moveTo(endX, endY);
+            targetCtx.lineTo(endX - ux * 0.4 + perpX, endY - uy * 0.4 + perpY);
+            targetCtx.lineTo(endX - ux * 0.4 - perpX, endY - uy * 0.4 - perpY);
+            targetCtx.closePath();
+            targetCtx.fill();
+        }
     });
 }
 
@@ -1944,7 +1974,7 @@ function calculateExactPositionOnPath(targetTime, pathDirectionNotes, bpm, subdi
             const dTime = b.finalTime - a.finalTime;
 
             let direction = a.direction;
-            if (a.type === "node") {
+            if (a.type === "node" && (!direction || direction === "none")) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {
@@ -1980,7 +2010,7 @@ function calculateExactPositionOnPath(targetTime, pathDirectionNotes, bpm, subdi
             const dTime = b.finalTime - a.finalTime;
 
             let direction = a.direction;
-            if (a.type === "node") {
+            if (a.type === "node" && (!direction || direction === "none")) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {
@@ -2014,7 +2044,7 @@ function calculateExactPositionOnPath(targetTime, pathDirectionNotes, bpm, subdi
             const timeRatio = (targetTime - a.finalTime) / dTime;
 
             let direction = a.direction;
-            if (a.type === "node") {
+            if (a.type === "node" && (!direction || direction === "none")) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {
@@ -2957,7 +2987,7 @@ function renderNoteListImmediate() {
                 }
 
                 // direction 속성 처리
-                if (["direction", "longdirection", "both", "longboth"].includes(newType)) {
+                if (["direction", "longdirection", "both", "longboth", "node"].includes(newType)) {
                     if (!n.direction) {
                         n.direction = "none";
                     }
@@ -3150,13 +3180,13 @@ function renderNoteListImmediate() {
         }
 
         const tdDir = document.createElement("td");
-        if (note.type === "direction" || note.type === "longdirection" || note.type === "both" || note.type === "longboth") {
+        if (["direction", "longdirection", "both", "longboth", "node"].includes(note.type)) {
             const select = document.createElement("select");
             ["none", "up", "down", "left", "right", "upleft", "upright", "downleft", "downright"].forEach(d => {
                 const opt = document.createElement("option");
                 opt.value = d;
                 opt.textContent = d;
-                if (note.direction === d)
+                if ((note.direction || "none") === d)
                     opt.selected = true;
                 select.appendChild(opt);
             });
@@ -3172,7 +3202,7 @@ function renderNoteListImmediate() {
                         if (idx < notes.length) {
                             const n = notes[idx];
                             // 방향을 가질 수 있는 타입인지 확인
-                            if (["direction", "longdirection", "both", "longboth"].includes(n.type)) {
+                            if (["direction", "longdirection", "both", "longboth", "node"].includes(n.type)) {
                                 n.direction = newDirection;
                             }
                         }
@@ -3181,6 +3211,7 @@ function renderNoteListImmediate() {
                     note.direction = newDirection;
                 }
 
+                invalidatePathCache();
                 saveToStorage();
                 drawPath();
                                     });
@@ -3495,7 +3526,7 @@ function focusNoteAtIndex(index) {
 
             // For Node type notes, find the previous direction note's direction
             let direction = a.direction;
-            if (a.type === "node") {
+            if (a.type === "node" && (!direction || direction === "none")) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {
@@ -4090,6 +4121,9 @@ function addNote(noteProps) {
 
             const lastDirNote = precedingDirectionNotes.length > 0 ? precedingDirectionNotes[precedingDirectionNotes.length - 1] : null;
             newNote.direction = lastDirNote ? lastDirNote.direction : "none";
+        } else if (newNote.type === "node") {
+            // Node 노트는 기본 'none' (이전 방향을 추종하는 기존 동작)
+            newNote.direction = "none";
         }
 
         if (newNote.isLong) {
@@ -4352,8 +4386,8 @@ function calculateUnityNodePositions(bpm, subdivisions, preDelaySeconds) {
 
             // 방향 결정
             let direction = fromNote.direction;
-            if (fromNote.type === "node") {
-                // 노드의 경우 이전 방향 노트의 방향 사용
+            if (fromNote.type === "node" && (!direction || direction === "none")) {
+                // 노드의 direction이 'none'이면 이전 방향 노트의 방향 사용 (기존 동작)
                 for (let j = i - 1; j >= 0; j--) {
                     const prevNote = pathDirectionNotes[j];
                     if (prevNote.type !== "node" && prevNote.direction) {

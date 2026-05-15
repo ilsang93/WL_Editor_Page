@@ -60,7 +60,7 @@ function _buildNodePositions(pathDirNotes, bpm, speedMult) {
             const dist = speed * (b.finalTime - a.finalTime);
 
             let dir = a.direction;
-            if (a.type === 'node') {
+            if (a.type === 'node' && (!dir || dir === 'none')) {
                 for (let j = i - 1; j >= 0; j--) {
                     const prev = pathDirNotes[j];
                     if (prev.type !== 'node' && prev.direction) {
@@ -392,6 +392,12 @@ export function exportChartSVG({ notes, bpm, subdivisions, preDelaySeconds, spee
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(String(noteBpm), sp.x, nodeY);
+
+            // 명시적 direction이 설정된 경우 화살표 표시
+            if (note.direction && note.direction !== 'none') {
+                const arrowLineWidth = Math.max(2, scale * 0.15);
+                _drawArrow(ctx, sp.x, nodeY, note.direction, '#607D8B', arrowSize, arrowLineWidth);
+            }
         } else if (type === 'tab' || type === 'longtab') {
             const fill = isFirst ? 'red' : '#FF6B6B';
             const stroke = isFirst ? '#cc0000' : '#4CAF50';
