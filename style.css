@@ -575,8 +575,43 @@ body {
   background: #444;
 }
 
+/* 노트 타입별 행 배경색 (은은한 톤) */
+#sidebar tr.tab-note,
+#sidebar tr.long-tab-note {
+  background: #3a2a2a;
+}
+
+#sidebar tr.dir-note {
+  background: #2a323c;
+}
+
+#sidebar tr.both-note {
+  background: #342a3c;
+}
+
+#sidebar tr.node-note {
+  background: #2f3538;
+}
+
 #sidebar tr:hover {
   background: #444;
+}
+
+#sidebar tr.tab-note:hover,
+#sidebar tr.long-tab-note:hover {
+  background: #4a3636;
+}
+
+#sidebar tr.dir-note:hover {
+  background: #36424e;
+}
+
+#sidebar tr.both-note:hover {
+  background: #44364e;
+}
+
+#sidebar tr.node-note:hover {
+  background: #3c4348;
 }
 
 #sidebar tr.highlight {

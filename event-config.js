@@ -236,19 +236,19 @@ export const PREDEFINED_PARAMS_BY_EVENT_ID = {
         { paramName: 'fade', paramType: 'float' },
     ],
     'overlay-spring': [
-
+        { paramName: 'prewarm', paramType: 'bool' },
     ],
     'overlay-summer': [
-
+        { paramName: 'prewarm', paramType: 'bool' },
     ],
     'overlay-fall': [
-
+        { paramName: 'prewarm', paramType: 'bool' },
     ],
     'overlay-winter': [
-
+        { paramName: 'prewarm', paramType: 'bool' },
     ],
     'overlay-stop_particle': [
-        
+        { paramName: 'immediate', paramType: 'bool' },
     ],
     'startrail-defaultstar': [
         { paramName: 'intensity', paramType: 'float' },
